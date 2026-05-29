@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * Thème NEEMBA - Variables CSS personnalisées
+ * Couleur principale : #fdc911 (Or NEEMBA)
+ */
+@layer base {
+    :root {
+        /* Couleurs NEEMBA */
+        --neemba-primary: 45 97% 53%;
+        --neemba-primary-foreground: 0 0% 9%;
+
+        /* Couleurs du thème UI */
+        --background: 0 0% 100%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 45 97% 53%;
+        --primary-foreground: 0 0% 9%;
+        --secondary: 210 40% 96%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 210 40% 96%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 210 40% 96%;
+        --accent-foreground: 222 47% 11%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 45 97% 53%;
+        --radius: 0.5rem;
+
+        /* Couleurs pour les statuts des bons de caisse */
+        --statut-brouillon: 215 16% 47%;
+        --statut-en-attente: 45 97% 53%;
+        --statut-approuve: 142 71% 45%;
+        --statut-paye: 217 91% 60%;
+        --statut-rejete: 0 84% 60%;
+        --statut-regularise: 262 83% 58%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground antialiased;
+        font-feature-settings: "rlig" 1, "calt" 1;
+    }
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Animation clignotante pour les notifications urgentes */
+@keyframes urgence-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.animate-urgence-blink {
+    animation: urgence-blink 1.2s ease-in-out infinite;
+}
+
+/* Empêcher le scroll horizontal global */
+html, body {
+    overflow-x: hidden;
+    max-width: 100vw;
+}
