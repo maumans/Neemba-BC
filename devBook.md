@@ -1,7 +1,7 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 15 Avril 2026 (v17 — Alertes proactives seuil de caisse : SMS + push aux caissiers, commande planifiée caisse:verifier-seuils)
+> Dernière mise à jour : 6 Octobre 2026 (v19 — Lot 0 : sécurité, stabilisation caisse Espèces/OM, rapport journalier, tests MySQL)
 
 ---
 
@@ -552,7 +552,7 @@ Ces pages ont été générées par Laravel Breeze et ont été **adaptées** au
 |---|-------|--------|
 | 1 | `npm run build` sans erreurs | ✅ Fait |
 | 2 | Serveurs Laravel + Vite démarrés | ✅ Fait |
-| 3 | Déploiement production | ⬜ À faire |
+| 3 | Déploiement production | ✅ Fait — `neemba.wedrive.africa` (correction bug 403 `storage:link`) |
 
 ---
 
@@ -979,9 +979,13 @@ Le formulaire officiel « Autorisation de Dépenses de Caisse » est généré d
 | ✅ | **Urgence visuelle bons** | **Indicateurs colorés (rouge/orange) + badges clignotants sur bons urgents** | **Fait (v12)** |
 | ✅ | **Fix notifications vides** | **Badge affichait un compteur mais liste vide — refactoring fetch/cache** | **Fait (v12)** |
 | ✅ | **Frontend post-réunion (v13)** | **MouvementsCaisse, Délégations, Dashboard enrichi, Rapports détaillés, Paramétrage caisse/BU** | **Fait (v13)** |
+| ✅ | **Module OCR documenté** | **Analyse auto pièces jointes (pdftotext + Tesseract + OpenAI/regex fallback)** | **Fait (v18 — audit Juin 2026)** |
+| ✅ | **Seeder pilote Conakry** | **7 utilisateurs réels, 10 bons pré-positionnés, seuil DP 1 500 000 GNF** | **Fait (v18)** |
+| ✅ | **Déploiement production** | **neemba.wedrive.africa — bug 403 storage:link corrigé** | **Fait (v18)** |
 | 🟡 | Notifications email | Emails transactionnels (validation, paiement, relance) | À faire |
 | 🟢 | Tests unitaires | PHPUnit pour les modèles et contrôleurs | À faire |
-| 🟢 | Déploiement production | Configuration serveur NEEMBA | À faire |
+| ⏳ | OpenAI API key production | Activer l'analyse IA OCR (sans clé = mode regex uniquement) | En attente client |
+| ⏳ | poppler-utils + tesseract serveur | Installer sur le serveur de prod pour activer l'OCR PDF/image | En attente serveur |
 
 ---
 
@@ -1889,6 +1893,272 @@ Le seuil est propre à chaque site et configurable dans **Paramétrage > Sites**
 | `seuil_minimum_caisse` | Seuil en GNF sous lequel l'alerte est déclenchée | 500 000 GNF |
 
 Si aucun `seuil_minimum_caisse` n'est défini pour un site, le paramètre global `seuil_minimum_caisse` de la table `parametres` est utilisé (défaut : 500 000 GNF).
+
+---
+
+## 17. Module OCR — Analyse automatique des pièces jointes (Non daté — découvert audit Juin 2026)
+
+> Ce module était entièrement implémenté mais non documenté. Documenté rétroactivement après audit du code.
+
+### 17.1 Objectif
+
+Analyser automatiquement les pièces jointes (factures, reçus, tickets carburant) lors de leur upload pour **pré-remplir le formulaire de bon de caisse** : fournisseur, montant, date, référence de facture. Contexte guinéen pris en compte (devise GNF par défaut, stations-service africaines, langues fr+en).
+
+### 17.2 Architecture — Deux modes
+
+| Mode | Déclencheur | Contrôleur/Job | Usage |
+|------|------------|----------------|-------|
+| **Synchrone** | Upload d'un fichier pendant la saisie | `OcrAnalyseController` | Pré-remplissage immédiat du formulaire |
+| **Asynchrone** | Pièce jointe déjà attachée à un bon | `ProcessPieceJointeOcrJob` | Traitement en arrière-plan (queue) |
+
+**Philosophie explicite dans le code :** *"OCR = assistance, jamais obligation"*
+
+### 17.3 Fichiers
+
+| Fichier | Rôle |
+|---------|------|
+| `app/Http/Controllers/OcrAnalyseController.php` | POST `/api/ocr/analyser` — reçoit un fichier, retourne les données extraites |
+| `app/Http/Controllers/OcrController.php` | GET `/api/bons-caisse/{bon}/ocr` — statut et données OCR de toutes les pièces d'un bon |
+| `app/Services/OcrService.php` | Extraction du texte brut depuis PDF (pdftotext + regex fallback) et images (Tesseract) |
+| `app/Services/DocumentAnalyseService.php` | Analyse intelligente du texte extrait → champs structurés |
+| `app/Jobs/ProcessPieceJointeOcrJob.php` | Job de queue : OCR + classification IA + indexation full-text + contrôle DPI |
+
+### 17.4 Moteur d'extraction — `OcrService`
+
+| Support | Outil | Fallback |
+|---------|-------|---------|
+| **PDF** | `pdftotext` (poppler-utils, option `-layout`) | Extraction regex PHP sur streams textuels |
+| **Images** | Tesseract OCR (langues `fra+eng`) | Retry sans langue si échec |
+
+Détection automatique des exécutables via `where` (Windows) / `which` (Linux/Mac). Retourne une chaîne vide si aucun outil disponible (dégradation gracieuse).
+
+> **⚠ Windows :** La commande Tesseract utilise `2>/dev/null` qui ne fonctionne pas sur Windows PowerShell. Sur le serveur Linux de production ce n'est pas un problème.
+
+### 17.5 Analyse intelligente — `DocumentAnalyseService`
+
+**Niveau 1 (si `OPENAI_API_KEY` configurée) :**
+- Appel API OpenAI `chat/completions` (modèle configurable `OPENAI_MODEL`, défaut `gpt-4o-mini`)
+- Temperature 0.1, max_tokens 500
+- Prompt extrait : fournisseur, date_document, montant, devise, reference_document, description, et pour carburant : station, litrage, prix_unitaire, immatriculation
+
+**Niveau 2 — Fallback regex (sans clé OpenAI) :**
+- Montant : patterns total/net à payer/TTC
+- Devise : GNF par défaut si contexte guinéen
+- Date : formats DD/MM/YYYY, YYYY-MM-DD, texte français
+- Référence : patterns FAC-, INV-, numéro de facture
+- Fournisseur : heuristique première ligne
+- Carburant : stations TOTAL/SHELL/STAR OIL/ORYX/VIVO ENERGY/ENGEN détectées
+
+### 17.6 Routes OCR
+
+```php
+POST /api/ocr/analyser                          — Analyse instantanée d'un fichier uploadé
+GET  /api/bons-caisse/{bonCaisse}/ocr           — Statut OCR de toutes les pièces du bon
+```
+
+### 17.7 Configuration requise
+
+```env
+# Optionnel — active l'analyse IA. Sans clé, mode regex uniquement.
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini   # défaut
+
+# Outils système (installer sur le serveur)
+# PDF  : sudo apt install poppler-utils
+# Image: sudo apt install tesseract-ocr tesseract-ocr-fra
+```
+
+### 17.8 Champs retournés
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `fournisseur` | string | Nom du fournisseur/émetteur |
+| `date_document` | string | Date de la facture/reçu |
+| `montant` | float | Montant total |
+| `devise` | string | Devise (GNF par défaut) |
+| `reference_document` | string | Numéro de facture/référence |
+| `description` | string | Description de la dépense |
+| `station` | string | *(carburant)* Nom de la station |
+| `litrage` | float | *(carburant)* Volume en litres |
+| `prix_unitaire` | float | *(carburant)* Prix par litre |
+| `immatriculation` | string | *(carburant)* Immatriculation du véhicule |
+
+---
+
+## 18. Version v18 — Pilote Conakry + Déploiement Production (2 Juin 2026)
+
+### 18.1 Déploiement Production
+
+| Élément | Valeur |
+|---------|--------|
+| URL production | `https://neemba.wedrive.africa` |
+| Référent Addvalis | Thierno DIALLO — Lead consultant |
+
+**Bug production identifié et corrigé :**
+
+| Bug | Cause | Correction |
+|-----|-------|-----------|
+| **403 FORBIDDEN sur pièces jointes** | Le symlink `public/storage → storage/app/public` était absent sur le serveur de production | `php artisan storage:link` sur le serveur |
+
+### 18.2 Paramétrage client NEEMBA Caterpillar Conakry
+
+Le client a défini ses propres seuils de validation, différents des valeurs par défaut du devBook :
+
+| Paramètre | Valeur par défaut | **Valeur client** | Raison |
+|-----------|------------------|-------------------|--------|
+| `seuil_validation_dp` | 5 000 000 GNF | **1 500 000 GNF** | Scénario S08 plan de test client |
+| `seuil_minimum_caisse` | 500 000 GNF | **1 000 000 GNF** | Seuil d'alerte caisse Conakry |
+
+> **⚠ IMPORTANT :** Toute référence au seuil DP dans le code doit utiliser `Parametre::seuilDP()` (dynamique) et non une valeur en dur. Cette règle est déjà appliquée depuis la v6.
+
+### 18.3 Utilisateurs pilote réels (Conakry)
+
+Mot de passe commun : **`Neemba@2026`**
+
+| Rôle | Email | Téléphone | Matricule |
+|------|-------|-----------|-----------|
+| Demandeur | saoudou.barry@neemba.com | 622 461 261 | NMB-P001 |
+| Responsable Service | thierry.gomis@neemba.com | 627 471 735 | NMB-P002 |
+| Contrôle de Gestion | maimouna.barry@neemba.com | 627 261 871 | NMB-P003 |
+| DAF | mohamed.diakite@neemba.com | 629 000 769 | NMB-P004 |
+| Directeur Pays | mamadou.lo@neemba.com | 612 007 272 | NMB-P005 |
+| Caissier | youssouf.toure@neemba.com | 623 072 484 | NMB-P006 |
+| Administrateur (Addvalis) | thierno.diallo@addvalis.com | — | ADV-001 |
+
+Tous les utilisateurs pilote sont dans le service **Aftermarket** (demandeur + chef) et le site **Conakry**.
+
+### 18.4 Seeder pilote
+
+**Fichier :** `database/seeders/NeembaSeeder.php` — entièrement reécrit pour le pilote.
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+**Configuration caisse Conakry :**
+- Solde initial : **15 000 000 GNF**
+- Plafond : 50 000 000 GNF
+- Seuil alerte : 1 000 000 GNF
+
+**Bons pré-positionnés pour les 11 scénarios du plan de test :**
+
+| Bon | Scénario | Statut | Montant | Objectif |
+|-----|---------|--------|---------|----------|
+| BC-2026-0001 | S03 | EN_ATTENTE_CDG | 450 000 | CDG corrige le code analytique (DAFZZZ → ADAZZZ) |
+| BC-2026-0002 | S04 | EN_ATTENTE_CHEF_SERVICE | 320 000 | Chef de service rejette avec motif |
+| BC-2026-0003 | S05 | PAYE (BP) | 1 200 000 | Demandeur régularise avant J+2 |
+| BC-2026-0004 | S06 | APPROUVE | 750 000 | Caissier génère OTP et paie |
+| BC-2026-0005 | S07 | EN_ATTENTE_DAF | 6 000 000 | Workflow 4 niveaux (DAF → DP) |
+| BC-2026-0006 | S08 | EN_ATTENTE_DP | 2 000 000 | Validation DG Pays (seuil 1,5M) |
+| BC-2026-0007/8/9 | S09 | PAYE (aujourd'hui) | ~450 000 chacun | Rapport journalier temps réel |
+| BC-2026-0010 | S11 | APPROUVE | 16 000 000 | Blocage solde (16M > 15M caisse) |
+
+> S01, S02 et S10 sont créés directement par les utilisateurs pendant le test (pas de pré-seeding).
+
+### 18.5 Plan de test pilote
+
+**Fichier :** `test.md` à la racine du projet.
+
+| Réf | Scénario | Rôles impliqués | KPI mesuré |
+|-----|---------|-----------------|------------|
+| S01 | Bon standard bout-en-bout | Tous | Délai validation < 2j |
+| S02 | Bon urgent (motif obligatoire) | Demandeur | Notification < 2h |
+| S03 | Correction code analytique CDG | Demandeur + CDG | Traçabilité modification |
+| S04 | Rejet avec notification | CDG/DAF | Délai notification rejet < 2h |
+| S05 | Bon provisoire + régularisation | Demandeur + Caissier | Taux régularisation dans délai |
+| S06 | Paiement OTP sécurisé | Caissier | Sécurité + solde mis à jour |
+| S07 | Workflow 4 niveaux (≥ 5M GNF) | DAF + DG Pays | Workflow complet |
+| S08 | Seuil DG Pays (≥ 1,5M GNF) | DG Pays | Seuil paramétrable |
+| S09 | Rapport journalier automatique | Caissier/Finance | Rapport J+0 avant 8h |
+| S10 | Délégation de signature | Admin/CDG | Délégation opérationnelle |
+| S11 | Blocage solde négatif | Caissier | Blocage + alerte automatique |
+
+**Critère de clôture :** Fiche GO / NO GO signée à J+10 maximum.
+
+### 18.6 Fichiers modifiés (v18)
+
+| Fichier | Type | Description |
+|---------|------|-------------|
+| `database/seeders/NeembaSeeder.php` | Modifié | Réécriture complète — utilisateurs pilote réels, bons pré-positionnés, seuil DP 1,5M |
+| `test.md` | Nouveau | Plan de test pilote Conakry — 11 scénarios, grille KPI, journal quotidien |
+| `devBook.md` | Modifié | Documentation module OCR (§17), pilote Conakry (§18) |
+
+---
+
+## 19. Version v19 — Lot 0 : sécurité et stabilisation avant M03 (6 Octobre 2026)
+
+### 19.1 Contexte
+
+La SFD v1.3 (livraison 1, 05/10/2026) détaille le module M03 « Saisie du bon de caisse » et liste 14 anomalies du socle (ANO-01 à ANO-14). Le travail est découpé en lots :
+
+| Lot | Contenu | Statut |
+|-----|---------|--------|
+| 0 | Sécurité, stabilisation du travail non commité (juin/août), bugs de production | ✅ Fait (branche `lot0-stabilisation`) |
+| 1 | Socle transverse : messages MSG-xx (`lang/fr.json`), formatage §1.4, statuts, montant en lettres, audit, multi-rôles | ⏳ À faire |
+| 2 | Table `caisses` (caisse payeuse, plafond de retrait, OM Conakry, Atelier) | ⏳ À faire |
+| 3 | M03-A : assistant, brouillon, soumission (US-BC-01 à 07, 10, 11, 12, 15) | ⏳ À faire |
+| 4 | M03-B : pièces justificatives, lecture des tickets carburant (US-BC-08, 09) | ⏳ À faire |
+| 5 | M03-C : délégation d'initiation, resoumission, liste et fiche (US-BC-13, 14, 16) | ⏳ À faire |
+
+Les questions en attente de réponse sont dans `docs/questions.md` (Q1 à Q13).
+
+### 19.2 Sécurité — inscription libre supprimée
+
+`POST /register` était encore actif : n'importe qui pouvait se créer un compte actif avec le rôle `demandeur` (le middleware `verified` ne bloque rien, `User` n'implémente pas `MustVerifyEmail`).
+Supprimés : routes `register` (`routes/auth.php`), `RegisteredUserController`, pages `Auth/Register.jsx` et `Welcome.jsx` (non utilisée). Les comptes sont créés uniquement par l'administrateur.
+
+> **⚠ Production :** lister les comptes sans matricule (créés par l'inscription libre) et les désactiver.
+
+### 19.3 Évolutions DAF intégrées (travail de juin et août — Périmètre 2)
+
+| Évolution | Détail | Fichiers principaux |
+|-----------|--------|---------------------|
+| **Double solde Espèces / OM** | `sites.solde_caisse` remplacé par `solde_especes` + `solde_om` (`solde_caisse` devient un accesseur = total). Mouvements de caisse qualifiés par `type_caisse` (`especes` / `om`), pièce justificative facultative, caissier limité à son site | `2026_06_02_000001/000002`, `Site.php`, `MouvementCaisse.php`, `MouvementCaisseController.php`, Dashboard, Paramétrage |
+| **Billetage et réconciliation** | Rapport manuel : comptage par coupure (20 000 → 50 GNF), solde OM lu sur le téléphone, écarts compté − comptable, justification obligatoire en cas d'écart | `2026_06_02_000003`, `RapportCaisse.php`, `Rapports/Create.jsx` |
+| **Motifs de rejet prédéfinis** | `BonCaisse::MOTIFS_REJET` (6 motifs) ; commentaire obligatoire si « Autre ». Champs partagés par les deux écrans de rejet (`Components/ChampsRejet.jsx`) | `ValidationController@rejeter`, `Validations/Show.jsx`, `BonsCaisse/Show.jsx` |
+
+### 19.4 Correctifs
+
+| Problème | Cause | Correction |
+|----------|-------|------------|
+| Un paiement Orange Money débitait la caisse espèces | `payer()` testait `'mobile_money'`, la valeur réelle est `'orange_money'` | `BonCaisseController@payer` |
+| Un virement (ou « autre ») débitait la caisse espèces | Tout mode non OM était traité comme espèces | Paiement hors caisse (RG-BC-12) : `BonCaisse::MODES_PAIEMENT_CAISSE = ['especes', 'orange_money']` |
+| L'OTP était consommé même si le solde était insuffisant | Consommé avant le contrôle du solde | Consommé dans la même transaction que le paiement |
+| Double paiement possible (double clic, deux caissiers) | Ni transaction ni verrou | `DB::transaction` + `lockForUpdate` sur le bon |
+| **Le rapport automatique de 07:30 était vide en usage réel** | Il ne retenait que les bons au statut `PAYE`, alors qu'un BD payé passe aussitôt en `ARCHIVE` et un BP en `EN_ATTENTE_REGULARISATION` ; il ignorait aussi les entrées | Nouveau `App\Services\RapportJournalierService`, commun à la commande et à l'envoi manuel ; scope `BonCaisse::payesLe($date)` |
+| Création, fiche et exports du rapport manuel vides ou faux | Même filtre `PAYE` + date `updated_at` au lieu de `date_paiement` | `payesLe()` + modes de caisse uniquement |
+| Le rapport du jour servait d'ouverture à lui-même | `soldePrecedent()` prenait le dernier rapport sans borne de date | `RapportCaisse::soldePrecedent($site, $avant)` |
+| Rapports antérieurs au double solde : ouverture Espèces/OM à 0 | Colonnes ajoutées avec la valeur 0 | Migration de reprise `2026_10_06_000002` (totaux reportés en espèces) |
+| L'enregistrement du rapport reprenait les totaux et écarts envoyés par l'écran | Aucun recalcul serveur | Totaux, clôtures, comptage espèces (depuis le billetage) et écarts recalculés ; motif exigé si écart |
+| `Rapports/Create.jsx` ne compilait pas | `import` dans la fonction, `soldeCloture` déclaré deux fois ; écarts calculés avant tout comptage | Valeurs dérivées, écart affiché seulement une fois le comptage saisi |
+| Rejet impossible depuis la fiche du bon | `motif_rejet` non envoyé, erreur non affichée | `ChampsRejet` partagé, `motifsRejet` transmis par `BonCaisseController@show` |
+| Cartes de la liste à 0 dès la page 2 | Statistiques calculées sur un clone pris après `paginate()` (LIMIT/OFFSET) | Clone pris avant `paginate()` |
+| `archives:alerter-expiration` plantait | Colonne `date_expiration_archive` inexistante | `date_expiration_retention` |
+| `DELETE /bons-caisse/{id}` pointait vers une méthode inexistante | `Route::resource` complet | `->except(['destroy'])` (un bon s'annulera, RG-BC-31) |
+| Seeder : tous les soldes à 0 (scénario S11 cassé) | `solde_caisse` n'est plus remplissable | `solde_especes` / `solde_om` |
+| Paramètre `duree_validite_otp` mal typé | Type `integer` inconnu, groupe perdu | Migration `2026_10_06_000001` (type `number`, groupe `securite`) |
+
+### 19.5 Tests
+
+- `phpunit.xml` : base **MySQL `neemba_test`** (les migrations `ALTER ... MODIFY ENUM` et l'index FULLTEXT ne passent pas sous SQLite). Créer la base une fois : `CREATE DATABASE neemba_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+- Aucun SMS ni appel IA pendant les tests (Nimba et OpenAI neutralisés) ; `NimbaSmsService` n'appelle plus l'API quand aucun jeton n'est configuré.
+- `tests/Feature/Lot0/StabilisationTest.php` (10 tests de non-régression), `RegistrationTest` (inscription fermée), `ExampleTest` (redirection vers la connexion).
+- `php artisan test` : **35 tests verts**.
+
+### 19.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_06_02_000001/2/3 + 2026_10_06_000001/2
+php artisan optimize:clear
+```
+
+Le front est déjà compilé (`public/build`).
+
+### 19.7 Limites connues (traitées dans les lots suivants)
+
+- L'ouverture du rapport journalier reprend la clôture du dernier rapport enregistré (Q13). Le registre par caisse du lot 2 la recalculera exactement.
+- Les données Espèces / OM sont calculées, mais les rapports e-mail, PDF et Excel n'affichent encore que les totaux.
+- Le tableau temps réel ne compte plus que les paiements en caisse (espèces et OM) ; sa ventilation Espèces / OM viendra avec le lot 2.
 
 ---
 
