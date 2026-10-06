@@ -23,6 +23,8 @@ class MouvementCaisse extends Model
         'type',
         'montant',
         'motif',
+        'piece_justificative',
+        'type_caisse',
         'site',
         'statut',
         'effectue_par',
@@ -148,11 +150,12 @@ class MouvementCaisse extends Model
             'commentaire_validation' => $commentaire,
         ]);
 
-        // Mettre à jour le solde du site
+        // Mettre à jour le bon solde (espèces ou OM) du site
         $site = Site::where('nom', $this->site)->first();
         if ($site) {
+            $col   = ($this->type_caisse ?? 'especes') === 'om' ? 'solde_om' : 'solde_especes';
             $delta = $this->type === 'retrait' ? -$this->montant : $this->montant;
-            $site->increment('solde_caisse', $delta);
+            $site->increment($col, $delta);
         }
 
         return true;

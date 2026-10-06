@@ -40,13 +40,14 @@ class ParametrageController extends Controller
     public function storeSite(Request $request)
     {
         $validated = $request->validate([
-            'code' => ['nullable', 'string', 'max:10', 'unique:sites'],
-            'nom' => ['required', 'string', 'max:255', 'unique:sites'],
-            'ville' => ['nullable', 'string', 'max:255'],
-            'adresse' => ['nullable', 'string', 'max:500'],
-            'solde_caisse' => ['nullable', 'numeric', 'min:0'],
-            'plafond_caisse' => ['nullable', 'numeric', 'min:0'],
-            'seuil_minimum_caisse' => ['nullable', 'numeric', 'min:0'],
+            'code'                => ['nullable', 'string', 'max:10', 'unique:sites'],
+            'nom'                 => ['required', 'string', 'max:255', 'unique:sites'],
+            'ville'               => ['nullable', 'string', 'max:255'],
+            'adresse'             => ['nullable', 'string', 'max:500'],
+            'solde_especes'       => ['nullable', 'numeric', 'min:0'],
+            'solde_om'            => ['nullable', 'numeric', 'min:0'],
+            'plafond_caisse'      => ['nullable', 'numeric', 'min:0'],
+            'seuil_minimum_caisse'=> ['nullable', 'numeric', 'min:0'],
         ]);
 
         Site::create($validated);
@@ -57,18 +58,19 @@ class ParametrageController extends Controller
     public function updateSite(Request $request, Site $site)
     {
         $validated = $request->validate([
-            'code' => ['nullable', 'string', 'max:10', 'unique:sites,code,' . $site->id],
-            'nom' => ['required', 'string', 'max:255', 'unique:sites,nom,' . $site->id],
-            'ville' => ['nullable', 'string', 'max:255'],
-            'adresse' => ['nullable', 'string', 'max:500'],
-            'actif' => ['boolean'],
-            'solde_caisse' => ['nullable', 'numeric', 'min:0'],
-            'plafond_caisse' => ['nullable', 'numeric', 'min:0'],
-            'seuil_minimum_caisse' => ['nullable', 'numeric', 'min:0'],
+            'code'                => ['nullable', 'string', 'max:10', 'unique:sites,code,' . $site->id],
+            'nom'                 => ['required', 'string', 'max:255', 'unique:sites,nom,' . $site->id],
+            'ville'               => ['nullable', 'string', 'max:255'],
+            'adresse'             => ['nullable', 'string', 'max:500'],
+            'actif'               => ['boolean'],
+            'solde_especes'       => ['nullable', 'numeric', 'min:0'],
+            'solde_om'            => ['nullable', 'numeric', 'min:0'],
+            'plafond_caisse'      => ['nullable', 'numeric', 'min:0'],
+            'seuil_minimum_caisse'=> ['nullable', 'numeric', 'min:0'],
         ]);
 
         $pendingCreated = false;
-        $champsSensibles = ['solde_caisse', 'plafond_caisse', 'seuil_minimum_caisse'];
+        $champsSensibles = ['solde_especes', 'solde_om', 'plafond_caisse', 'seuil_minimum_caisse'];
 
         foreach ($champsSensibles as $champ) {
             if (array_key_exists($champ, $validated) && $validated[$champ] != $site->$champ) {

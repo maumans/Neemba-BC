@@ -41,12 +41,12 @@ class NeembaSeeder extends Seeder
          * ================================================================ */
 
         $sitesData = [
-            ['code' => '01', 'nom' => 'Conakry',   'ville' => 'Conakry',   'solde_caisse' => 15000000, 'plafond_caisse' => 50000000, 'seuil_minimum_caisse' => 1000000],
-            ['code' => '31', 'nom' => 'Boke',       'ville' => 'Boké',      'solde_caisse' => 8000000,  'plafond_caisse' => 30000000, 'seuil_minimum_caisse' => 500000],
-            ['code' => '11', 'nom' => 'Sangaredi',  'ville' => 'Sangarédi', 'solde_caisse' => 5000000,  'plafond_caisse' => 20000000, 'seuil_minimum_caisse' => 500000],
-            ['code' => '81', 'nom' => 'Siguiri',    'ville' => 'Siguiri',   'solde_caisse' => 3000000,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
-            ['code' => '49', 'nom' => 'Kouroussa',  'ville' => 'Kouroussa', 'solde_caisse' => 4000000,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
-            ['code' => '39', 'nom' => 'Mandiana',   'ville' => 'Mandiana',  'solde_caisse' => 3500000,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
+            ['code' => '01', 'nom' => 'Conakry',   'ville' => 'Conakry',   'solde_especes' => 15000000, 'solde_om' => 0, 'plafond_caisse' => 50000000, 'seuil_minimum_caisse' => 1000000],
+            ['code' => '31', 'nom' => 'Boke',       'ville' => 'Boké',      'solde_especes' => 8000000, 'solde_om' => 0,  'plafond_caisse' => 30000000, 'seuil_minimum_caisse' => 500000],
+            ['code' => '11', 'nom' => 'Sangaredi',  'ville' => 'Sangarédi', 'solde_especes' => 5000000, 'solde_om' => 0,  'plafond_caisse' => 20000000, 'seuil_minimum_caisse' => 500000],
+            ['code' => '81', 'nom' => 'Siguiri',    'ville' => 'Siguiri',   'solde_especes' => 3000000, 'solde_om' => 0,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
+            ['code' => '49', 'nom' => 'Kouroussa',  'ville' => 'Kouroussa', 'solde_especes' => 4000000, 'solde_om' => 0,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
+            ['code' => '39', 'nom' => 'Mandiana',   'ville' => 'Mandiana',  'solde_especes' => 3500000, 'solde_om' => 0,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
         ];
         foreach ($sitesData as $s) {
             Site::create($s);

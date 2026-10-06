@@ -36,8 +36,8 @@ class AlerterExpirationArchives extends Command
             $dateExpiration = now()->addDays($jours)->toDateString();
 
             $archivesExpirant = PieceJointe::query()
-                ->whereNotNull('date_expiration_archive')
-                ->whereDate('date_expiration_archive', $dateExpiration)
+                ->whereNotNull('date_expiration_retention')
+                ->whereDate('date_expiration_retention', $dateExpiration)
                 ->with('bonCaisse.demandeur')
                 ->get();
 
@@ -52,7 +52,7 @@ class AlerterExpirationArchives extends Command
                 \Illuminate\Support\Facades\Cache::put($cle, true, now()->addHours(23));
                 $nbAlertes++;
 
-                $this->line("  → {$archive->nom_fichier} (bon #{$archive->bon_caisse_id}) expire dans {$jours} jour(s) — {$archive->date_expiration_archive}");
+                $this->line("  → {$archive->nom_fichier} (bon #{$archive->bon_caisse_id}) expire dans {$jours} jour(s) — {$archive->date_expiration_retention}");
             }
         }
 
@@ -82,7 +82,7 @@ class AlerterExpirationArchives extends Command
         };
 
         $nomBon  = $archive->bonCaisse?->numero ?? "#{$archive->bon_caisse_id}";
-        $message = "Le document \"{$archive->nom_fichier}\" (bon {$nomBon}) atteint sa durée légale de conservation dans {$joursRestants} jour(s) (expiration : {$archive->date_expiration_archive}). Veuillez décider de sa destruction ou de sa prolongation de conservation.";
+        $message = "Le document \"{$archive->nom_fichier}\" (bon {$nomBon}) atteint sa durée légale de conservation dans {$joursRestants} jour(s) (expiration : {$archive->date_expiration_retention}). Veuillez décider de sa destruction ou de sa prolongation de conservation.";
 
         foreach ($destinataires as $destinataire) {
             try {
@@ -96,7 +96,7 @@ class AlerterExpirationArchives extends Command
                     'metadata'        => [
                         'piece_jointe_id'      => $archive->id,
                         'nom_fichier'          => $archive->nom_fichier,
-                        'date_expiration'      => $archive->date_expiration_archive,
+                        'date_expiration'      => $archive->date_expiration_retention,
                         'jours_restants'       => $joursRestants,
                         'bon_caisse_id'        => $archive->bon_caisse_id,
                     ],

@@ -20,16 +20,33 @@ class RapportCaisse extends Model
 
     protected $table = 'rapports_caisse';
 
+    /** Coupures en GNF retenues pour le billetage (de la plus grosse à la plus petite) */
+    const COUPURES = [20000, 10000, 5000, 2000, 1000, 500, 100, 50];
+
     protected $fillable = [
         'date_rapport',
         'site',
         'solde_ouverture',
+        'solde_ouverture_especes',
+        'solde_ouverture_om',
         'total_entrees',
+        'total_entrees_especes',
+        'total_entrees_om',
         'total_sorties',
+        'total_sorties_especes',
+        'total_sorties_om',
         'nombre_bons',
         'detail_par_categorie',
         'detail_par_mode_paiement',
         'solde_cloture',
+        'solde_cloture_especes',
+        'solde_cloture_om',
+        'billetage',
+        'solde_physique_especes',
+        'solde_physique_om',
+        'ecart_especes',
+        'ecart_om',
+        'motif_ecart',
         'observations',
         'caissier_id',
         'cloture',
@@ -42,12 +59,25 @@ class RapportCaisse extends Model
         return [
             'date_rapport' => 'date',
             'solde_ouverture' => 'decimal:2',
+            'solde_ouverture_especes' => 'decimal:2',
+            'solde_ouverture_om' => 'decimal:2',
             'total_entrees' => 'decimal:2',
+            'total_entrees_especes' => 'decimal:2',
+            'total_entrees_om' => 'decimal:2',
             'total_sorties' => 'decimal:2',
+            'total_sorties_especes' => 'decimal:2',
+            'total_sorties_om' => 'decimal:2',
             'solde_cloture' => 'decimal:2',
+            'solde_cloture_especes' => 'decimal:2',
+            'solde_cloture_om' => 'decimal:2',
             'nombre_bons' => 'integer',
             'detail_par_categorie' => 'array',
             'detail_par_mode_paiement' => 'array',
+            'billetage' => 'array',
+            'solde_physique_especes' => 'decimal:2',
+            'solde_physique_om' => 'decimal:2',
+            'ecart_especes' => 'decimal:2',
+            'ecart_om' => 'decimal:2',
             'cloture' => 'boolean',
             'date_visa_daf' => 'datetime',
         ];
@@ -114,21 +144,36 @@ class RapportCaisse extends Model
      */
     public function calculerSoldeCloture(): void
     {
-        $this->solde_cloture = $this->solde_ouverture + $this->total_entrees - $this->total_sorties;
+        $this->solde_cloture_especes = $this->solde_ouverture_especes + $this->total_entrees_especes - $this->total_sorties_especes;
+        $this->solde_cloture_om = $this->solde_ouverture_om + $this->total_entrees_om - $this->total_sorties_om;
+        $this->solde_cloture = $this->solde_cloture_especes + $this->solde_cloture_om;
         $this->save();
     }
 
     /**
-     * Récupérer le solde de clôture du jour précédent pour un site
-     * (sera utilisé comme solde d'ouverture du jour suivant)
+     * Récupérer le solde de clôture du dernier rapport d'un site
+     * (sera utilisé comme solde d'ouverture du jour suivant).
+     *
+     * $avant : ne retenir que les rapports antérieurs à cette date. Sans cette borne,
+     * le rapport du jour lui-même servait d'ouverture et la journée était comptée deux fois.
      */
-    public static function soldePrecedent(string $site): float
+    public static function soldePrecedent(string $site, $avant = null): array
     {
         $dernierRapport = static::where('site', $site)
+            ->when($avant, fn ($q) => $q->whereDate('date_rapport', '<', $avant))
             ->orderBy('date_rapport', 'desc')
+            ->orderBy('id', 'desc')
             ->first();
 
-        return $dernierRapport ? (float) $dernierRapport->solde_cloture : 0;
+        return $dernierRapport ? [
+            'total' => (float) $dernierRapport->solde_cloture,
+            'especes' => (float) $dernierRapport->solde_cloture_especes,
+            'om' => (float) $dernierRapport->solde_cloture_om,
+        ] : [
+            'total' => 0,
+            'especes' => 0,
+            'om' => 0,
+        ];
     }
 
     /**

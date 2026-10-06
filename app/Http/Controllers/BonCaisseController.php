@@ -18,6 +18,7 @@ use App\Services\NimbaSmsService;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -151,11 +152,13 @@ class BonCaisseController extends Controller
             });
         }
 
-        $bonsCaisse = $query->paginate(15)->withQueryString();
-
-        /* ====== Statistiques contextuelles par utilisateur ====== */
-        $statsQuery = clone $query;
+        /* ====== Statistiques contextuelles par utilisateur ======
+         * Clone pris AVANT paginate() : paginate() pose LIMIT/OFFSET sur le builder,
+         * et les count()/sum() du clone renvoyaient 0 dès la page 2. */
+        $statsQuery = (clone $query)->reorder();
         $debutMois = now()->startOfMonth();
+
+        $bonsCaisse = $query->paginate(15)->withQueryString();
 
         $statsIndex = [
             'total' => (clone $statsQuery)->where('statut', '!=', 'BROUILLON')->count(),
@@ -476,17 +479,23 @@ class BonCaisseController extends Controller
             $delaisValidation[$validation->id] = $delai;
         }
 
-        /* Solde de la caisse du site */
+        /* Solde de la caisse du site (les deux balances) */
         $soldeCaisseSite = null;
         if (in_array($utilisateur->role, ['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
             $siteModel = Site::where('nom', $bonCaisse->site)->first();
             $soldeCaisseSite = $siteModel ? [
-                'solde' => (float) $siteModel->solde_caisse,
-                'solde_format' => $siteModel->solde_caisse_format,
-                'plafond' => $siteModel->plafond_caisse,
-                'seuil_minimum' => $siteModel->seuil_minimum_caisse,
-                'sous_seuil' => $siteModel->soldeSousSeuil(),
-                'peut_payer' => $siteModel->peutPayer($bonCaisse->montant),
+                'solde'            => $siteModel->solde_caisse,
+                'solde_format'     => $siteModel->solde_caisse_format,
+                'solde_especes'    => (float) $siteModel->solde_especes,
+                'solde_especes_format' => $siteModel->solde_especes_format,
+                'solde_om'         => (float) $siteModel->solde_om,
+                'solde_om_format'  => $siteModel->solde_om_format,
+                'plafond'          => $siteModel->plafond_caisse,
+                'seuil_minimum'    => $siteModel->seuil_minimum_caisse,
+                'sous_seuil'       => $siteModel->soldeSousSeuil(),
+                // peut_payer dépend du mode de paiement choisi → calculé côté frontend
+                'peut_payer_especes' => $siteModel->peutPayer($bonCaisse->montant, 'especes'),
+                'peut_payer_om'      => $siteModel->peutPayer($bonCaisse->montant, 'om'),
             ] : null;
         }
 
@@ -532,6 +541,7 @@ class BonCaisseController extends Controller
             'codesAnalytiques' => CodeAnalytique::actifs()->with('service')->orderBy('code')->get(),
             'peutPreRegulariser' => $estProprietaire && $bonCaisse->peutPreRegulariser(),
             'aDesPiecesRegularisation' => $bonCaisse->aDesPiecesRegularisation(),
+            'motifsRejet' => BonCaisse::MOTIFS_REJET,
         ]);
     }
 
@@ -823,28 +833,48 @@ class BonCaisseController extends Controller
             return back()->with('error', 'Vous devez d\'abord générer et valider un code OTP avant d\'effectuer le paiement.');
         }
 
-        /* Marquer l'OTP comme utilisé */
-        $otpVerifie->marquerCommeUtilise();
+        /* Balance débitée selon le mode de paiement (RG-BC-12) : espèces → solde espèces,
+         * Orange Money → solde OM ; virement et autre → paiement hors caisse, rien n'est débité. */
+        $typeBalance = match ($request->mode_paiement_effectif) {
+            'especes' => 'especes',
+            'orange_money' => 'om',
+            default => null,
+        };
+        $labelBalance = $typeBalance === 'om' ? 'Orange Money' : 'Espèces';
 
-        /* Phase 2.1 : Blocage si solde de caisse insuffisant */
-        $siteModel = Site::where('nom', $bonCaisse->site)->first();
-        if ($siteModel && !$siteModel->peutPayer($bonCaisse->montant)) {
-            return back()->with('error', 
-                'Solde de caisse insuffisant pour le site ' . $bonCaisse->site 
-                . '. Solde actuel : ' . $siteModel->solde_caisse_format 
-                . ', Montant demandé : ' . $bonCaisse->montant_format . '.'
+        /* Phase 2.1 : Blocage si solde insuffisant sur la balance concernée.
+         * Contrôlé avant de consommer l'OTP, pour que le caissier n'ait pas à en régénérer un. */
+        $siteModel = $typeBalance ? Site::where('nom', $bonCaisse->site)->first() : null;
+        if ($siteModel && !$siteModel->peutPayer($bonCaisse->montant, $typeBalance)) {
+            $soldeDisponible = $typeBalance === 'om'
+                ? $siteModel->solde_om_format
+                : $siteModel->solde_especes_format;
+            return back()->with('error',
+                "Solde {$labelBalance} insuffisant pour le site {$bonCaisse->site}."
+                . " Disponible : {$soldeDisponible},"
+                . " Montant demandé : {$bonCaisse->montant_format}."
             );
         }
 
-        if ($bonCaisse->marquerCommePaye($caissier, $request->mode_paiement_effectif)) {
-            /* Débiter la caisse du site */
-            if ($siteModel) {
-                $siteModel->debiter($bonCaisse->montant);
+        /* Paiement, consommation de l'OTP et débit dans une seule transaction ;
+         * le verrou sur le bon empêche un double paiement (double clic, deux caissiers). */
+        $paye = DB::transaction(function () use ($bonCaisse, $caissier, $request, $otpVerifie, $siteModel, $typeBalance) {
+            $bon = BonCaisse::whereKey($bonCaisse->id)->lockForUpdate()->first();
 
-                /* Alerte si solde sous le seuil minimum après paiement */
-                if ($siteModel->soldeSousSeuil()) {
-                    NotificationService::notifierAlerteSolde($siteModel, $caissier);
-                }
+            if (!$bon || !$bon->marquerCommePaye($caissier, $request->mode_paiement_effectif)) {
+                return false;
+            }
+
+            $otpVerifie->marquerCommeUtilise();
+            $siteModel?->debiter($bon->montant, $typeBalance);
+
+            return true;
+        });
+
+        if ($paye) {
+            /* Alerte si solde sous le seuil minimum après paiement */
+            if ($siteModel && $siteModel->fresh()->soldeSousSeuil()) {
+                NotificationService::notifierAlerteSolde($siteModel->fresh(), $caissier);
             }
 
             NotificationService::notifierPaiement($bonCaisse->fresh(['demandeur']), $caissier);

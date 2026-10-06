@@ -8,10 +8,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Modèle Site - Table de paramétrage
- * 
- * Représente un site géographique NEEMBA (ex: Conakry, Kamsar, Fria...).
- * Chaque site possède sa propre caisse avec un solde, un plafond et un seuil d'alerte.
- * Administrable par le DAF/Directeur Pays.
+ *
+ * Chaque site possède deux caisses : Espèces et OM (Mobile Money).
+ * Le solde total (solde_caisse) est la somme des deux via accesseur.
  */
 class Site extends Model
 {
@@ -19,17 +18,24 @@ class Site extends Model
 
     protected $fillable = [
         'code', 'nom', 'ville', 'adresse', 'actif',
-        'solde_caisse', 'plafond_caisse', 'seuil_minimum_caisse',
+        'solde_especes', 'solde_om', 'plafond_caisse', 'seuil_minimum_caisse',
     ];
 
     protected $casts = [
         'actif' => 'boolean',
-        'solde_caisse' => 'decimal:2',
+        'solde_especes' => 'decimal:2',
+        'solde_om' => 'decimal:2',
         'plafond_caisse' => 'decimal:2',
         'seuil_minimum_caisse' => 'decimal:2',
     ];
 
-    protected $appends = ['solde_caisse_format', 'plafond_caisse_format'];
+    protected $appends = [
+        'solde_caisse',
+        'solde_caisse_format',
+        'solde_especes_format',
+        'solde_om_format',
+        'plafond_caisse_format',
+    ];
 
     /* ----------------------------------------------------------------
      * SCOPES
@@ -44,9 +50,6 @@ class Site extends Model
      * RELATIONS
      * ---------------------------------------------------------------- */
 
-    /**
-     * Mouvements de caisse du site
-     */
     public function mouvementsCaisse(): HasMany
     {
         return $this->hasMany(MouvementCaisse::class, 'site', 'nom');
@@ -56,9 +59,25 @@ class Site extends Model
      * ACCESSEURS
      * ---------------------------------------------------------------- */
 
+    /** Solde total = Espèces + OM */
+    public function getSoldeCaisseAttribute(): float
+    {
+        return (float) $this->solde_especes + (float) $this->solde_om;
+    }
+
     public function getSoldeCaisseFormatAttribute(): string
     {
-        return number_format($this->solde_caisse ?? 0, 0, ',', ' ') . ' GNF';
+        return number_format($this->solde_caisse, 0, ',', ' ') . ' GNF';
+    }
+
+    public function getSoldeEspecesFormatAttribute(): string
+    {
+        return number_format((float) $this->solde_especes, 0, ',', ' ') . ' GNF';
+    }
+
+    public function getSoldeOmFormatAttribute(): string
+    {
+        return number_format((float) $this->solde_om, 0, ',', ' ') . ' GNF';
     }
 
     public function getPlafondCaisseFormatAttribute(): string
@@ -72,35 +91,43 @@ class Site extends Model
      * ---------------------------------------------------------------- */
 
     /**
-     * Vérifie si le solde de la caisse permet un paiement du montant donné
+     * Vérifie si la caisse (du type donné) permet un paiement.
+     * type : 'especes' | 'om' | 'total' (défaut : 'especes')
      */
-    public function peutPayer(float $montant): bool
+    public function peutPayer(float $montant, string $type = 'especes'): bool
     {
-        return $this->solde_caisse >= $montant;
+        $solde = match ($type) {
+            'om'    => (float) $this->solde_om,
+            'total' => $this->solde_caisse,
+            default => (float) $this->solde_especes,
+        };
+        return $solde >= $montant;
     }
 
     /**
-     * Vérifie si le solde est sous le seuil minimum
+     * Vérifie si le solde total est sous le seuil minimum d'alerte.
      */
     public function soldeSousSeuil(): bool
     {
-        $seuil = $this->seuil_minimum_caisse ?? (float) Parametre::valeur('seuil_minimum_caisse', 500000);
+        $seuil = (float) ($this->seuil_minimum_caisse ?? Parametre::valeur('seuil_minimum_caisse', 500000));
         return $this->solde_caisse <= $seuil;
     }
 
     /**
-     * Débiter la caisse du site après un paiement
+     * Débiter la caisse du type spécifié.
      */
-    public function debiter(float $montant): void
+    public function debiter(float $montant, string $type = 'especes'): void
     {
-        $this->decrement('solde_caisse', $montant);
+        $col = $type === 'om' ? 'solde_om' : 'solde_especes';
+        $this->decrement($col, $montant);
     }
 
     /**
-     * Créditer la caisse du site (approvisionnement)
+     * Créditer la caisse du type spécifié.
      */
-    public function crediter(float $montant): void
+    public function crediter(float $montant, string $type = 'especes'): void
     {
-        $this->increment('solde_caisse', $montant);
+        $col = $type === 'om' ? 'solde_om' : 'solde_especes';
+        $this->increment($col, $montant);
     }
 }

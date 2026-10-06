@@ -9,6 +9,7 @@ use App\Models\BonCaisse;
 use App\Models\MouvementCaisse;
 use App\Models\RapportCaisse;
 use App\Models\Site;
+use App\Services\RapportJournalierService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -123,9 +124,10 @@ class RapportCaisseController extends Controller
                 'sorties' => (int) $l['sorties'],
             ]);
 
-        /* Solde caisse du site sélectionné (ou site du caissier) */
+        /* Solde caisse du site sélectionné ou consolidé pour tous les sites */
         $siteFiltre = $request->input('site');
         $soldeCaisseSite = null;
+        
         if ($siteFiltre) {
             $siteModel = Site::where('nom', $siteFiltre)->first();
             if ($siteModel) {
@@ -133,11 +135,35 @@ class RapportCaisseController extends Controller
                     'nom' => $siteModel->nom,
                     'solde' => (float) $siteModel->solde_caisse,
                     'solde_format' => $siteModel->solde_caisse_format,
+                    'solde_especes' => (float) $siteModel->solde_especes,
+                    'solde_especes_format' => $siteModel->solde_especes_format,
+                    'solde_om' => (float) $siteModel->solde_om,
+                    'solde_om_format' => $siteModel->solde_om_format,
                     'plafond_caisse' => $siteModel->plafond_caisse ? (float) $siteModel->plafond_caisse : null,
                     'plafond_format' => $siteModel->plafond_caisse_format,
                     'sous_seuil' => $siteModel->soldeSousSeuil(),
                 ];
             }
+        } else {
+            /* Consolidation multi-sites */
+            $sitesActifs = Site::actifs()->get();
+            $totalSolde = $sitesActifs->sum('solde_caisse');
+            $totalEspeces = $sitesActifs->sum('solde_especes');
+            $totalOm = $sitesActifs->sum('solde_om');
+            $totalPlafond = $sitesActifs->sum('plafond_caisse');
+            
+            $soldeCaisseSite = [
+                'nom' => 'Tous les sites (Consolidé)',
+                'solde' => (float) $totalSolde,
+                'solde_format' => number_format($totalSolde, 0, ',', ' ') . ' GNF',
+                'solde_especes' => (float) $totalEspeces,
+                'solde_especes_format' => number_format($totalEspeces, 0, ',', ' ') . ' GNF',
+                'solde_om' => (float) $totalOm,
+                'solde_om_format' => number_format($totalOm, 0, ',', ' ') . ' GNF',
+                'plafond_caisse' => $totalPlafond > 0 ? (float) $totalPlafond : null,
+                'plafond_format' => number_format($totalPlafond, 0, ',', ' ') . ' GNF',
+                'sous_seuil' => $sitesActifs->contains(fn($site) => $site->soldeSousSeuil()),
+            ];
         }
 
         return Inertia::render('Rapports/Index', [
@@ -278,9 +304,10 @@ class RapportCaisseController extends Controller
                 break;
         }
 
-        /* Requête principale : bons payés dans la période */
+        /* Requête principale : bons payés en caisse dans la période (virement / autre = hors caisse, RG-BC-12) */
         $queryBase = BonCaisse::query()
             ->whereNotNull('date_paiement')
+            ->whereIn('mode_paiement_effectif', BonCaisse::MODES_PAIEMENT_CAISSE)
             ->whereBetween('date_paiement', [$dateDebut, $dateFin]);
 
         if ($request->filled('site')) {
@@ -497,16 +524,18 @@ class RapportCaisseController extends Controller
         $site = $utilisateur->site ?? '';
 
         /* Récupérer le solde de clôture précédent comme solde d'ouverture */
-        $soldeOuverture = RapportCaisse::soldePrecedent($site);
+        $soldeOuvertureData = RapportCaisse::soldePrecedent($site, today());
 
         /* Récupérer les bons payés du jour pour ce site */
         $bonsPayeDuJour = BonCaisse::with('demandeur')
-            ->parStatut('PAYE')
-            ->whereDate('updated_at', today())
+            ->whereIn('mode_paiement_effectif', BonCaisse::MODES_PAIEMENT_CAISSE)
+            ->payesLe(today())
             ->when($site, fn($q) => $q->parSite($site))
             ->get();
 
         $totalSorties = $bonsPayeDuJour->sum('montant');
+        $totalSortiesEspeces = $bonsPayeDuJour->where('mode_paiement_effectif', 'especes')->sum('montant');
+        $totalSortiesOm = $bonsPayeDuJour->where('mode_paiement_effectif', 'orange_money')->sum('montant');
 
         /* Ventilation par catégorie */
         $detailParCategorie = $bonsPayeDuJour
@@ -535,14 +564,19 @@ class RapportCaisseController extends Controller
             ->values();
 
         return Inertia::render('Rapports/Create', [
-            'soldeOuverture' => $soldeOuverture,
+            'soldeOuverture' => $soldeOuvertureData['total'],
+            'soldeOuvertureEspeces' => $soldeOuvertureData['especes'],
+            'soldeOuvertureOm' => $soldeOuvertureData['om'],
             'totalSorties' => $totalSorties,
+            'totalSortiesEspeces' => $totalSortiesEspeces,
+            'totalSortiesOm' => $totalSortiesOm,
             'nombreBons' => $bonsPayeDuJour->count(),
             'bonsPayeDuJour' => $bonsPayeDuJour,
             'detailParCategorie' => $detailParCategorie,
             'detailParMode' => $detailParMode,
             'dateRapport' => now()->toDateString(),
             'site' => $site,
+            'coupures' => RapportCaisse::COUPURES,
         ]);
     }
 
@@ -554,28 +588,76 @@ class RapportCaisseController extends Controller
         $validated = $request->validate([
             'date_rapport' => ['required', 'date'],
             'site' => ['required', 'string', 'max:255'],
-            'solde_ouverture' => ['required', 'numeric', 'min:0'],
-            'total_entrees' => ['required', 'numeric', 'min:0'],
-            'total_sorties' => ['required', 'numeric', 'min:0'],
+            'total_entrees_especes' => ['required', 'numeric', 'min:0'],
+            'total_entrees_om' => ['required', 'numeric', 'min:0'],
+            'total_sorties_especes' => ['required', 'numeric', 'min:0'],
+            'total_sorties_om' => ['required', 'numeric', 'min:0'],
             'observations' => ['nullable', 'string', 'max:2000'],
+            'billetage' => ['nullable', 'array'],
+            'billetage.*' => ['nullable', 'integer', 'min:0'],
+            'solde_physique_especes' => ['nullable', 'numeric', 'min:0'],
+            'solde_physique_om' => ['nullable', 'numeric', 'min:0'],
+            'motif_ecart' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        /* Calculer le solde de clôture */
-        $soldeCloture = $validated['solde_ouverture'] + $validated['total_entrees'] - $validated['total_sorties'];
+        /* Les soldes, totaux et écarts sont recalculés ici : on ne reprend pas ceux envoyés par l'écran. */
+        $ouverture = RapportCaisse::soldePrecedent($validated['site'], $validated['date_rapport']);
+        $ouvertureEspeces = (float) $ouverture['especes'];
+        $ouvertureOm = (float) $ouverture['om'];
+        $soldeClotureEspeces = $ouvertureEspeces + $validated['total_entrees_especes'] - $validated['total_sorties_especes'];
+        $soldeClotureOm = $ouvertureOm + $validated['total_entrees_om'] - $validated['total_sorties_om'];
+
+        /* Billetage : seules les coupures en circulation sont retenues ; le comptage espèces en est la somme */
+        $billetage = null;
+        $soldePhysiqueEspeces = $validated['solde_physique_especes'] ?? null;
+        if (!empty($validated['billetage'])) {
+            $billetage = collect($validated['billetage'])
+                ->only(array_map('strval', RapportCaisse::COUPURES))
+                ->map(fn ($quantite) => (int) $quantite)
+                ->all();
+            if ($soldePhysiqueEspeces !== null) {
+                $soldePhysiqueEspeces = collect($billetage)->map(fn ($quantite, $coupure) => (int) $coupure * $quantite)->sum();
+            }
+        }
+        $soldePhysiqueOm = $validated['solde_physique_om'] ?? null;
+
+        /* Écart = compté − comptable, uniquement si le comptage a été saisi */
+        $ecartEspeces = $soldePhysiqueEspeces !== null ? $soldePhysiqueEspeces - $soldeClotureEspeces : null;
+        $ecartOm = $soldePhysiqueOm !== null ? $soldePhysiqueOm - $soldeClotureOm : null;
+
+        if ((($ecartEspeces ?? 0) != 0 || ($ecartOm ?? 0) != 0) && blank($validated['motif_ecart'] ?? null)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'motif_ecart' => 'Justifiez l\'écart entre le comptage et le solde comptable.',
+            ]);
+        }
 
         /* Récupérer les bons payés pour les statistiques détaillées */
-        $bonsPayeDuJour = BonCaisse::parStatut('PAYE')
-            ->whereDate('updated_at', $validated['date_rapport'])
+        $bonsPayeDuJour = BonCaisse::whereIn('mode_paiement_effectif', BonCaisse::MODES_PAIEMENT_CAISSE)
+            ->payesLe($validated['date_rapport'])
             ->when($validated['site'], fn($q) => $q->parSite($validated['site']))
             ->get();
 
         $rapport = RapportCaisse::create([
             'date_rapport' => $validated['date_rapport'],
             'site' => $validated['site'],
-            'solde_ouverture' => $validated['solde_ouverture'],
-            'total_entrees' => $validated['total_entrees'],
-            'total_sorties' => $validated['total_sorties'],
-            'solde_cloture' => $soldeCloture,
+            'solde_ouverture' => $ouvertureEspeces + $ouvertureOm,
+            'solde_ouverture_especes' => $ouvertureEspeces,
+            'solde_ouverture_om' => $ouvertureOm,
+            'total_entrees' => $validated['total_entrees_especes'] + $validated['total_entrees_om'],
+            'total_entrees_especes' => $validated['total_entrees_especes'],
+            'total_entrees_om' => $validated['total_entrees_om'],
+            'total_sorties' => $validated['total_sorties_especes'] + $validated['total_sorties_om'],
+            'total_sorties_especes' => $validated['total_sorties_especes'],
+            'total_sorties_om' => $validated['total_sorties_om'],
+            'solde_cloture' => $soldeClotureEspeces + $soldeClotureOm,
+            'solde_cloture_especes' => $soldeClotureEspeces,
+            'solde_cloture_om' => $soldeClotureOm,
+            'billetage' => $billetage,
+            'solde_physique_especes' => $soldePhysiqueEspeces,
+            'solde_physique_om' => $soldePhysiqueOm,
+            'ecart_especes' => $ecartEspeces,
+            'ecart_om' => $ecartOm,
+            'motif_ecart' => $validated['motif_ecart'] ?? null,
             'observations' => $validated['observations'] ?? null,
             'caissier_id' => Auth::id(),
         ]);
@@ -598,9 +680,9 @@ class RapportCaisseController extends Controller
 
         /* Récupérer les bons payés ce jour pour ce site avec détails complets */
         $bonsPaye = BonCaisse::with('demandeur', 'ventilations')
-            ->parStatut('PAYE')
+            ->whereIn('mode_paiement_effectif', BonCaisse::MODES_PAIEMENT_CAISSE)
             ->parSite($rapport->site)
-            ->whereDate('updated_at', $rapport->date_rapport)
+            ->payesLe($rapport->date_rapport)
             ->get();
 
         /* Phase 5 : Enrichir chaque bon avec le délai de traitement */
@@ -657,9 +739,9 @@ class RapportCaisseController extends Controller
         $rapport->load('caissier', 'visaDaf');
 
         $bonsPaye = BonCaisse::with('demandeur')
-            ->parStatut('PAYE')
+            ->whereIn('mode_paiement_effectif', BonCaisse::MODES_PAIEMENT_CAISSE)
             ->parSite($rapport->site)
-            ->whereDate('updated_at', $rapport->date_rapport)
+            ->payesLe($rapport->date_rapport)
             ->get();
 
         $nomFichier = 'rapport-caisse-' . $rapport->site . '-' . $rapport->date_rapport->format('Y-m-d') . '.xlsx';
@@ -675,9 +757,9 @@ class RapportCaisseController extends Controller
         $rapport->load('caissier', 'visaDaf');
 
         $bonsPaye = BonCaisse::with('demandeur', 'ventilations')
-            ->parStatut('PAYE')
+            ->whereIn('mode_paiement_effectif', BonCaisse::MODES_PAIEMENT_CAISSE)
             ->parSite($rapport->site)
-            ->whereDate('updated_at', $rapport->date_rapport)
+            ->payesLe($rapport->date_rapport)
             ->get();
 
         $pdf = Pdf::loadView('exports.rapport-caisse-pdf', [
@@ -785,49 +867,7 @@ class RapportCaisseController extends Controller
      */
     private function construireRapportJournalier(Carbon $date, ?string $site = null): array
     {
-        /* Récupérer les bons payés ce jour */
-        $query = BonCaisse::with('demandeur')
-            ->whereNotNull('date_paiement')
-            ->whereDate('date_paiement', $date);
-        if ($site) {
-            $query->parSite($site);
-        }
-        $bonsPaye = $query->get();
-
-        $totalSorties = (float) $bonsPaye->sum('montant');
-
-        /* Entrées du jour (mouvements de caisse validés) */
-        $entreesQuery = MouvementCaisse::valides()
-            ->whereNotNull('date_validation')
-            ->whereDate('date_validation', $date)
-            ->whereIn('type', ['approvisionnement', 'ajustement']);
-        if ($site) {
-            $entreesQuery->parSite($site);
-        }
-        $totalEntrees = (float) $entreesQuery->sum('montant');
-
-        /* Solde d'ouverture */
-        $soldeOuverture = $site ? RapportCaisse::soldePrecedent($site) : 0;
-
-        /* Trouver le caissier du site */
-        $caissier = $site
-            ? \App\Models\User::where('actif', true)->where('role', 'caissier')->where('site', $site)->first()
-            : null;
-
-        /* Construire un objet RapportCaisse en mémoire (sans persister) */
-        $rapport = new RapportCaisse([
-            'date_rapport' => $date,
-            'site' => $site ?? 'Tous les sites',
-            'solde_ouverture' => $soldeOuverture,
-            'total_entrees' => $totalEntrees,
-            'total_sorties' => $totalSorties,
-            'solde_cloture' => $soldeOuverture + $totalEntrees - $totalSorties,
-            'caissier_id' => $caissier?->id,
-        ]);
-        $rapport->setRelation('caissier', $caissier);
-        $rapport->calculerStatistiques($bonsPaye);
-
-        return ['rapport' => $rapport, 'bonsPaye' => $bonsPaye];
+        return RapportJournalierService::construire($date, $site);
     }
 
     /**
@@ -840,7 +880,7 @@ class RapportCaisseController extends Controller
         $rapport = $data['rapport'];
         $bonsPaye = $data['bonsPaye'];
 
-        if ($bonsPaye->isEmpty() && (float) $rapport->total_sorties == 0) {
+        if (!RapportJournalierService::aDesMouvements($rapport, $bonsPaye)) {
             return false;
         }
 

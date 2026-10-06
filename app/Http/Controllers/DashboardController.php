@@ -286,13 +286,17 @@ class DashboardController extends Controller
             }
 
             $soldesSites = $sitesQuery->get()->map(fn ($site) => [
-                'nom' => $site->nom,
-                'solde_caisse' => (float) $site->solde_caisse,
-                'solde_format' => $site->solde_caisse_format,
-                'plafond_caisse' => $site->plafond_caisse ? (float) $site->plafond_caisse : null,
-                'plafond_format' => $site->plafond_caisse_format,
-                'seuil_minimum' => $site->seuil_minimum_caisse,
-                'sous_seuil' => $site->soldeSousSeuil(),
+                'nom'               => $site->nom,
+                'solde_caisse'      => $site->solde_caisse,          // total accessor
+                'solde_format'      => $site->solde_caisse_format,
+                'solde_especes'     => (float) $site->solde_especes,
+                'solde_especes_format' => $site->solde_especes_format,
+                'solde_om'          => (float) $site->solde_om,
+                'solde_om_format'   => $site->solde_om_format,
+                'plafond_caisse'    => $site->plafond_caisse ? (float) $site->plafond_caisse : null,
+                'plafond_format'    => $site->plafond_caisse_format,
+                'seuil_minimum'     => $site->seuil_minimum_caisse,
+                'sous_seuil'        => $site->soldeSousSeuil(),
             ]);
         }
 

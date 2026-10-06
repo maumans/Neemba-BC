@@ -74,13 +74,15 @@ class MouvementCaisseController extends Controller
         $peutCreer = $utilisateur->peutPayer() || in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur']);
         $peutValider = in_array($utilisateur->role, ['daf', 'directeur_pays']);
 
-        /* Enrichir les soldes sites avec les champs formatés */
+        /* Enrichir les soldes sites avec les deux balances */
         $soldesSitesEnrichis = $soldesSites->map(fn ($site) => [
-            'nom' => $site->nom,
-            'solde_caisse' => (float) $site->solde_caisse,
-            'plafond_caisse' => $site->plafond_caisse,
+            'nom'                  => $site->nom,
+            'solde_caisse'         => $site->solde_caisse,       // total (accessor)
+            'solde_especes'        => (float) $site->solde_especes,
+            'solde_om'             => (float) $site->solde_om,
+            'plafond_caisse'       => $site->plafond_caisse,
             'seuil_minimum_caisse' => $site->seuil_minimum_caisse,
-            'sous_seuil' => $site->soldeSousSeuil(),
+            'sous_seuil'           => $site->soldeSousSeuil(),
         ]);
 
         return Inertia::render('MouvementsCaisse/Index', [
@@ -100,9 +102,22 @@ class MouvementCaisseController extends Controller
      */
     public function create()
     {
+        /** @var \App\Models\User $utilisateur */
+        $utilisateur = Auth::user();
+
+        $sitesQuery = Site::actifs()->orderBy('nom');
+
+        /* Un caissier ne peut créer un mouvement que pour son propre site */
+        if ($utilisateur->peutPayer() && !in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur'])) {
+            if ($utilisateur->site) {
+                $sitesQuery->where('nom', $utilisateur->site);
+            }
+        }
+
         return Inertia::render('MouvementsCaisse/Create', [
-            'sites' => Site::actifs()->orderBy('nom')->get(['id', 'nom', 'solde_caisse', 'plafond_caisse']),
+            'sites' => $sitesQuery->get(['id', 'nom', 'solde_especes', 'solde_om', 'plafond_caisse']),
             'types' => MouvementCaisse::TYPES,
+            'siteUtilisateur' => $utilisateur->site,
         ]);
     }
 
@@ -111,22 +126,41 @@ class MouvementCaisseController extends Controller
      */
     public function store(Request $request)
     {
+        /** @var \App\Models\User $utilisateur */
+        $utilisateur = Auth::user();
+
         $validated = $request->validate([
-            'type' => ['required', 'in:approvisionnement,retrait,ajustement'],
-            'montant' => ['required', 'numeric', 'min:1'],
-            'motif' => ['required', 'string', 'min:5', 'max:1000'],
-            'site' => ['required', 'string', 'exists:sites,nom'],
+            'type'               => ['required', 'in:approvisionnement,retrait,ajustement'],
+            'type_caisse'        => ['required', 'in:especes,om'],
+            'montant'            => ['required', 'numeric', 'min:1'],
+            'motif'              => ['required', 'string', 'min:5', 'max:1000'],
+            'site'               => ['required', 'string', 'exists:sites,nom'],
+            'piece_justificative'=> ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
         ]);
 
+        /* Restriction : un caissier ne peut créer un mouvement que pour son propre site */
+        if ($utilisateur->peutPayer() && !in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur'])) {
+            if ($utilisateur->site && $validated['site'] !== $utilisateur->site) {
+                abort(403, 'Vous ne pouvez créer des mouvements que pour votre propre site.');
+            }
+        }
+
+        $cheminPiece = null;
+        if ($request->hasFile('piece_justificative')) {
+            $cheminPiece = $request->file('piece_justificative')->store('mouvements_caisse', 'public');
+        }
+
         $mouvement = MouvementCaisse::create([
-            'reference' => MouvementCaisse::genererReference(),
-            'type' => $validated['type'],
-            'montant' => $validated['montant'],
-            'motif' => $validated['motif'],
-            'site' => $validated['site'],
-            'statut' => 'en_attente',
-            'effectue_par' => Auth::id(),
-            'date_mouvement' => now(),
+            'reference'           => MouvementCaisse::genererReference(),
+            'type'                => $validated['type'],
+            'type_caisse'         => $validated['type_caisse'],
+            'montant'             => $validated['montant'],
+            'motif'               => $validated['motif'],
+            'site'                => $validated['site'],
+            'statut'              => 'en_attente',
+            'effectue_par'        => $utilisateur->id,
+            'date_mouvement'      => now(),
+            'piece_justificative' => $cheminPiece,
         ]);
 
         \App\Services\NotificationService::notifierMouvementCaisseCreee($mouvement, Auth::user());
@@ -158,8 +192,10 @@ class MouvementCaisseController extends Controller
         /* Vérifications métier pour les retraits */
         if ($mouvement->type === 'retrait') {
             $site = Site::where('nom', $mouvement->site)->first();
-            if ($site && !$site->peutPayer((float) $mouvement->montant)) {
-                return back()->with('error', "Solde insuffisant sur le site {$mouvement->site} pour ce retrait.");
+            $typeCaisse = $mouvement->type_caisse ?? 'especes';
+            if ($site && !$site->peutPayer((float) $mouvement->montant, $typeCaisse)) {
+                $label = $typeCaisse === 'om' ? 'OM' : 'Espèces';
+                return back()->with('error', "Solde {$label} insuffisant sur le site {$mouvement->site} pour ce retrait.");
             }
         }
 

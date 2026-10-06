@@ -3,11 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Mail\RapportCaisseQuotidien;
-use App\Models\BonCaisse;
 use App\Models\Notification;
-use App\Models\RapportCaisse;
 use App\Models\Site;
 use App\Models\User;
+use App\Services\RapportJournalierService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -123,53 +122,20 @@ class EnvoyerRapportCaisseQuotidien extends Command
      */
     protected function calculerDonneesJournalieres(\Carbon\Carbon $date, string $site): ?array
     {
-        /* Récupérer les bons payés ce jour pour ce site */
-        $bonsPaye = BonCaisse::with('demandeur')
-            ->parStatut('PAYE')
-            ->parSite($site)
-            ->whereDate('date_paiement', $date)
-            ->get();
-
-        $totalSorties = (float) $bonsPaye->sum('montant');
+        /* Même calcul que l'envoi manuel depuis l'écran Rapports */
+        $donnees = RapportJournalierService::construire($date, $site);
+        $rapport = $donnees['rapport'];
 
         /* Si aucun mouvement ce jour, ne pas envoyer */
-        if ($bonsPaye->isEmpty() && $totalSorties == 0) {
+        if (!RapportJournalierService::aDesMouvements($rapport, $donnees['bonsPaye'])) {
             return null;
         }
 
-        /* Solde d'ouverture : dernier rapport existant ou solde du site */
-        $soldeOuverture = RapportCaisse::soldePrecedent($site);
+        $rapport->observations = 'Rapport journalier calculé en temps réel.';
 
-        /* Trouver le caissier du site */
-        $caissier = User::where('actif', true)
-            ->where('role', 'caissier')
-            ->where('site', $site)
-            ->first();
+        $this->line("    Données calculées : {$donnees['bonsPaye']->count()} bon(s), sorties = {$rapport->total_sorties} GNF");
 
-        /* Construire un objet RapportCaisse en mémoire (sans persister) */
-        $rapport = new RapportCaisse([
-            'date_rapport' => $date,
-            'site' => $site,
-            'solde_ouverture' => $soldeOuverture,
-            'total_entrees' => 0,
-            'total_sorties' => $totalSorties,
-            'solde_cloture' => $soldeOuverture - $totalSorties,
-            'caissier_id' => $caissier?->id,
-            'observations' => 'Rapport journalier calculé en temps réel.',
-        ]);
-
-        /* Charger manuellement les relations pour l'email */
-        $rapport->setRelation('caissier', $caissier);
-
-        /* Calculer les statistiques détaillées (en mémoire) */
-        $rapport->calculerStatistiques($bonsPaye);
-
-        $this->line("    Données calculées : {$bonsPaye->count()} bon(s), sorties = {$totalSorties} GNF");
-
-        return [
-            'rapport' => $rapport,
-            'bonsPaye' => $bonsPaye,
-        ];
+        return $donnees;
     }
 
     /**

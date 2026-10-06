@@ -29,6 +29,7 @@ import { Combobox } from '@/Components/ui/combobox';
 import { Button } from '@/Components/ui/button';
 import { Badge } from '@/Components/ui/badge';
 import { Textarea } from '@/Components/ui/textarea';
+import ChampsRejet from '@/Components/ChampsRejet';
 import { Label } from '@/Components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Separator } from '@/Components/ui/separator';
@@ -43,7 +44,7 @@ import {
 } from '@/Components/ui/dialog';
 import { nombreEnLettres, formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
 
-export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [] }) {
+export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [], motifsRejet = {} }) {
     const { auth } = usePage().props;
     const [showRejetDialog, setShowRejetDialog] = useState(false);
     const [showComplementDialog, setShowComplementDialog] = useState(false);
@@ -63,7 +64,7 @@ export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques =
     });
 
     /* Formulaire pour le rejet */
-    const rejeterForm = useForm({ commentaire: '' });
+    const rejeterForm = useForm({ motif_rejet: '', commentaire: '' });
 
     /* Formulaire pour la demande de complément */
     const complementForm = useForm({ commentaire: '' });
@@ -398,30 +399,11 @@ export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques =
                                             <DialogHeader>
                                                 <DialogTitle>Rejeter le bon {bonCaisse.numero}</DialogTitle>
                                                 <DialogDescription>
-                                                    Veuillez indiquer le motif du rejet (minimum 10 caractères).
-                                                    Le demandeur sera informé.
+                                                    Choisissez le motif du rejet. Le demandeur sera informé.
                                                 </DialogDescription>
                                             </DialogHeader>
                                             <form onSubmit={handleRejeter}>
-                                                <div className="my-4">
-                                                    <Label htmlFor="commentaire_rejet">Motif du rejet *</Label>
-                                                    <Textarea
-                                                        id="commentaire_rejet"
-                                                        value={rejeterForm.data.commentaire}
-                                                        onChange={(e) =>
-                                                            rejeterForm.setData('commentaire', e.target.value)
-                                                        }
-                                                        placeholder="Expliquez la raison du rejet..."
-                                                        className="mt-1 min-h-[100px]"
-                                                        required
-                                                        minLength={10}
-                                                    />
-                                                    {rejeterForm.errors.commentaire && (
-                                                        <p className="text-sm text-red-500 mt-1">
-                                                            {rejeterForm.errors.commentaire}
-                                                        </p>
-                                                    )}
-                                                </div>
+                                                <ChampsRejet form={rejeterForm} motifsRejet={motifsRejet} idPrefixe="rejet_validation" />
                                                 <DialogFooter>
                                                     <Button
                                                         type="button"

@@ -29,6 +29,8 @@ import {
     MapPin,
     ArrowUpCircle,
     ArrowDownCircle,
+    Banknote as BanknoteIcon,
+    Smartphone,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Badge } from '@/Components/ui/badge';
@@ -326,10 +328,30 @@ export default function Dashboard({
                                             key={site.nom}
                                             className={`p-3 rounded-lg border ${site.sous_seuil ? 'border-red-200 bg-red-50/50' : 'bg-gray-50'}`}
                                         >
-                                            <p className="text-xs text-gray-500 truncate font-medium">{site.nom}</p>
-                                            <p className={`text-base font-bold mt-0.5 ${site.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
-                                                {formaterNombre(site.solde_caisse)} <span className="text-[10px] font-normal">GNF</span>
-                                            </p>
+                                            <p className="text-xs text-gray-500 truncate font-medium mb-1.5">{site.nom}</p>
+                                            {/* Ventilation Espèces / OM */}
+                                            <div className="flex items-center justify-between mb-0.5">
+                                                <span className="flex items-center gap-1 text-[10px] text-amber-700">
+                                                    <BanknoteIcon className="h-2.5 w-2.5" /> Espèces
+                                                </span>
+                                                <span className="text-xs font-semibold text-gray-800">
+                                                    {formaterNombre(site.solde_especes ?? 0)} <span className="text-[9px] font-normal">GNF</span>
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="flex items-center gap-1 text-[10px] text-violet-700">
+                                                    <Smartphone className="h-2.5 w-2.5" /> OM
+                                                </span>
+                                                <span className="text-xs font-semibold text-gray-800">
+                                                    {formaterNombre(site.solde_om ?? 0)} <span className="text-[9px] font-normal">GNF</span>
+                                                </span>
+                                            </div>
+                                            <div className="border-t pt-1 flex items-center justify-between">
+                                                <span className="text-[10px] text-gray-400">Total</span>
+                                                <span className={`text-sm font-bold ${site.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
+                                                    {formaterNombre(site.solde_caisse)} <span className="text-[9px] font-normal">GNF</span>
+                                                </span>
+                                            </div>
                                             {site.plafond_caisse && (
                                                 <div className="mt-1.5">
                                                     <div className="h-1 bg-gray-200 rounded-full">

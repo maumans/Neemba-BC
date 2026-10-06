@@ -55,9 +55,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('role:daf,directeur_pays,administrateur')
         ->name('bons-caisse.bp-en-retard');
 
-    /* Resource CRUD */
+    /* Resource CRUD — pas de destroy : un bon ne se supprime pas, il s'annule (RG-BC-31) */
     Route::resource('bons-caisse', BonCaisseController::class)
-        ->parameters(['bons-caisse' => 'bonCaisse']);
+        ->parameters(['bons-caisse' => 'bonCaisse'])
+        ->except(['destroy']);
 
     /* Actions spécifiques sur les bons de caisse (toutes paramétrées → pas de conflit) */
     Route::post('/bons-caisse/{bonCaisse}/soumettre', [BonCaisseController::class, 'soumettre'])

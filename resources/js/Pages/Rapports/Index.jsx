@@ -15,7 +15,8 @@ import {
     BarChart3, Search, Wallet, TrendingUp, TrendingDown,
     Download, FileSpreadsheet, Calendar, CalendarDays, CalendarRange,
     Activity, Hash, AlertTriangle, MapPin, Send, Loader2,
-    ChevronDown, ChevronRight, User, CreditCard
+    ChevronDown, ChevronRight, User, CreditCard,
+    Banknote, Smartphone
 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -231,29 +232,54 @@ export default function Index({
 
                         {/* Widget solde caisse du site */}
                         {soldeCaisseSite && (
-                            <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg border ${
+                            <div className={`flex items-center gap-4 px-4 py-3 rounded-lg border ${
                                 soldeCaisseSite.sous_seuil ? 'border-red-200 bg-red-50' : 'border-neemba-200 bg-neemba-50'
                             }`}>
-                                <Wallet className={`h-5 w-5 ${soldeCaisseSite.sous_seuil ? 'text-red-500' : 'text-neemba-600'}`} />
-                                <div>
-                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">Solde caisse {soldeCaisseSite.nom}</p>
-                                    <p className={`text-base sm:text-lg font-bold ${soldeCaisseSite.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
-                                        {soldeCaisseSite.solde_format}
-                                    </p>
+                                <Wallet className={`h-8 w-8 hidden sm:block ${soldeCaisseSite.sous_seuil ? 'text-red-500' : 'text-neemba-600'}`} />
+                                <div className="flex-1">
+                                    <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Solde caisse {soldeCaisseSite.nom}</p>
+                                    
+                                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                                        <div>
+                                            <div className="flex items-center gap-1.5 text-amber-700 mb-0.5">
+                                                <Banknote className="h-3.5 w-3.5" />
+                                                <span className="text-[11px] font-medium">Espèces</span>
+                                            </div>
+                                            <p className="text-sm font-bold text-gray-800">{soldeCaisseSite.solde_especes_format}</p>
+                                        </div>
+                                        
+                                        <div>
+                                            <div className="flex items-center gap-1.5 text-violet-700 mb-0.5">
+                                                <Smartphone className="h-3.5 w-3.5" />
+                                                <span className="text-[11px] font-medium">OM</span>
+                                            </div>
+                                            <p className="text-sm font-bold text-gray-800">{soldeCaisseSite.solde_om_format}</p>
+                                        </div>
+                                        
+                                        <div className="sm:border-l sm:pl-6">
+                                            <div className="flex items-center gap-1.5 text-gray-500 mb-0.5">
+                                                <span className="text-[11px] font-medium">Total</span>
+                                            </div>
+                                            <p className={`text-base font-bold ${soldeCaisseSite.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
+                                                {soldeCaisseSite.solde_format}
+                                            </p>
+                                        </div>
+                                    </div>
+
                                     {soldeCaisseSite.plafond_caisse && (
-                                        <div className="mt-1">
-                                            <div className="h-1 bg-gray-200 rounded-full w-32">
+                                        <div className="mt-2 pt-2 border-t border-neemba-200/50">
+                                            <div className="h-1 bg-gray-200 rounded-full w-full max-w-[250px]">
                                                 <div
                                                     className={`h-1 rounded-full ${soldeCaisseSite.sous_seuil ? 'bg-red-400' : 'bg-neemba-400'}`}
                                                     style={{ width: `${Math.min((soldeCaisseSite.solde / soldeCaisseSite.plafond_caisse) * 100, 100)}%` }}
                                                 />
                                             </div>
-                                            <p className="text-[9px] text-gray-400 mt-0.5">Plafond : {soldeCaisseSite.plafond_format}</p>
+                                            <p className="text-[9px] text-gray-400 mt-1">Plafond : {soldeCaisseSite.plafond_format}</p>
                                         </div>
                                     )}
                                     {soldeCaisseSite.sous_seuil && (
-                                        <p className="text-[10px] text-red-500 flex items-center gap-0.5 mt-0.5">
-                                            <AlertTriangle className="h-2.5 w-2.5" /> Sous le seuil minimum
+                                        <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1 font-medium">
+                                            <AlertTriangle className="h-3 w-3" /> Sous le seuil minimum
                                         </p>
                                     )}
                                 </div>

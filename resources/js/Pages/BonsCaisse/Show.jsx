@@ -57,6 +57,7 @@ import { Separator } from '@/Components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { Label } from '@/Components/ui/label';
 import { Textarea } from '@/Components/ui/textarea';
+import ChampsRejet from '@/Components/ChampsRejet';
 import {
     Select,
     SelectContent,
@@ -176,6 +177,7 @@ export default function Show({
     codesAnalytiques = [],
     peutPreRegulariser = false,
     aDesPiecesRegularisation = false,
+    motifsRejet = {},
 }) {
     const { auth, flash } = usePage().props;
     const user = auth.user;
@@ -217,7 +219,7 @@ export default function Show({
         commentaire: '',
         ...(estCDG ? { code_analytique: bonCaisse.code_analytique || '', ventilations: bonCaisse.ventilations || [] } : {}),
     });
-    const rejeterForm = useForm({ commentaire: '' });
+    const rejeterForm = useForm({ motif_rejet: '', commentaire: '' });
     const complementForm = useForm({ commentaire: '' });
 
     /* Formulaire pour la régularisation avec upload + motif */
@@ -1181,7 +1183,7 @@ export default function Show({
                         </Card>
                     </motion.div>
 
-                    {/* Solde caisse site (Phase 2.1) */}
+                    {/* Solde caisse site — deux balances */}
                     {soldeCaisseSite && (
                         <motion.div
                             initial={{ opacity: 0, x: 10 }}
@@ -1190,22 +1192,34 @@ export default function Show({
                         >
                             <Card className={soldeCaisseSite.sous_seuil ? 'border-red-200' : ''}>
                                 <CardContent className="p-4">
-                                    <div className="flex items-center gap-2 mb-2">
+                                    <div className="flex items-center gap-2 mb-3">
                                         <Wallet className="h-4 w-4 text-gray-400" />
-                                        <p className="text-xs text-gray-500">Solde caisse — {bonCaisse.site}</p>
+                                        <p className="text-xs text-gray-500 font-medium">Caisse — {bonCaisse.site}</p>
                                     </div>
-                                    <p className={`text-lg font-bold ${soldeCaisseSite.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
-                                        {soldeCaisseSite.solde_format || new Intl.NumberFormat('fr-FR').format(soldeCaisseSite.solde) + ' GNF'}
-                                    </p>
+                                    {/* Espèces */}
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="text-[11px] text-amber-700 font-medium">Espèces</span>
+                                        <span className={`text-sm font-bold ${!soldeCaisseSite.peut_payer_especes && bonCaisse.statut === 'APPROUVE' ? 'text-red-600' : 'text-gray-800'}`}>
+                                            {soldeCaisseSite.solde_especes_format}
+                                        </span>
+                                    </div>
+                                    {/* OM */}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[11px] text-violet-700 font-medium">OM (Mobile Money)</span>
+                                        <span className={`text-sm font-bold ${!soldeCaisseSite.peut_payer_om && bonCaisse.statut === 'APPROUVE' ? 'text-red-600' : 'text-gray-800'}`}>
+                                            {soldeCaisseSite.solde_om_format}
+                                        </span>
+                                    </div>
+                                    <div className="border-t pt-1.5 flex items-center justify-between">
+                                        <span className="text-[11px] text-gray-400">Total</span>
+                                        <span className={`text-sm font-bold ${soldeCaisseSite.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
+                                            {soldeCaisseSite.solde_format}
+                                        </span>
+                                    </div>
                                     {soldeCaisseSite.sous_seuil && (
-                                        <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
+                                        <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1.5">
                                             <AlertTriangle className="h-3 w-3" />
-                                            Sous le seuil minimum
-                                        </p>
-                                    )}
-                                    {!soldeCaisseSite.peut_payer && bonCaisse.statut === 'APPROUVE' && (
-                                        <p className="text-[10px] text-red-600 font-medium mt-1">
-                                            Solde insuffisant pour ce paiement
+                                            Solde total sous le seuil minimum
                                         </p>
                                     )}
                                 </CardContent>
@@ -1715,26 +1729,11 @@ export default function Show({
                                                     <DialogHeader>
                                                         <DialogTitle>Rejeter le bon {bonCaisse.numero}</DialogTitle>
                                                         <DialogDescription>
-                                                            Veuillez indiquer le motif du rejet (minimum 10 caractères).
-                                                            Le demandeur sera informé.
+                                                            Choisissez le motif du rejet. Le demandeur sera informé.
                                                         </DialogDescription>
                                                     </DialogHeader>
                                                     <form onSubmit={handleRejeter}>
-                                                        <div className="my-4">
-                                                            <Label htmlFor="commentaire_rejet_show">Motif du rejet *</Label>
-                                                            <Textarea
-                                                                id="commentaire_rejet_show"
-                                                                value={rejeterForm.data.commentaire}
-                                                                onChange={(e) => rejeterForm.setData('commentaire', e.target.value)}
-                                                                placeholder="Expliquez la raison du rejet..."
-                                                                className="mt-1 min-h-[100px]"
-                                                                required
-                                                                minLength={10}
-                                                            />
-                                                            {rejeterForm.errors.commentaire && (
-                                                                <p className="text-sm text-red-500 mt-1">{rejeterForm.errors.commentaire}</p>
-                                                            )}
-                                                        </div>
+                                                        <ChampsRejet form={rejeterForm} motifsRejet={motifsRejet} idPrefixe="rejet_show" />
                                                         <DialogFooter>
                                                             <Button type="button" variant="outline" onClick={() => setShowRejetDialog(false)}>
                                                                 Annuler

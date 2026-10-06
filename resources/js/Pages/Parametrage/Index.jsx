@@ -280,17 +280,28 @@ function ParametreRow({ parametre }) {
     );
 }
 
+/** Libellés des groupes de paramètres (colonne parametres.groupe) */
+const LIBELLES_GROUPES_PARAMETRES = {
+    seuils: 'Seuils de montant',
+    delais: 'Délais',
+    fichiers: 'Fichiers',
+    sla: 'Délais de validation (SLA)',
+    caisse: 'Caisse',
+    securite: 'Sécurité',
+    bons_caisse: 'Bons de caisse',
+};
+
 export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [] }) {
     /* ─── SITES ─── */
     const [siteDialog, setSiteDialog] = useState({ open: false, item: null });
-    const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '', solde_caisse: '', plafond_caisse: '', seuil_minimum_caisse: '' });
+    const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '', solde_especes: '', solde_om: '', plafond_caisse: '', seuil_minimum_caisse: '' });
 
     const openSiteAdd = () => {
         siteForm.reset();
         setSiteDialog({ open: true, item: null });
     };
     const openSiteEdit = (item) => {
-        siteForm.setData({ code: item.code || '', nom: item.nom, ville: item.ville || '', adresse: item.adresse || '', solde_caisse: item.solde_caisse ?? '', plafond_caisse: item.plafond_caisse ?? '', seuil_minimum_caisse: item.seuil_minimum_caisse ?? '' });
+        siteForm.setData({ code: item.code || '', nom: item.nom, ville: item.ville || '', adresse: item.adresse || '', solde_especes: item.solde_especes ?? '', solde_om: item.solde_om ?? '', plafond_caisse: item.plafond_caisse ?? '', seuil_minimum_caisse: item.seuil_minimum_caisse ?? '' });
         setSiteDialog({ open: true, item });
     };
     const submitSite = (e) => {
@@ -463,7 +474,8 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                         { key: 'code', label: 'Code Site' },
                                         { key: 'nom', label: 'Nom du site' },
                                         { key: 'ville', label: 'Ville' },
-                                        { key: 'solde_caisse_format', label: 'Solde caisse' },
+                                        { key: 'solde_especes_format', label: 'Espèces' },
+                                        { key: 'solde_om_format', label: 'OM' },
                                         { key: 'plafond_caisse_format', label: 'Plafond' },
                                     ]}
                                     onAdd={openSiteAdd}
@@ -556,9 +568,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                     ).map(([groupe, params]) => (
                                         <div key={groupe}>
                                             <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                                                {groupe === 'seuils' ? 'Seuils de montant' :
-                                                 groupe === 'delais' ? 'Délais' :
-                                                 groupe === 'fichiers' ? 'Fichiers' : 'Général'}
+                                                {LIBELLES_GROUPES_PARAMETRES[groupe] ?? 'Général'}
                                             </h4>
                                             <div className="space-y-2">
                                                 {params.map((p) => (
@@ -616,9 +626,14 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     </p>
                     <div className="space-y-3">
                         <div>
-                            <Label>Solde de caisse actuel (GNF)</Label>
-                            <Input type="number" value={siteForm.data.solde_caisse} onChange={(e) => siteForm.setData('solde_caisse', e.target.value)} className="mt-1" placeholder="0" />
-                            {siteForm.errors.solde_caisse && <p className="text-sm text-red-500 mt-1">{siteForm.errors.solde_caisse}</p>}
+                            <Label>Solde Espèces (GNF)</Label>
+                            <Input type="number" value={siteForm.data.solde_especes} onChange={(e) => siteForm.setData('solde_especes', e.target.value)} className="mt-1" placeholder="0" />
+                            {siteForm.errors.solde_especes && <p className="text-sm text-red-500 mt-1">{siteForm.errors.solde_especes}</p>}
+                        </div>
+                        <div>
+                            <Label>Solde OM / Mobile Money (GNF)</Label>
+                            <Input type="number" value={siteForm.data.solde_om} onChange={(e) => siteForm.setData('solde_om', e.target.value)} className="mt-1" placeholder="0" />
+                            {siteForm.errors.solde_om && <p className="text-sm text-red-500 mt-1">{siteForm.errors.solde_om}</p>}
                         </div>
                         <div>
                             <Label>Plafond de caisse (GNF)</Label>

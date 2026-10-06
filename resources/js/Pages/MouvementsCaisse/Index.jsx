@@ -15,10 +15,11 @@ import {
     Settings2,
     CheckCircle2,
     XCircle,
-    Clock,
-    TrendingUp,
     AlertTriangle,
     Filter,
+    Paperclip,
+    Banknote,
+    Smartphone,
 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
@@ -47,6 +48,11 @@ const TYPES_CONFIG = {
     approvisionnement: { label: 'Approvisionnement', icone: ArrowUpCircle, couleur: 'text-green-600' },
     retrait: { label: 'Retrait', icone: ArrowDownCircle, couleur: 'text-red-600' },
     ajustement: { label: 'Ajustement', icone: Settings2, couleur: 'text-blue-600' },
+};
+
+const CAISSE_CONFIG = {
+    especes: { label: 'Espèces', icone: Banknote, couleur: 'bg-amber-100 text-amber-700' },
+    om:      { label: 'OM', icone: Smartphone, couleur: 'bg-violet-100 text-violet-700' },
 };
 
 const STATUTS_CONFIG = {
@@ -103,12 +109,33 @@ export default function Index({
                         >
                             <Card className={site.sous_seuil ? 'border-red-200 bg-red-50/50' : ''}>
                                 <CardContent className="p-4">
-                                    <p className="text-xs text-gray-500 truncate">{site.nom}</p>
-                                    <p className={`text-lg font-bold ${site.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
-                                        {formaterMontant(site.solde_caisse)}
-                                    </p>
+                                    <p className="text-xs text-gray-500 font-medium truncate mb-2">{site.nom}</p>
+                                    {/* Solde Espèces */}
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="flex items-center gap-1 text-[11px] text-amber-700">
+                                            <Banknote className="h-3 w-3" /> Espèces
+                                        </span>
+                                        <span className="text-sm font-bold text-gray-800">
+                                            {formaterMontant(site.solde_especes ?? 0)}
+                                        </span>
+                                    </div>
+                                    {/* Solde OM */}
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="flex items-center gap-1 text-[11px] text-violet-700">
+                                            <Smartphone className="h-3 w-3" /> OM
+                                        </span>
+                                        <span className="text-sm font-bold text-gray-800">
+                                            {formaterMontant(site.solde_om ?? 0)}
+                                        </span>
+                                    </div>
+                                    <div className="border-t pt-1.5 flex items-center justify-between">
+                                        <span className="text-[11px] text-gray-400">Total</span>
+                                        <span className={`text-sm font-bold ${site.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
+                                            {formaterMontant(site.solde_caisse ?? 0)}
+                                        </span>
+                                    </div>
                                     {site.sous_seuil && (
-                                        <p className="text-[10px] text-red-500 flex items-center gap-1 mt-0.5">
+                                        <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
                                             <AlertTriangle className="h-3 w-3" />
                                             Sous le seuil minimum
                                         </p>
@@ -118,7 +145,7 @@ export default function Index({
                                             <div className="h-1.5 bg-gray-200 rounded-full">
                                                 <div
                                                     className={`h-1.5 rounded-full ${site.sous_seuil ? 'bg-red-400' : 'bg-neemba-400'}`}
-                                                    style={{ width: `${Math.min((site.solde_caisse / site.plafond_caisse) * 100, 100)}%` }}
+                                                    style={{ width: `${Math.min(((site.solde_caisse ?? 0) / site.plafond_caisse) * 100, 100)}%` }}
                                                 />
                                             </div>
                                             <p className="text-[10px] text-gray-400 mt-0.5">
@@ -196,25 +223,44 @@ export default function Index({
                                 const statutConfig = STATUTS_CONFIG[mvt.statut] || STATUTS_CONFIG.en_attente;
                                 const TypeIcon = typeConfig.icone;
 
+                                const caisseConfig = CAISSE_CONFIG[mvt.type_caisse] || CAISSE_CONFIG.especes;
+                                const CaisseIcon = caisseConfig.icone;
+
                                 return (
                                     <div key={mvt.id} className="p-4 border rounded-lg bg-white hover:shadow-sm transition-shadow">
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="flex items-start gap-3 flex-1 min-w-0">
                                                 <TypeIcon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${typeConfig.couleur}`} />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
+                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                         <span className="font-mono text-xs text-gray-400">{mvt.reference}</span>
                                                         <Badge className={`text-[10px] ${statutConfig.couleur}`}>
                                                             {statutConfig.label}
                                                         </Badge>
+                                                        <span className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${caisseConfig.couleur}`}>
+                                                            <CaisseIcon className="h-2.5 w-2.5" />
+                                                            {caisseConfig.label}
+                                                        </span>
                                                     </div>
                                                     <p className="text-sm font-medium">{typeConfig.label} — {mvt.site}</p>
                                                     <p className="text-sm text-gray-600 truncate">{mvt.motif}</p>
-                                                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                                                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1 flex-wrap">
                                                         <span>Par : {mvt.effectue_par_nom}</span>
                                                         <span>{new Date(mvt.date_mouvement).toLocaleDateString('fr-FR')}</span>
                                                         {mvt.valide_par_nom && (
                                                             <span>Validé par : {mvt.valide_par_nom}</span>
+                                                        )}
+                                                        {mvt.piece_justificative && (
+                                                            <a
+                                                                href={`/storage/${mvt.piece_justificative}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="inline-flex items-center gap-1 text-neemba-600 hover:text-neemba-700 font-medium"
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            >
+                                                                <Paperclip className="h-3 w-3" />
+                                                                Justificatif
+                                                            </a>
                                                         )}
                                                     </div>
                                                 </div>

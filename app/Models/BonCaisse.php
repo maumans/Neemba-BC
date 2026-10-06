@@ -157,11 +157,24 @@ class BonCaisse extends Model
         'autre' => 'Autre',
     ];
 
+    /** Modes de paiement qui sortent d'une caisse ; les autres sont payés hors caisse (RG-BC-12) */
+    const MODES_PAIEMENT_CAISSE = ['especes', 'orange_money'];
+
     /** Niveaux d'urgence */
     const NIVEAUX_URGENCE = [
         'normale' => 'Normale',
         'urgente' => 'Urgente',
         'tres_urgente' => 'Très urgente',
+    ];
+
+    /** Motifs de rejet prédéfinis */
+    const MOTIFS_REJET = [
+        'budget_insuffisant' => 'Budget insuffisant ou non alloué',
+        'piece_manquante' => 'Pièce justificative manquante',
+        'montant_incorrect' => 'Montant incorrect',
+        'code_analytique_errone' => 'Code analytique erroné',
+        'non_conforme_politique' => 'Non conforme à la politique de dépenses',
+        'autre' => 'Autre (préciser en commentaire)',
     ];
 
     /** Délai de régularisation en jours pour une mission */
@@ -283,6 +296,15 @@ class BonCaisse extends Model
     public function scopeAujourdhui($query)
     {
         return $query->whereDate('date_demande', today());
+    }
+
+    /**
+     * Scope : bons payés à une date donnée, quel que soit leur statut actuel
+     * (un BP payé passe en attente de régularisation, puis régularisé ou archivé).
+     */
+    public function scopePayesLe($query, $date)
+    {
+        return $query->whereNotNull('date_paiement')->whereDate('date_paiement', $date);
     }
 
     /**

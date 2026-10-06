@@ -136,6 +136,7 @@ class ValidationController extends Controller
             'modesPaiement' => BonCaisse::MODES_PAIEMENT,
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
             'codesAnalytiques' => \App\Models\CodeAnalytique::where('actif', true)->get(),
+            'motifsRejet' => BonCaisse::MOTIFS_REJET,
         ]);
     }
 
@@ -289,9 +290,16 @@ class ValidationController extends Controller
             }
         }
 
-        $request->validate([
-            'commentaire' => ['required', 'string', 'min:10', 'max:1000'],
+        $validated = $request->validate([
+            'motif_rejet' => ['required', 'string', 'in:' . implode(',', array_keys(BonCaisse::MOTIFS_REJET))],
+            'commentaire' => ['nullable', 'string', 'max:1000', 'required_if:motif_rejet,autre'],
         ]);
+
+        $motifStr = BonCaisse::MOTIFS_REJET[$validated['motif_rejet']];
+        $commentaireRejetFinal = $motifStr;
+        if (!empty($validated['commentaire'])) {
+            $commentaireRejetFinal .= " - " . $validated['commentaire'];
+        }
 
         /* Trouver l'étape de validation en attente pour ce rôle */
         $validation = $bonCaisse->validations()
@@ -300,11 +308,11 @@ class ValidationController extends Controller
             ->first();
 
         if ($validation) {
-            $validation->rejeter($utilisateur, $request->commentaire);
+            $validation->rejeter($utilisateur, $commentaireRejetFinal);
         }
 
         $bonCaisse->load('demandeur');
-        NotificationService::notifierRejet($bonCaisse, $utilisateur, $request->commentaire);
+        NotificationService::notifierRejet($bonCaisse, $utilisateur, $commentaireRejetFinal);
 
         return redirect()
             ->route('validations.index')
