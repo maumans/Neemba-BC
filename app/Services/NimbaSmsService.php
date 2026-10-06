@@ -23,7 +23,7 @@ class NimbaSmsService
     {
         $this->client = new Client();
         $this->apiUrl = config('services.nimba.api_url', 'https://api.nimbasms.com/v1');
-        $this->authToken = config('services.nimba.auth_token');
+        $this->authToken = (string) config('services.nimba.auth_token');
         $this->senderName = config('services.nimba.sender_name', 'NEEMBA');
     }
 
@@ -36,6 +36,13 @@ class NimbaSmsService
      */
     public function envoyerSms(string $recipientPhoneNumber, string $message): array
     {
+        /* Nimba non configuré (tests, poste de développement) : aucun appel réseau */
+        if ($this->authToken === '') {
+            Log::info('SMS non envoyé : service Nimba non configuré', ['destinataire' => $recipientPhoneNumber]);
+
+            return ['success' => false, 'error' => 'Service SMS non configuré'];
+        }
+
         try {
             $url = "{$this->apiUrl}/messages";
 
