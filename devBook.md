@@ -1,7 +1,7 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 7 Octobre 2026 (v21 — Lot 2 : caisses et registre des écritures de caisse)
+> Dernière mise à jour : 7 Octobre 2026 (v22 — Lot 3 : assistant de saisie du bon de caisse, M03-A)
 
 ---
 
@@ -2365,6 +2365,166 @@ Après la mise en production, le DAF doit vérifier dans Paramétrage › Caisse
   - transferts entre caisses.
 - **M08** : arrêté **par caisse** (aujourd'hui, le rapport manuel agrège les caisses du site).
 - **M10** : afficher la ventilation espèces / OM dans l'e-mail, le PDF et l'Excel.
+
+---
+
+## 22. Version v22 — Lot 3 : assistant de saisie du bon, M03-A (7 Octobre 2026)
+
+Le formulaire de création et la page de modification sont remplacés par **un seul assistant en 5 étapes**, conforme à la SFD v1.3 (E-03.2 à E-03.7). Il sert à la création, à la reprise d'un brouillon et à la correction après rejet. Branche `lot3-assistant`, partie de `lot2-caisses`.
+
+US couvertes : US-BC-01 à 08, 10, 11, 12, 14 et 15. La lecture des tickets (US-BC-09) et la délégation d'initiation (US-BC-13) viennent aux lots 4 et 5.
+
+### 22.1 Parcours
+
+| Action | Comportement |
+|--------|--------------|
+| Ouvrir « Nouveau bon » | Aucun bon n'est créé (RG-BC-01, TC-BC-001). Valeurs par défaut (RG-BC-02) : site et service du demandeur, urgence Normale, bénéficiaire = le demandeur, espèces |
+| Premier « Suivant » ou « Brouillon » | Création du brouillon, **sans numéro** (ANO-03). L'adresse devient `/bons-caisse/{id}/edit` : un rechargement le rouvre |
+| « Suivant » | Le serveur contrôle l'étape (formats + champs obligatoires, messages exacts de la SFD) puis enregistre. En cas d'erreur, l'étape passe en rouge et le curseur va sur le premier champ en erreur |
+| « Précédent », clic sur une étape visitée | Aucun contrôle ; la saisie est enregistrée |
+| « Brouillon » | Formats seulement (RG-BC-25), message MSG-BC-030 pendant 3 secondes |
+| Étape 5 | Les **12 contrôles** du serveur (§5.4.7), avec un lien « Corriger » vers le champ, et le circuit de validation prévu avec le nom des valideurs |
+| « Soumettre » | Actif seulement sans contrôle rouge. Confirmation MSG-BC-031, puis le serveur refait tous les contrôles. Le numéro est attribué à ce moment, et l'écran affiche la fiche avec MSG-BC-032 |
+| Quitter avec des modifications | Fenêtre MSG-BC-035 : Enregistrer / Quitter sans enregistrer / Annuler |
+| Reprise d'un brouillon | L'assistant s'ouvre sur la première étape incomplète (TC-BC-024) |
+
+### 22.2 Modèle (migration `2026_10_08_000001_saisie_bon_m03`)
+
+- **`bons_caisse`** :
+  - `numero` facultatif : il est attribué à la soumission ;
+  - les champs de saisie deviennent facultatifs, pour qu'un brouillon puisse être incomplet ;
+  - nouvelles colonnes : `version`, `initiateur_id`, `beneficiaire_id` (bénéficiaire employé), `vehicule`, `references_or` (JSON), `lie_mission`, `odm_id`, `date_retour_mission`, `motif_annulation`, `date_annulation`, `cle_soumission`.
+- **Mode de paiement « chèque »** ajouté.
+- **Types de pièce** : « Demande d'achat » et « Bon de travail (OR) » ajoutés. Le type est vide tant que l'utilisateur ne l'a pas choisi.
+- **`categories_depense`** : les 10 catégories du §5.4.3, paramétrables. Chacune indique si elle affiche le véhicule (obligatoire ou non) et l'OR, et si elle est proposée dans l'assistant (Mission ne l'est pas : elle passera par les ordres de mission, M12).
+  - Les anciennes catégories sont converties (décision Q1).
+  - La constante `BonCaisse::CATEGORIES_DEPENSE` est remplacée par `CategorieDepense::libelles()`, mis en cache.
+- **`compteurs_numerotation`** : un compteur par année, verrouillé à chaque attribution. Il démarre au plus grand numéro existant : aucun numéro n'est réutilisé, et un bon annulé garde le sien.
+  - Les brouillons existants perdent leur numéro (décision Q9).
+- **`validations.version`** : quand un bon est resoumis, les étapes déjà traitées restent dans l'historique.
+- **Paramètre `delai_abandon_brouillon`** : 30 jours (RG-BC-26).
+- **Reprise** :
+  - `initiateur_id` reçoit la valeur de `demandeur_id` ;
+  - `beneficiaire_id` est renseigné quand le nom correspond exactement à un utilisateur.
+- **Vérifié sur une copie de la base de développement**, aller et retour :
+  - 10 bons ;
+  - catégories converties puis restaurées ;
+  - compteur 2026 initialisé à 10.
+
+### 22.3 Règles (`app/Services/BonCaisse/`)
+
+| Classe | Rôle |
+|--------|------|
+| `ReglesSaisie` | Champs de chaque étape, règles complètes et règles de format, messages exacts de la SFD. Code analytique rattaché au service (RG-BC-04), plafond de retrait (RG-BC-11), téléphone guinéen stocké `+224XXXXXXXXX`, pièces (RG-BC-15, RG-BC-18), première étape incomplète |
+| `EnregistrementBon` | Création du brouillon avec les valeurs par défaut, puis enregistrement. Un bénéficiaire employé reprend le nom et le téléphone du référentiel (RG-BC-06). Revenir à « Normale » efface le motif et la justification d'urgence. Le véhicule est mis en majuscules. La caisse payeuse est recalculée (RG-BC-12) |
+| `ControlesBon` | Les 12 contrôles de l'étape 5. Chacun renvoie `{numero, code, niveau, message, regle, message_cle, valeurs, etape, champ}` |
+| `CircuitPrevisionnel` | Niveaux de validation prévus et nom des valideurs disponibles. Un niveau sans valideur déclenche MSG-BC-042 |
+| `NumeroteurBon` | Prochain numéro `BC-AAAA-NNNN`, tiré du compteur verrouillé |
+| `SoumettreBon` | Une transaction qui fait, dans l'ordre : verrou sur le bon ; contrôles refaits ; attribution du numéro ; circuit ; journal. Les notifications partent après la validation de la transaction. **Clé d'idempotence** : un double clic ne consomme qu'un numéro (TC-BC-025). Un contrôle en échec renvoie 422 sans consommer de numéro (TC-BC-026). Un bon rejeté est resoumis avec le même numéro, `version` + 1, et le circuit repart du chef de service |
+| `AnnulerBon` | Brouillon ou rejeté seulement, avec un motif d'au moins 10 caractères ; sinon 409 MSG-BC-034 (RG-BC-31, TC-BC-030) |
+| `BonCaissePolicy` | Créer : rôle demandeur (TC-BC-032). Modifier : demandeur ou initiateur, bon en brouillon ou rejeté |
+
+D'autres règles changent hors de ces classes :
+
+- **Seuil du Directeur Pays** : il est franchi strictement au-delà du seuil (RG-BC-09).
+- **Bon très urgent** : les délais de validation sont divisés par 2 (RG-BC-05, `Validation::slaHeures()`).
+- **Date limite de régularisation** : elle tient compte de la date de retour de mission (RG-BC-14).
+
+### 22.4 API JSON `/api/v1` (authentification par session)
+
+| Route | Rôle |
+|-------|------|
+| `POST /bons` | Création du brouillon. `etape` : vérifier aussi cette étape |
+| `PATCH /bons/{id}` | Enregistrement d'un brouillon ou d'un bon rejeté |
+| `GET /bons/{id}/controles` | Les 12 contrôles, si la soumission est possible, et le circuit |
+| `POST /bons/{id}/soumettre` | En-tête `Idempotency-Key` ; réponse au format §5.7 |
+| `POST /bons/{id}/annuler` | Motif obligatoire |
+| `POST /bons/{id}/pieces` | Un fichier, envoyé dès son dépôt. PDF, JPG ou PNG, contrôlés sur le contenu ; 10 Mo, 20 fichiers et 50 Mo par bon ; empreinte SHA-256 calculée à l'envoi |
+| `PATCH` et `DELETE /bons/{id}/pieces/{piece}` | Type de la pièce ; suppression réelle avant soumission seulement |
+| `GET /referentiels/beneficiaires?q=` | Employés actifs, dès 2 caractères : « NOM Prénom — matricule — service » |
+| `GET /referentiels/caisse-payeuse?site=&mode=` | Caisse payeuse et son plafond de retrait |
+
+Un refus métier renvoie `{code, regle, message_cle, valeurs, message}`, plus `champ` quand il vise un champ. À la soumission, `regle` est celle du contrôle en échec, comme dans l'exemple du §5.7 (RG-BC-11 pour le plafond).
+
+### 22.5 Écrans
+
+- **`Pages/BonsCaisse/Assistant.jsx`** et **`Components/Assistant/`** : un composant par étape, la barre d'étapes et le résumé.
+  - **Barre d'étapes** : jaune, vert ou rouge selon l'état. Sur mobile, réduite aux icônes.
+  - **Résumé** : mis à jour en direct, replié en bas d'écran sur mobile.
+  - **Étape 3** :
+    - ligne d'information caisse payeuse, plafond et seuil DP (ANO-05) ;
+    - « Espèces » grisé au-delà du plafond, avec l'info-bulle MSG-BC-012 ;
+    - montant en lettres en lecture seule ;
+    - bandeau MSG-BC-020 au-delà du seuil DP ;
+    - véhicule et OR affichés selon la catégorie ;
+    - OR sous forme d'étiquettes ;
+    - mission pour un BP.
+  - **Étape 4** :
+    - glisser-déposer, ou appareil photo sur mobile ;
+    - barre de progression ;
+    - type par ligne : « Ticket carburant » proposé pour la catégorie Carburant.
+- **`utils/assistant.js`** : règles d'affichage. Le serveur reste juge.
+- **Supprimés** : `Create.jsx`, `Edit.jsx`, `BonCaisseController@store/update/soumettre` et la route web de soumission. La ventilation multi-codes n'est plus proposée à la saisie (décision Q16) ; le CDG peut toujours ventiler à la validation.
+- **Fiche du bon** :
+  - brouillon : « Reprendre » ;
+  - bon rejeté : « Corriger et resoumettre » ;
+  - dans les deux cas, « Annuler le bon » avec un motif ;
+  - l'initiateur a les mêmes droits que le demandeur.
+- **Liste** : « — » pour un brouillon, crayon pour reprendre un brouillon ou corriger un bon rejeté.
+- **Tableau de bord** : « Brouillon » s'affiche à la place du numéro.
+
+### 22.6 Tâche de nuit
+
+`bons:annuler-brouillons-abandonnes`, planifiée à 02:00 (RG-BC-26) :
+
+- elle annule un brouillon non modifié depuis `delai_abandon_brouillon` jours ;
+- une pièce ajoutée récemment compte comme une modification ;
+- le demandeur reçoit une notification in-app (type `annulation`).
+
+### 22.7 Tests
+
+- **`tests/Feature/M03/SaisieBonTest.php`** : 33 tests couvrant :
+  - TC-BC-001 à 006, 008 à 015, 024 à 026, 030 et 032 ;
+  - la numérotation sans retour arrière ;
+  - la resoumission ;
+  - l'annulation ;
+  - la tâche de nuit.
+- **`tests/js/assistant.test.js`** : règles d'affichage (plafond, seuil DP, catégories, OR, fichiers).
+- **Total** : **133 tests PHP** et 56 tests JavaScript passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base, avec SMS et IA désactivés : 32 vérifications. On y passe successivement par :
+  - la création ;
+  - les erreurs de l'étape 1 ;
+  - le plafond, puis le virement ;
+  - le véhicule et l'OR ;
+  - la fenêtre MSG-BC-035 ;
+  - le dépôt d'une pièce ;
+  - les contrôles ;
+  - la soumission, qui attribue BC-2026-0011 ;
+  - l'affichage mobile.
+
+### 22.8 Déploiement
+
+```bash
+php artisan migrate        # numéro à la soumission, catégories de la SFD, compteur, colonnes M03
+php artisan optimize:clear
+npm run build
+```
+
+Le planificateur (`schedule:run`) doit tourner pour l'annulation des brouillons abandonnés.
+
+### 22.9 Reste à faire
+
+- **Lot 4** :
+  - qualité réelle des pièces (RG-BC-16) ;
+  - doublons à confirmer et justifier (RG-BC-19). Aujourd'hui, c'est un simple avertissement ;
+  - panneau de lecture des tickets et contrôles des tickets (US-BC-09, RG-BC-20 à 23) ;
+  - nouvelle version d'une pièce après soumission.
+- **Lot 5** :
+  - « Pour le compte de » : délégation d'initiation (US-BC-13, contrôle 12) ;
+  - liste E-03.1 : filtres, colonne Âge, 20 lignes ;
+  - fiche E-03.8 : bandeau de rejet, historique ancienne → nouvelle valeur ;
+  - le chef de service est notifié.
+- **M12** : choix de l'ordre de mission dans l'étape 3. Pour l'instant, seule la date de retour est demandée.
 
 ---
 
