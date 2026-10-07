@@ -1,7 +1,7 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 6 Octobre 2026 (v19 — Lot 0 : sécurité, stabilisation caisse Espèces/OM, rapport journalier, tests MySQL)
+> Dernière mise à jour : 7 Octobre 2026 (v20 — Lot 1 : socle transverse — formatage, montant en lettres, messages, statuts, journal d'audit, multi-rôles)
 
 ---
 
@@ -2094,7 +2094,7 @@ La SFD v1.3 (livraison 1, 05/10/2026) détaille le module M03 « Saisie du bon d
 | Lot | Contenu | Statut |
 |-----|---------|--------|
 | 0 | Sécurité, stabilisation du travail non commité (juin/août), bugs de production | ✅ Fait (branche `lot0-stabilisation`) |
-| 1 | Socle transverse : messages MSG-xx (`lang/fr.json`), formatage §1.4, statuts, montant en lettres, audit, multi-rôles | ⏳ À faire |
+| 1 | Socle transverse : messages MSG-xx (`lang/fr.json`), formatage §1.4, statuts, montant en lettres, audit, multi-rôles | ✅ Fait (branche `lot1-socle`, §20) |
 | 2 | Table `caisses` (caisse payeuse, plafond de retrait, OM Conakry, Atelier) | ⏳ À faire |
 | 3 | M03-A : assistant, brouillon, soumission (US-BC-01 à 07, 10, 11, 12, 15) | ⏳ À faire |
 | 4 | M03-B : pièces justificatives, lecture des tickets carburant (US-BC-08, 09) | ⏳ À faire |
@@ -2159,6 +2159,129 @@ Le front est déjà compilé (`public/build`).
 - L'ouverture du rapport journalier reprend la clôture du dernier rapport enregistré (Q13). Le registre par caisse du lot 2 la recalculera exactement.
 - Les données Espèces / OM sont calculées, mais les rapports e-mail, PDF et Excel n'affichent encore que les totaux.
 - Le tableau temps réel ne compte plus que les paiements en caisse (espèces et OM) ; sa ventilation Espèces / OM viendra avec le lot 2.
+
+---
+
+## 20. Version v20 — Lot 1 : socle transverse (7 Octobre 2026)
+
+Prérequis communs à toutes les user stories de M03. Branche `lot1-socle`, partie de `lot0-stabilisation`.
+
+### 20.1 Outillage de tests
+
+| Élément | Détail |
+|---------|--------|
+| Factories | `UserFactory` enrichie (prénom, matricule, rôle, site, service ; états `role()`, `inactif()`), `SiteFactory` (état `conakry()`), `ServiceFactory`, `CodeAnalytiqueFactory`, `BonCaisseFactory` (états `statut()`, `approuve()`, `provisoire()`) |
+| Utilitaire | `TestCase::utilisateurAvecRoles(['caissier'])` : utilisateur ayant exactement ces rôles |
+| Tests JavaScript | **Vitest** (`npm test`, `vitest.config.js`, dossier `tests/js/`) |
+| Cas partagés | `tests/fixtures/montants_lettres.json`, lu par les tests PHP et JS |
+
+### 20.2 Formatage commun (SFD §1.4)
+
+- `resources/js/utils/format.js` et `App\Support\Format` appliquent les mêmes règles :
+  - montant `1 500 000 GNF` (espace insécable) ;
+  - date `05/10/2026` ;
+  - date-heure `05/10/2026 14:30` ;
+  - durée `2 h 15 min` sous 24 h, `3 j 4 h` au-delà.
+- Côté serveur, ces règles s'appliquent :
+  - aux accesseurs `*_format` (bon, site, mouvement, rapport, ventilation, ordre de mission) ;
+  - aux PDF et à l'e-mail du rapport ;
+  - aux notifications ;
+  - aux délais de validation. Leur ancien calcul ignorait les mois : un délai de 35 jours s'affichait « 4j ».
+- Côté écran, `utils/nombreEnLettres.js` réexporte `formaterNombre` et `formaterMontant` depuis `format.js`. La fiche du bon, la liste et les mouvements de caisse utilisent ces fonctions communes.
+- **SMS** : `NimbaSmsService` remplace les espaces insécables par des espaces simples (`Format::pourSms`). Sinon le SMS passe en Unicode : 70 caractères au lieu de 160, donc un coût doublé.
+- Fuseau de l'application : `Africa/Conakry` (`config/app.php`). C'est UTC+0 sans heure d'été : aucune date stockée ne change.
+
+### 20.3 Montant en lettres (ANO-01, RG-BC-08)
+
+- `App\Support\MontantEnLettres` fait foi ; `utils/nombreEnLettres.js` suit le même algorithme pour l'aperçu à la frappe.
+- Règles :
+  - « deux cent mille », mais « deux cents » et « deux cents millions » ;
+  - « quatre-vingt mille », mais « quatre-vingts » ;
+  - minuscules ;
+  - « un million **de** francs guinéens » quand le montant se termine par million(s) (Q15) ;
+  - « un franc guinéen » au singulier.
+- **Recalcul serveur à chaque enregistrement** (événement `saving` de `BonCaisse`) : la valeur envoyée par l'écran est ignorée.
+- La migration `2026_10_07_000001` recalcule les montants en lettres déjà enregistrés. Ceux-ci, faux, étaient imprimés sur le PDF officiel.
+
+### 20.4 Catalogue des messages (SFD §5.6, §5.7)
+
+- `lang/fr.json` contient les messages MSG-BC-001 à 042, au texte exact de la SFD. Les variables `[plafond]` deviennent `:plafond`.
+- Écran : `utils/messages.js` fournit :
+  - `msg('MSG-BC-012', { plafond, caisse })`, qui formate les nombres et la `date` ;
+  - `msgErreur(reponse)` pour une erreur du serveur.
+- Serveur : `App\Exceptions\ErreurMetier` (code, règle, clé de message, valeurs, champ).
+  - En **API**, elle renvoie une 422 au format §5.7 : `{ code, regle, message_cle, valeurs, message }`.
+  - À l'**écran**, elle provoque un retour à la page, avec le message sous le champ.
+  - Elle n'est pas journalisée comme une erreur.
+
+### 20.5 Statuts
+
+- Le statut **`ANNULE`** est ajouté à l'enum (migration `2026_10_07_000002`, RG-BC-31) et à `BonCaisse::STATUTS`, libellé « Annulé ».
+- `utils/statuts.js` et le composant `BadgeStatut` appliquent les couleurs de la SFD :
+
+  | Statut | Couleur |
+  |--------|---------|
+  | Brouillon | gris |
+  | En validation · étape | bleu |
+  | Approuvé | vert clair |
+  | Payé | vert |
+  | Rejeté | rouge |
+  | En attente de régularisation | orange |
+  | Annulé | gris barré |
+
+- Les trois copies de `badgeVariantParStatut` (Index, Show, Dashboard) sont supprimées. `Validations/Show` utilise aussi `BadgeStatut`.
+
+### 20.6 Journal d'audit (SFD §1.2)
+
+- Toute modification d'un champ métier d'un bon écrit une ligne « Modification du bon » avec, pour chaque champ, l'ancienne et la nouvelle valeur (`metadata.changements`).
+  - Mécanisme : événement `updated` de `BonCaisse` → `HistoriqueAction::enregistrerChangements()`.
+  - Les champs suivis sont ceux de `HistoriqueAction::LIBELLES_CHAMPS`. Le statut, les dates du cycle de vie et le numéro restent tracés par leur propre action (soumission, validation, paiement…).
+- `BonCaisse::modifierAvecJournal()` permet de préciser l'action inscrite au journal. La correction du code analytique par le CDG l'utilise : une seule ligne, avec avant → après.
+- L'onglet Historique de la fiche affiche ces changements.
+
+### 20.7 Plusieurs rôles par utilisateur
+
+- **Table `roles_utilisateurs`** (`user_id`, `role`), créée par la migration `2026_10_07_000003`.
+  - Reprise des comptes existants : rôle actuel + `demandeur`. Aujourd'hui tout le monde peut créer un bon, donc rien ne change pour les utilisateurs.
+  - `users.role` reste le **rôle principal**.
+- **Synchronisation automatique** :
+  - un nouveau compte reçoit son rôle et `demandeur` ;
+  - un changement de rôle principal remplace l'ancien rôle et conserve `demandeur`.
+- **Méthodes du modèle `User`** :
+  - `listeRoles()` ;
+  - `aLeRole(string|array)` ;
+  - `peutInitierBon()` ;
+  - `definirRoles()` / `ajouterRoles()` ;
+  - `peutValider()`, `peutPayer()`, `peutEffectuer()`, `estAdministrateur()`, `rolesValidationEffectifs()`, qui lisent désormais tous les rôles.
+- **Middleware `role:`** : il accepte un rôle secondaire.
+- **Propriétés partagées** : `auth.user.roles`, `auth.user.roles_effectifs`, `auth.user.peut_initier_bon`.
+- **Création d'un bon réservée au rôle demandeur** (US-BC-01 scénario 2, TC-BC-032) :
+  - 403 sur `create` et `store`, y compris pour un appel direct ;
+  - boutons « Nouveau Bon » masqués.
+
+> **Reste pour M02 (administration des rôles)** : environ 45 contrôles lisent encore le rôle principal (`->role ===`, `where('role', …)`, `parRole()`), dans les contrôleurs, `NotificationService` et les commandes. Ils restent justes tant qu'aucun rôle secondaire autre que `demandeur` n'est attribué. Il faudra les convertir avec l'écran d'attribution des rôles. Pour les retrouver : `grep -rnE "->role ===|where\('role'|parRole\(" app`.
+
+### 20.8 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_07_000001 (montants en lettres), 000002 (statut ANNULE), 000003 (rôles)
+php artisan optimize:clear
+npm run build
+```
+
+### 20.9 Tests
+
+- JavaScript : `npm test` (43 tests).
+- PHP : `php artisan test` (MySQL `neemba_test` ; Laragon doit être démarré).
+  - Nouveaux tests unitaires : `MontantEnLettresTest`, `FormatTest`.
+  - Nouveaux tests fonctionnels : `tests/Feature/Socle/` (messages, rôles, montant en lettres, statut Annulé, journal).
+
+### 20.10 Décisions du 07/10/2026
+
+Les arbitrages ont été délégués au développeur. Le registre, avec la possibilité de revenir sur chaque décision, est `docs/questions.md`. Deux décisions changent déjà le comportement :
+
+- **Q14** : il n'y a plus d'archivage automatique. Un BD payé reste « Payé » et un BP régularisé reste « Régularisé », comme dans la SFD. L'archivage est une action manuelle (DAF, DP, caissier, administrateur). Les bons déjà archivés le restent.
+- **Q11** : la demandeuse pilote s'appelle « Souadou BARRY ». Le seeder est corrigé ; en production, il faut corriger le prénom dans Utilisateurs.
 
 ---
 
