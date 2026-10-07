@@ -29,5 +29,9 @@
     "MSG-BC-035": "Enregistrer le brouillon avant de quitter ?",
     "MSG-BC-040": "Champs manquants : :liste.",
     "MSG-BC-041": "Le solde actuel de la :caisse ne couvre pas ce montant. Le paiement pourra attendre un réapprovisionnement.",
-    "MSG-BC-042": "Aucun valideur disponible au niveau :niveau. Le bon sera transmis au niveau supérieur."
+    "MSG-BC-042": "Aucun valideur disponible au niveau :niveau. Le bon sera transmis au niveau supérieur.",
+    "MSG-APP-001": "Ce bon a déjà été soumis : il ne peut plus être modifié ni soumis à nouveau.",
+    "MSG-APP-002": "Vous ne pouvez pas modifier ce bon.",
+    "MSG-APP-003": "Un bon accepte au plus 20 pièces et 50 Mo au total.",
+    "MSG-APP-004": "Une pièce d'un bon déjà soumis ne se supprime pas : ajoutez la nouvelle version."
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArchivageController;
+use App\Http\Controllers\AssistantBonController;
 use App\Http\Controllers\BonCaisseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DelegationController;
@@ -55,14 +56,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('role:daf,directeur_pays,administrateur')
         ->name('bons-caisse.bp-en-retard');
 
-    /* Resource CRUD — pas de destroy : un bon ne se supprime pas, il s'annule (RG-BC-31) */
+    /* Pages : liste, assistant (création, reprise d'un brouillon, correction après rejet), fiche.
+     * L'enregistrement passe par l'API de l'assistant ; un bon ne se supprime pas, il s'annule (RG-BC-31). */
     Route::resource('bons-caisse', BonCaisseController::class)
         ->parameters(['bons-caisse' => 'bonCaisse'])
-        ->except(['destroy']);
+        ->only(['index', 'create', 'show', 'edit']);
+
+    /* --- API JSON de l'assistant « Nouveau bon de caisse » (SFD M03, §5.7) --- */
+    Route::prefix('api/v1')->name('api.')->group(function () {
+        Route::get('/referentiels/beneficiaires', [AssistantBonController::class, 'beneficiaires'])->name('referentiels.beneficiaires');
+        Route::get('/referentiels/caisse-payeuse', [AssistantBonController::class, 'caissePayeuse'])->name('referentiels.caisse-payeuse');
+        Route::post('/bons', [AssistantBonController::class, 'creer'])->name('bons.creer');
+        Route::patch('/bons/{bonCaisse}', [AssistantBonController::class, 'enregistrer'])->name('bons.enregistrer');
+        Route::get('/bons/{bonCaisse}/controles', [AssistantBonController::class, 'controles'])->name('bons.controles');
+        Route::post('/bons/{bonCaisse}/soumettre', [AssistantBonController::class, 'soumettre'])->name('bons.soumettre');
+        Route::post('/bons/{bonCaisse}/annuler', [AssistantBonController::class, 'annuler'])->name('bons.annuler');
+        Route::post('/bons/{bonCaisse}/pieces', [AssistantBonController::class, 'ajouterPiece'])->name('bons.pieces.ajouter');
+        Route::patch('/bons/{bonCaisse}/pieces/{piece}', [AssistantBonController::class, 'typerPiece'])->name('bons.pieces.typer');
+        Route::delete('/bons/{bonCaisse}/pieces/{piece}', [AssistantBonController::class, 'supprimerPiece'])->name('bons.pieces.supprimer');
+    });
 
     /* Actions spécifiques sur les bons de caisse (toutes paramétrées → pas de conflit) */
-    Route::post('/bons-caisse/{bonCaisse}/soumettre', [BonCaisseController::class, 'soumettre'])
-        ->name('bons-caisse.soumettre');
     Route::post('/bons-caisse/{bonCaisse}/otp/generer', [BonCaisseController::class, 'genererOtp'])
         ->middleware('role:caissier')
         ->name('bons-caisse.otp.generer');

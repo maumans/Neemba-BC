@@ -160,6 +160,27 @@ class NotificationService
     }
 
     /**
+     * Brouillon abandonné annulé par la tâche de nuit (RG-BC-26)
+     * → Destinataire : le demandeur
+     */
+    public static function notifierAnnulationBrouillon(BonCaisse $bon, int $jours): void
+    {
+        if (!$bon->demandeur) {
+            return;
+        }
+
+        self::creerEtDiffuser(
+            destinataire: $bon->demandeur,
+            bon: $bon,
+            expediteur: null,
+            type: Notification::TYPE_ANNULATION,
+            titre: 'Brouillon annulé',
+            message: "Votre brouillon de bon de caisse ({$bon->motif}) n'a pas été modifié depuis {$jours} jours : il a été annulé.",
+            metadata: ['jours' => $jours],
+        );
+    }
+
+    /**
      * Notifier lors d'une demande de complément
      * → Destinataire : le demandeur
      */

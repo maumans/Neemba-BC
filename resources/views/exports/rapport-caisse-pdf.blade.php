@@ -150,7 +150,7 @@
                 <td>{{ $bon->numero }}</td>
                 <td>{{ $bon->type_bon }}</td>
                 <td>{{ $bon->beneficiaire }}</td>
-                <td>{{ \App\Models\BonCaisse::CATEGORIES_DEPENSE[$bon->categorie_depense] ?? $bon->categorie_depense }}</td>
+                <td>{{ \App\Models\CategorieDepense::libelles()[$bon->categorie_depense] ?? $bon->categorie_depense }}</td>
                 <td>{{ \App\Models\BonCaisse::MODES_PAIEMENT[$bon->mode_paiement_effectif ?? $bon->mode_paiement] ?? ($bon->mode_paiement_effectif ?? $bon->mode_paiement) }}</td>
                 <td class="number">{{ \App\Support\Format::nombre($bon->montant) }}</td>
             </tr>

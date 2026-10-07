@@ -673,7 +673,7 @@ export default function Dashboard({
                                         <Link key={bon.id} href={route('validations.show', bon.id)}
                                             className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors border">
                                             <div className="min-w-0">
-                                                <p className="text-sm font-medium truncate">{bon.numero} — {bon.beneficiaire}</p>
+                                                <p className="text-sm font-medium truncate">{bon.numero ?? 'Brouillon'} — {bon.beneficiaire}</p>
                                                 <p className="text-xs text-gray-500 truncate">{bon.motif}</p>
                                             </div>
                                             <div className="text-right ml-4 flex-shrink-0">
@@ -714,7 +714,7 @@ export default function Dashboard({
                                         <Link key={bon.id} href={route('bons-caisse.show', bon.id)}
                                             className="flex items-center justify-between p-3 rounded-lg hover:bg-emerald-50 transition-colors border">
                                             <div className="min-w-0">
-                                                <p className="text-sm font-medium truncate">{bon.numero} — {bon.beneficiaire}</p>
+                                                <p className="text-sm font-medium truncate">{bon.numero ?? 'Brouillon'} — {bon.beneficiaire}</p>
                                                 <p className="text-xs text-gray-500 truncate">{bon.demandeur?.prenom} {bon.demandeur?.name}</p>
                                             </div>
                                             <div className="text-right ml-4 flex-shrink-0">
@@ -762,7 +762,7 @@ export default function Dashboard({
                                         <Link key={bon.id} href={route('bons-caisse.show', bon.id)}
                                             className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors border">
                                             <div className="min-w-0">
-                                                <p className="text-sm font-medium truncate">{bon.numero}</p>
+                                                <p className="text-sm font-medium truncate">{bon.numero ?? 'Brouillon'}</p>
                                                 <p className="text-xs text-gray-500 truncate">{bon.beneficiaire} — {bon.motif}</p>
                                             </div>
                                             <div className="text-right ml-4 flex-shrink-0">
@@ -846,7 +846,7 @@ export default function Dashboard({
                                             <Link key={bon.id} href={route('bons-caisse.show', bon.id)}
                                                 className="block p-3 rounded-lg hover:bg-red-50 transition-colors border border-red-100">
                                                 <div className="flex items-center justify-between">
-                                                    <p className="text-sm font-medium truncate">{bon.numero}</p>
+                                                    <p className="text-sm font-medium truncate">{bon.numero ?? 'Brouillon'}</p>
                                                     <Badge variant="destructive" className="text-[10px]">
                                                         {joursRetard}j retard
                                                     </Badge>
@@ -927,7 +927,7 @@ export default function Dashboard({
                                                 </p>
                                                 {action.bon_caisse && (
                                                     <p className="text-[10px] text-gray-500 truncate">
-                                                        {action.bon_caisse.numero}
+                                                        {action.bon_caisse.numero ?? 'Brouillon'}
                                                     </p>
                                                 )}
                                                 <div className="flex items-center justify-between mt-0.5">

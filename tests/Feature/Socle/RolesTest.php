@@ -37,7 +37,7 @@ class RolesTest extends TestCase
         $caissier = $this->utilisateurAvecRoles(['caissier']);
 
         $this->actingAs($caissier)->get(route('bons-caisse.create'))->assertForbidden();
-        $this->actingAs($caissier)->post(route('bons-caisse.store'), [])->assertForbidden();
+        $this->actingAs($caissier)->postJson(route('api.bons.creer'), [])->assertForbidden();
         $this->actingAs($caissier)->get(route('dashboard'))
             ->assertInertia(fn (Assert $page) => $page->where('auth.user.peut_initier_bon', false));
     }

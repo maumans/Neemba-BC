@@ -24,6 +24,7 @@ import {
     CheckCircle2,
     XCircle,
     Activity,
+    Pencil,
 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -348,7 +349,8 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                                         {urgConf && (
                                                             <span title={urgConf.label} className={cn('inline-block w-2 h-2 rounded-full flex-shrink-0', urgConf.dotCls)} />
                                                         )}
-                                                        <span className="truncate">{bon.numero}</span>
+                                                        {/* Numéro attribué à la soumission : « — » pour un brouillon (E-03.1) */}
+                                                        <span className="truncate">{bon.numero ?? '—'}</span>
                                                         {urgConf && (
                                                             <span className={cn(
                                                                 'hidden sm:inline-flex items-center rounded px-1 py-0.5 text-[8px] font-bold tracking-wide leading-none flex-shrink-0',
@@ -411,11 +413,20 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                                                 </Button>
                                                             </Link>
                                                         )}
-                                                        <Link href={route('bons-caisse.show', bon.id)}>
+                                                        <Link href={route('bons-caisse.show', bon.id)} title="Ouvrir">
                                                             <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
                                                                 <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                                                             </Button>
                                                         </Link>
+                                                        {/* Crayon : reprendre un brouillon ou corriger un bon rejeté (auteur seulement) */}
+                                                        {['BROUILLON', 'REJETE'].includes(bon.statut)
+                                                            && [bon.demandeur_id, bon.initiateur_id].includes(auth.user?.id) && (
+                                                            <Link href={route('bons-caisse.edit', bon.id)} title={bon.statut === 'REJETE' ? 'Corriger et resoumettre' : 'Reprendre'}>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
+                                                                    <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                                                                </Button>
+                                                            </Link>
+                                                        )}
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

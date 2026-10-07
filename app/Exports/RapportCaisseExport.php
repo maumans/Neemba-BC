@@ -95,7 +95,7 @@ class RapportCaisseExport implements FromArray, ShouldAutoSize, WithStyles, With
                     $bon->type_bon,
                     $bon->beneficiaire,
                     mb_substr($bon->motif, 0, 60),
-                    BonCaisse::CATEGORIES_DEPENSE[$bon->categorie_depense] ?? $bon->categorie_depense,
+                    \App\Models\CategorieDepense::libelles()[$bon->categorie_depense] ?? $bon->categorie_depense,
                     BonCaisse::MODES_PAIEMENT[$bon->mode_paiement_effectif ?? $bon->mode_paiement] ?? ($bon->mode_paiement_effectif ?? $bon->mode_paiement),
                     $this->formatMontant($bon->montant),
                 ];

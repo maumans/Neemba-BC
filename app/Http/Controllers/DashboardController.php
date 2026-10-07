@@ -360,7 +360,7 @@ class DashboardController extends Controller
             'bpEnRetard' => $bpEnRetard,
             'repartitionCategories' => $repartitionCategories,
             'activiteRecente' => $activiteRecente,
-            'categoriesLabels' => BonCaisse::CATEGORIES_DEPENSE,
+            'categoriesLabels' => \App\Models\CategorieDepense::libelles(),
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
             'statutsLabels' => BonCaisse::STATUTS_LABELS,
             /* Nouvelles données pour graphiques */

@@ -53,6 +53,17 @@ class BonCaisse extends Model
         'caissier_id',
         'mode_paiement_effectif',
         'caisse_id',
+        'version',
+        'initiateur_id',
+        'beneficiaire_id',
+        'vehicule',
+        'references_or',
+        'lie_mission',
+        'odm_id',
+        'date_retour_mission',
+        'motif_annulation',
+        'date_annulation',
+        'cle_soumission',
         'date_demande',
         'date_soumission',
         'date_paiement',
@@ -80,6 +91,10 @@ class BonCaisse extends Model
     protected function casts(): array
     {
         return [
+            'references_or' => 'array',
+            'lie_mission' => 'boolean',
+            'date_retour_mission' => 'date',
+            'date_annulation' => 'datetime',
             'montant' => 'decimal:2',
             'date_demande' => 'date',
             'date_soumission' => 'datetime',
@@ -132,35 +147,29 @@ class BonCaisse extends Model
     ];
 
     /** Catégories de dépense */
-    const CATEGORIES_DEPENSE = [
-        'carburant' => 'Carburant',
-        'transport' => 'Transport',
-        'frais_mission' => 'Frais de mission',
-        'achat_materiel' => 'Achat matériel',
-        'fournitures_bureau' => 'Fournitures de bureau',
-        'prestations_externes' => 'Prestations externes',
-        'entretien_reparation' => 'Entretien et réparation',
-        'telecommunication' => 'Télécommunication',
-        'formation' => 'Formation',
-        'restauration' => 'Restauration',
-        'autre' => 'Autre',
-    ];
 
     /** Types de bénéficiaire */
     const TYPES_BENEFICIAIRE = [
         'employe' => 'Employé',
-        'fournisseur' => 'Fournisseur',
+        'fournisseur' => 'Fournisseur / prestataire',
         'prestataire' => 'Prestataire',
-        'autre' => 'Autre',
+        'autre' => 'Autre tiers',
     ];
+
+    /** Types proposés dans l'assistant (US-BC-04) ; « prestataire » est conservé pour les anciens bons */
+    const TYPES_BENEFICIAIRE_ASSISTANT = ['employe', 'fournisseur', 'autre'];
 
     /** Modes de paiement */
     const MODES_PAIEMENT = [
         'especes' => 'Espèces',
         'orange_money' => 'Orange Money',
+        'cheque' => 'Chèque',
         'virement' => 'Virement',
         'autre' => 'Autre',
     ];
+
+    /** Modes proposés dans l'assistant (US-BC-06) ; « autre » est conservé pour les anciens bons */
+    const MODES_PAIEMENT_ASSISTANT = ['especes', 'orange_money', 'cheque', 'virement'];
 
     /** Modes de paiement qui sortent d'une caisse ; les autres sont payés hors caisse (RG-BC-12) */
     const MODES_PAIEMENT_CAISSE = ['especes', 'orange_money'];
@@ -209,6 +218,18 @@ class BonCaisse extends Model
     /**
      * Étapes de validation du bon
      */
+    /** Personne qui a saisi le bon (elle-même ou un back-up délégué — US-BC-13) */
+    public function initiateur(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'initiateur_id');
+    }
+
+    /** Bénéficiaire employé, choisi dans le référentiel (RG-BC-06) */
+    public function beneficiaireUtilisateur(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'beneficiaire_id');
+    }
+
     /** Caisse qui a payé le bon (lot 2) */
     public function caisse(): BelongsTo
     {
@@ -401,7 +422,8 @@ class BonCaisse extends Model
      */
     public function getNecessiteValidationDpAttribute(): bool
     {
-        return $this->montant >= Parametre::seuilDP();
+        /* RG-BC-09 : visa du Directeur Pays au-delà du seuil (montant strictement supérieur) */
+        return (float) $this->montant > Parametre::seuilDP();
     }
 
     /**
@@ -514,8 +536,9 @@ class BonCaisse extends Model
      */
     public function creerEtapesValidation(): void
     {
-        /* Supprimer les anciennes validations au cas où il s'agirait d'une re-soumission d'un bon rejeté */
-        $this->validations()->delete();
+        /* Resoumission après rejet (RG-BC-30) : les étapes traitées de la version précédente restent dans
+         * l'historique ; seules celles qui n'avaient pas été atteintes sont retirées. */
+        $this->validations()->where('statut', 'en_attente')->delete();
 
         $niveaux = [
             ['niveau' => 1, 'role' => 'responsable_service'],
@@ -530,6 +553,7 @@ class BonCaisse extends Model
 
         foreach ($niveaux as $etape) {
             $this->validations()->create([
+                'version' => $this->version ?? 1,
                 'niveau' => $etape['niveau'],
                 'role' => $etape['role'],
                 'statut' => 'en_attente',
@@ -682,10 +706,7 @@ class BonCaisse extends Model
             } else {
                 /* Pas de pièces → attente de régularisation (workflow standard) */
                 $this->statut = 'EN_ATTENTE_REGULARISATION';
-                $delai = $this->categorie_depense === 'frais_mission'
-                    ? self::DELAI_REGULARISATION_MISSION
-                    : self::DELAI_REGULARISATION_AUTRE;
-                $this->date_limite_regularisation = now()->addDays($delai)->toDateString();
+                $this->date_limite_regularisation = $this->dateLimiteRegularisation()->toDateString();
                 $this->save();
 
                 HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'EN_ATTENTE_REGULARISATION', $caissier->id,
@@ -821,6 +842,25 @@ class BonCaisse extends Model
             'Pièce jointe ajoutée : ' . $nomFichier,
             ['nom_fichier' => $nomFichier],
         );
+    }
+
+    /**
+     * Date limite de régularisation d'un BP (RG-BC-14, RG-C3-01) :
+     * lié à une mission → date de retour + délai « mission » ; sinon paiement + délai standard.
+     * $paiement : date de paiement (aujourd'hui par défaut, pour une estimation avant paiement).
+     */
+    public function dateLimiteRegularisation(?\Carbon\CarbonInterface $paiement = null): \Carbon\CarbonInterface
+    {
+        $paiement = ($paiement ?? now())->copy()->startOfDay();
+
+        if ($this->lie_mission && $this->date_retour_mission) {
+            $retour = $this->date_retour_mission->copy()->startOfDay();
+            $depart = $retour->greaterThan($paiement) ? $retour : $paiement;
+
+            return $depart->addDays((int) Parametre::valeur('delai_regularisation_mission', self::DELAI_REGULARISATION_MISSION));
+        }
+
+        return $paiement->addDays((int) Parametre::valeur('delai_regularisation_autre', self::DELAI_REGULARISATION_AUTRE));
     }
 
     /**

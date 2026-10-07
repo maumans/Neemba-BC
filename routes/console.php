@@ -23,3 +23,6 @@ Schedule::command('archives:alerter-expiration')->dailyAt('08:30');
 /* Vérification proactive des seuils de caisse : alertes SMS + push aux caissiers (2× par jour) */
 Schedule::command('caisse:verifier-seuils')->dailyAt('08:00');
 Schedule::command('caisse:verifier-seuils')->dailyAt('14:00');
+
+/* RG-BC-26 : annulation des brouillons non modifiés depuis 30 jours, avec notification in-app */
+Schedule::command('bons:annuler-brouillons-abandonnes')->dailyAt('02:00');

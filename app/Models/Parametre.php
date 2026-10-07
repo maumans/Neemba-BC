@@ -69,6 +69,12 @@ class Parametre extends Model
         return (float) static::valeur('montant_max_bon', 20000000);
     }
 
+    /** RG-BC-26 : un brouillon non modifié depuis ce nombre de jours est annulé */
+    public static function delaiAbandonBrouillon(): int
+    {
+        return (int) static::valeur('delai_abandon_brouillon', 30);
+    }
+
     public static function seuilDP(): float
     {
         return (float) static::valeur('seuil_validation_dp', 5000000);

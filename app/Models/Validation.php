@@ -29,6 +29,7 @@ class Validation extends Model
         'niveau',
         'role',
         'statut',
+        'version',
         'commentaire',
         'validateur_id',
         'date_validation',
@@ -103,7 +104,10 @@ class Validation extends Model
      */
     public function slaHeures(): float
     {
-        return (float) Parametre::valeur('sla_' . $this->role, 4);
+        $heures = (float) Parametre::valeur('sla_' . $this->role, 4);
+
+        /* RG-BC-05 : délais divisés par 2 pour un bon très urgent */
+        return $this->bonCaisse?->niveau_urgence === 'tres_urgente' ? $heures / 2 : $heures;
     }
 
     /**

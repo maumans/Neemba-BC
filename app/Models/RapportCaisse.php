@@ -192,7 +192,7 @@ class RapportCaisse extends Model
             ->map(function ($group, $categorie) {
                 return [
                     'categorie' => $categorie,
-                    'label' => BonCaisse::CATEGORIES_DEPENSE[$categorie] ?? $categorie,
+                    'label' => \App\Models\CategorieDepense::libelles()[$categorie] ?? $categorie,
                     'nombre' => $group->count(),
                     'montant' => (float) $group->sum('montant'),
                 ];

@@ -27,6 +27,7 @@ class ErreurMetier extends RuntimeException
         public readonly ?string $regle = null,
         public readonly ?string $champ = null,
         public readonly int $statutHttp = 422,
+        public readonly array $details = [],
     ) {
         parent::__construct(self::texte($messageCle, $valeurs));
     }
@@ -62,7 +63,7 @@ class ErreurMetier extends RuntimeException
                 'message_cle' => $this->messageCle,
                 'valeurs' => (object) $this->valeurs,
                 'message' => $this->getMessage(),
-            ], $this->statutHttp);
+            ] + array_filter(['champ' => $this->champ]) + $this->details, $this->statutHttp);
         }
 
         return back()

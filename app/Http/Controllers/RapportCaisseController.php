@@ -168,7 +168,7 @@ class RapportCaisseController extends Controller
             'statsResume' => $donnees['statsResume'],
             'topCategories' => $donnees['topCategories'],
             'evolutionSolde' => $evolutionSolde,
-            'categoriesDepense' => BonCaisse::CATEGORIES_DEPENSE,
+            'categoriesDepense' => \App\Models\CategorieDepense::libelles(),
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'granularite' => $donnees['granularite'],
             'modeTempsReel' => true,
@@ -344,7 +344,7 @@ class RapportCaisseController extends Controller
                     'demandeur' => $b->demandeur ? ($b->demandeur->prenom . ' ' . $b->demandeur->name) : null,
                     'motif' => $b->motif,
                     'montant' => (float) $b->montant,
-                    'categorie' => BonCaisse::CATEGORIES_DEPENSE[$b->categorie_depense] ?? $b->categorie_depense,
+                    'categorie' => \App\Models\CategorieDepense::libelles()[$b->categorie_depense] ?? $b->categorie_depense,
                     'mode_paiement' => $b->mode_paiement,
                     'type_bon' => $b->type_bon,
                 ])->values())
@@ -488,7 +488,7 @@ class RapportCaisseController extends Controller
             ->get()
             ->map(fn($c) => [
                 'categorie' => $c->categorie_depense,
-                'label' => BonCaisse::CATEGORIES_DEPENSE[$c->categorie_depense] ?? $c->categorie_depense,
+                'label' => \App\Models\CategorieDepense::libelles()[$c->categorie_depense] ?? $c->categorie_depense,
                 'total' => (float) $c->total,
                 'nombre' => (int) $c->nombre,
             ]);
@@ -535,7 +535,7 @@ class RapportCaisseController extends Controller
             ->map(function ($group, $categorie) {
                 return [
                     'categorie' => $categorie,
-                    'label' => BonCaisse::CATEGORIES_DEPENSE[$categorie] ?? $categorie,
+                    'label' => \App\Models\CategorieDepense::libelles()[$categorie] ?? $categorie,
                     'nombre' => $group->count(),
                     'montant' => (float) $group->sum('montant'),
                 ];
@@ -719,7 +719,7 @@ class RapportCaisseController extends Controller
             'bonsPaye' => $bonsPaye,
             'detailsBons' => $bonsPayeDetailles,
             'soldeCaisseSite' => $soldeCaisseSite,
-            'categoriesLabels' => BonCaisse::CATEGORIES_DEPENSE,
+            'categoriesLabels' => \App\Models\CategorieDepense::libelles(),
             'modesPaiementLabels' => BonCaisse::MODES_PAIEMENT,
         ]);
     }
@@ -758,7 +758,7 @@ class RapportCaisseController extends Controller
         $pdf = Pdf::loadView('exports.rapport-caisse-pdf', [
             'rapport' => $rapport,
             'bonsPaye' => $bonsPaye,
-            'categoriesLabels' => BonCaisse::CATEGORIES_DEPENSE,
+            'categoriesLabels' => \App\Models\CategorieDepense::libelles(),
             'modesPaiementLabels' => BonCaisse::MODES_PAIEMENT,
         ])->setPaper('a4', 'landscape');
 

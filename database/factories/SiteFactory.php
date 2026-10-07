@@ -14,7 +14,7 @@ class SiteFactory extends Factory
         $ville = fake()->unique()->city();
 
         return [
-            'code' => fake()->unique()->numerify('##'),
+            'code' => (string) fake()->unique()->numberBetween(10, 99),   // « 01 » est réservé à Conakry
             'nom' => $ville,
             'ville' => $ville,
             'actif' => true,

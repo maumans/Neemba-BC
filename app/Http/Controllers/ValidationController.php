@@ -131,7 +131,7 @@ class ValidationController extends Controller
         return Inertia::render('Validations/Show', [
             'bonCaisse' => $bonCaisse,
             'statutsLabels' => BonCaisse::STATUTS_LABELS,
-            'categoriesDepense' => BonCaisse::CATEGORIES_DEPENSE,
+            'categoriesDepense' => \App\Models\CategorieDepense::libelles(),
             'typesBeneficiaire' => BonCaisse::TYPES_BENEFICIAIRE,
             'modesPaiement' => BonCaisse::MODES_PAIEMENT,
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,

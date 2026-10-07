@@ -50,6 +50,7 @@ class MessagesTest extends TestCase
                 'valeurs' => ['plafond' => 20000000, 'caisse' => 'caisse principale Conakry'],
                 'message' => 'Au-delà de 20' . self::NBSP . '000' . self::NBSP . '000 GNF, ce bon ne peut pas être payé en espèces '
                     . 'sur la caisse principale Conakry. Choisissez Orange Money, chèque ou virement.',
+                'champ' => 'mode_paiement',
             ]);
     }
 

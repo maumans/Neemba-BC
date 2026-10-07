@@ -53,6 +53,7 @@ class Notification extends Model
     const TYPE_ALERTE_SOLDE = 'alerte_solde';
     const TYPE_MOUVEMENT_CAISSE = 'mouvement_caisse';
     const TYPE_DELEGATION = 'delegation';
+    const TYPE_ANNULATION = 'annulation';
 
     /** Icônes par type (utilisées côté frontend) */
     const TYPES_CONFIG = [
@@ -130,6 +131,11 @@ class Notification extends Model
             'icone'  => 'Users',
             'couleur' => 'text-indigo-600',
             'bg'     => 'bg-indigo-50',
+        ],
+        self::TYPE_ANNULATION => [
+            'icone' => 'XCircle',
+            'couleur' => 'text-gray-600',
+            'bg' => 'bg-gray-50',
         ],
     ];
 

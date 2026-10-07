@@ -12,6 +12,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft,
@@ -79,6 +80,7 @@ import { formaterDate, formaterDateHeure } from '@/utils/format';
 import { Input } from '@/Components/ui/input';
 import { Combobox } from '@/Components/ui/combobox';
 import BadgeStatut from '@/Components/BadgeStatut';
+import { msgErreur } from '@/utils/messages';
 
 /** Dates au format SFD §1.4 (JJ/MM/AAAA, JJ/MM/AAAA HH:MM, fuseau Africa/Conakry) */
 const formatDateTime = formaterDateHeure;
@@ -168,7 +170,10 @@ export default function Show({
     const [showPaiementForm, setShowPaiementForm] = useState(false);
     const [showRejetDialog, setShowRejetDialog] = useState(false);
     const [showComplementDialog, setShowComplementDialog] = useState(false);
-    const [showSoumettreDialog, setShowSoumettreDialog] = useState(false);
+    const [showAnnulerDialog, setShowAnnulerDialog] = useState(false);
+    const [motifAnnulation, setMotifAnnulation] = useState('');
+    const [erreurAnnulation, setErreurAnnulation] = useState(null);
+    const [annulationEnCours, setAnnulationEnCours] = useState(false);
     const [showArchiverDialog, setShowArchiverDialog] = useState(false);
     const [showApprouverDialog, setShowApprouverDialog] = useState(false);
     const [showRegulariserDialog, setShowRegulariserDialog] = useState(false);
@@ -339,9 +344,28 @@ export default function Show({
     const peutArchiver = rolesUtilisateurActuels.some(r => ['daf', 'directeur_pays', 'caissier', 'administrateur'].includes(r));
     const historique = bonCaisse.historique_actions || [];
 
+    /* Un brouillon n'a pas encore de numéro : il est attribué à la soumission (ANO-03) */
+    const intitule = bonCaisse.numero ? `Bon ${bonCaisse.numero}` : 'Brouillon de bon';
+
+    /* US-BC-15 : annulation d'un brouillon ou d'un bon rejeté, avec un motif (RG-BC-31) */
+    const annulerBon = async () => {
+        setAnnulationEnCours(true);
+        setErreurAnnulation(null);
+        try {
+            await axios.post(route('api.bons.annuler', bonCaisse.id), { motif: motifAnnulation });
+            setShowAnnulerDialog(false);
+            router.reload();
+        } catch (erreur) {
+            const donnees = erreur.response?.data;
+            setErreurAnnulation(donnees?.errors?.motif?.[0] ?? (msgErreur(donnees) || "L'annulation a échoué."));
+        } finally {
+            setAnnulationEnCours(false);
+        }
+    };
+
     return (
-        <AuthenticatedLayout header={`Bon ${bonCaisse.numero}`}>
-            <Head title={`Bon ${bonCaisse.numero}`} />
+        <AuthenticatedLayout header={intitule}>
+            <Head title={intitule} />
 
             {/* Retour */}
             <div className="mb-6">
@@ -394,7 +418,7 @@ export default function Show({
                                             <FileText className={`h-5 w-5 ${
                                                 bonCaisse.type_bon === 'BP' ? 'text-orange-500' : 'text-blue-500'
                                             }`} />
-                                            {bonCaisse.numero}
+                                            {bonCaisse.numero ?? 'Brouillon'}
                                             <Badge className={`ml-2 text-xs ${
                                                 bonCaisse.type_bon === 'BP'
                                                     ? 'bg-orange-100 text-orange-700 border-orange-200'
@@ -1231,29 +1255,50 @@ export default function Show({
                                 <CardTitle className="text-base">Actions</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
-                                {/* Soumettre un brouillon */}
-                                {bonCaisse.statut === 'BROUILLON' && estDemandeur && (
+                                {/* Brouillon : Reprendre, Annuler · Rejeté : Corriger et resoumettre, Annuler (E-03.8) */}
+                                {['BROUILLON', 'REJETE'].includes(bonCaisse.statut) && estDemandeur && (
                                     <>
                                         <Link href={route('bons-caisse.edit', bonCaisse.id)} className="block">
-                                            <Button variant="outline" className="w-full">
-                                                Modifier
+                                            <Button className="w-full">
+                                                <Pencil className="mr-2 h-4 w-4" />
+                                                {bonCaisse.statut === 'REJETE' ? 'Corriger et resoumettre' : 'Reprendre'}
                                             </Button>
                                         </Link>
-                                        <Dialog open={showSoumettreDialog} onOpenChange={setShowSoumettreDialog}>
+                                        <Dialog
+                                            open={showAnnulerDialog}
+                                            onOpenChange={(ouvert) => {
+                                                setShowAnnulerDialog(ouvert);
+                                                setErreurAnnulation(null);
+                                            }}
+                                        >
                                             <DialogTrigger asChild>
-                                                <Button className="w-full">
-                                                    <Send className="mr-2 h-4 w-4" />
-                                                    Soumettre
+                                                <Button variant="outline" className="w-full text-red-600 hover:text-red-700">
+                                                    <X className="mr-2 h-4 w-4" />
+                                                    Annuler le bon
                                                 </Button>
                                             </DialogTrigger>
                                             <DialogContent>
                                                 <DialogHeader>
-                                                    <DialogTitle>Soumettre le bon</DialogTitle>
-                                                    <DialogDescription>Êtes-vous sûr de vouloir soumettre ce bon de caisse pour validation ?</DialogDescription>
+                                                    <DialogTitle>Annuler le bon</DialogTitle>
+                                                    <DialogDescription>
+                                                        Le bon ne sera plus modifiable.{bonCaisse.numero ? ` Son numéro ${bonCaisse.numero} ne sera pas réutilisé.` : ''}
+                                                    </DialogDescription>
                                                 </DialogHeader>
+                                                <div>
+                                                    <Label htmlFor="motif_annulation">Motif de l'annulation *</Label>
+                                                    <Textarea
+                                                        id="motif_annulation"
+                                                        rows={3}
+                                                        className="mt-1"
+                                                        value={motifAnnulation}
+                                                        onChange={(e) => setMotifAnnulation(e.target.value)}
+                                                        placeholder="10 caractères minimum"
+                                                    />
+                                                    {erreurAnnulation && <p className="mt-1 text-sm text-red-600">{erreurAnnulation}</p>}
+                                                </div>
                                                 <DialogFooter>
-                                                    <Button variant="outline" onClick={() => setShowSoumettreDialog(false)}>Annuler</Button>
-                                                    <Button onClick={() => { setShowSoumettreDialog(false); executerAction('bons-caisse.soumettre'); }}>Confirmer</Button>
+                                                    <Button variant="outline" onClick={() => setShowAnnulerDialog(false)} disabled={annulationEnCours}>Retour</Button>
+                                                    <Button variant="destructive" onClick={annulerBon} disabled={annulationEnCours}>Annuler le bon</Button>
                                                 </DialogFooter>
                                             </DialogContent>
                                         </Dialog>
@@ -1788,7 +1833,7 @@ export default function Show({
 
                                 {/* Pas d'action disponible */}
                                 {!peutValiderCeBon
-                                    && !(bonCaisse.statut === 'BROUILLON' && estDemandeur)
+                                    && !(['BROUILLON', 'REJETE'].includes(bonCaisse.statut) && estDemandeur)
                                     && !(bonCaisse.statut === 'APPROUVE' && estCaissier)
                                     && !(bonCaisse.statut === 'EN_ATTENTE_REGULARISATION' && estDemandeur)
                                     && !(['PAYE', 'REGULARISE', 'REJETE'].includes(bonCaisse.statut) && peutArchiver)

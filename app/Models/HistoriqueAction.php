@@ -65,11 +65,13 @@ class HistoriqueAction extends Model
     const ACTION_MODIFICATION_VENTILATION = 'modification_ventilation';
     const ACTION_MOUVEMENT_CAISSE = 'mouvement_caisse';
     const ACTION_DELEGATION = 'delegation';
+    const ACTION_ANNULATION = 'annulation';
 
     /** Labels lisibles pour chaque action */
     const ACTIONS_LABELS = [
         'creation' => 'Création du bon',
         'modification' => 'Modification du bon',
+        'annulation' => 'Annulation du bon',
         'soumission' => 'Soumission pour validation',
         'validation_chef_service' => 'Validation Chef de Service',
         'validation_cdg' => 'Validation Contrôle de Gestion',

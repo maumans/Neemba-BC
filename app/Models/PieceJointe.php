@@ -71,12 +71,20 @@ class PieceJointe extends Model
         'ordre_mission'    => 'Ordre de mission',
         'proforma'         => 'Proforma',
         'email'            => 'Email justificatif',
-        'recu_carburant'   => 'Reçu carburant',
+        'recu_carburant'   => 'Ticket carburant',
+        'demande_achat'    => "Demande d'achat",
+        'bon_travail'      => 'Bon de travail (OR)',
         'bon_commande'     => 'Bon de commande',
         'rapport_journalier' => 'Rapport journalier',
         'justificatif'     => 'Justificatif de régularisation',
         'autre'            => 'Autre',
     ];
+
+    /** Types proposés dans l'assistant, dans l'ordre de la SFD (E-03.6) */
+    const TYPES_PIECE_ASSISTANT = ['facture', 'recu', 'recu_carburant', 'proforma', 'demande_achat', 'email', 'bon_travail', 'autre'];
+
+    /** Pièces qui justifient un bon définitif (RG-BC-15) ; « devis » conservé pour les anciens bons */
+    const JUSTIFICATIFS_BD = ['facture', 'recu', 'recu_carburant', 'proforma', 'devis'];
 
     /** Types de classification IA */
     const CLASSIFICATIONS_IA = [

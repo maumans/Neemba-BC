@@ -20,6 +20,8 @@ use App\Services\NotificationService;
 use App\Support\Format;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use App\Services\BonCaisse\ReglesSaisie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -208,166 +210,54 @@ class BonCaisseController extends Controller
     }
 
     /**
-     * Afficher le formulaire de création d'un nouveau bon
+     * Assistant « Nouveau bon de caisse » (US-BC-01). Aucun bon n'est créé à l'ouverture :
+     * le brouillon naît au premier « Suivant » ou « Brouillon » (RG-BC-01, ANO-03).
      */
     public function create()
     {
-        /* US-BC-01 : seul un utilisateur ayant le rôle DEMANDEUR peut créer un bon */
-        abort_unless(Auth::user()->peutInitierBon(), 403, 'Vous n\'avez pas le rôle demandeur.');
+        Gate::authorize('create', BonCaisse::class);
 
-        /* Motifs d'urgence prédéfinis (Phase 1.1) */
-        $motifsUrgence = MotifUrgence::where('actif', true)->pluck('libelle')->toArray();
-
-        return Inertia::render('BonsCaisse/Create', [
-            'numero' => BonCaisse::genererNumero(),
-            'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
-            'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
-            'codesAnalytiques' => CodeAnalytique::actifs()->with('service')->orderBy('code')->get(),
-            'categoriesDepense' => BonCaisse::CATEGORIES_DEPENSE,
-            'typesBeneficiaire' => BonCaisse::TYPES_BENEFICIAIRE,
-            'modesPaiement' => BonCaisse::MODES_PAIEMENT,
-            'montantMax' => Parametre::montantMax(),
-            'seuilDP' => Parametre::seuilDP(),
-            'niveauxUrgence' => BonCaisse::NIVEAUX_URGENCE,
-            'motifsUrgence' => $motifsUrgence,
-        ]);
+        return Inertia::render('BonsCaisse/Assistant', $this->propsAssistant(null));
     }
 
     /**
-     * Enregistrer un nouveau bon de caisse
+     * Reprise d'un brouillon (US-BC-11) ou correction d'un bon rejeté (US-BC-14), sur la première étape incomplète.
      */
-    public function store(Request $request)
+    public function edit(BonCaisse $bonCaisse)
     {
-        /* US-BC-01, TC-BC-032 : refus aussi pour un appel direct qui contourne l'écran */
-        abort_unless(Auth::user()->peutInitierBon(), 403, 'Vous n\'avez pas le rôle demandeur.');
+        Gate::authorize('modifier', $bonCaisse);
 
-        $validated = $request->validate([
-            /* Section 1 : Identification */
-            'type_bon' => ['required', Rule::in(['BD', 'BP'])],
-            'site' => ['required', 'string', 'max:255'],
-            'service' => ['required', 'string', 'max:255'],
-            'code_analytique' => ['nullable', 'string', 'max:255'],
+        return Inertia::render('BonsCaisse/Assistant', $this->propsAssistant($bonCaisse));
+    }
 
-            /* Section 2 : Bénéficiaire */
-            'beneficiaire' => ['required', 'string', 'max:255'],
-            'type_beneficiaire' => ['required', Rule::in(array_keys(BonCaisse::TYPES_BENEFICIAIRE))],
-            'telephone_beneficiaire' => ['nullable', 'string', 'max:50'],
-            'mode_paiement' => ['required', Rule::in(array_keys(BonCaisse::MODES_PAIEMENT))],
+    /**
+     * Données de l'assistant : valeurs par défaut (RG-BC-02), référentiels et bon en cours.
+     */
+    private function propsAssistant(?BonCaisse $bon): array
+    {
+        /** @var \App\Models\User $utilisateur */
+        $utilisateur = Auth::user();
+        $demandeur = $bon?->demandeur ?? $utilisateur;
 
-            /* Section 3 : Détails de la dépense */
-            'motif' => ['required', 'string', 'min:10'],
-            'categorie_depense' => ['required', Rule::in(array_keys(BonCaisse::CATEGORIES_DEPENSE))],
-            'montant' => ['required', 'numeric', 'min:1', 'max:' . Parametre::montantMax()],
-            'montant_lettres' => ['nullable', 'string', 'max:500'],
-            'devise' => ['nullable', 'string', 'max:10'],
-
-            /* Section 4 : Pièces justificatives */
-            'pieces_jointes' => ['nullable', 'array'],
-            'pieces_jointes.*' => [
-                'file',
-                'mimes:' . implode(',', BonCaisse::FORMATS_FICHIERS_AUTORISES),
-                'max:' . (BonCaisse::TAILLE_MAX_FICHIER / 1024), /* max en Ko */
+        return [
+            'bon' => $bon ? AssistantBonController::bon($bon->load(['piecesJointes', 'caisse', 'beneficiaireUtilisateur'])) : null,
+            'etapeInitiale' => $bon ? ReglesSaisie::premiereEtapeIncomplete($bon) : 1,
+            'demandeur' => AssistantBonController::beneficiaire($demandeur) + [
+                'site' => $demandeur->site,
+                'service' => $demandeur->service,
             ],
-            'types_documents' => ['nullable', 'array'],
-            'types_documents.*' => ['nullable', 'string'],
-
-            /* Urgence */
-            'niveau_urgence' => ['nullable', 'string', Rule::in(array_keys(BonCaisse::NIVEAUX_URGENCE))],
-            'motif_urgence' => ['nullable', 'required_if:niveau_urgence,urgente,tres_urgente', 'string', 'max:255'],
-            'justification_urgence' => ['nullable', 'required_if:niveau_urgence,urgente,tres_urgente', 'string', 'min:10', 'max:1000'],
-
-            /* Ventilation analytique (multi-codes) */
-            'ventilations' => ['nullable', 'array'],
-            'ventilations.*.code_analytique' => ['required_with:ventilations', 'string'],
-            'ventilations.*.montant' => ['required_with:ventilations', 'numeric', 'min:0'],
-            'ventilations.*.pourcentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
-
-            /* Action */
-            'soumettre' => ['boolean'],
-        ]);
-
-        /* Créer le bon de caisse */
-        $bonCaisse = BonCaisse::create([
-            'numero' => BonCaisse::genererNumero(),
-            'type_bon' => $validated['type_bon'],
-            'site' => $validated['site'],
-            'service' => $validated['service'],
-            'code_analytique' => $validated['code_analytique'] ?? null,
-            'beneficiaire' => $validated['beneficiaire'],
-            'type_beneficiaire' => $validated['type_beneficiaire'],
-            'telephone_beneficiaire' => $validated['telephone_beneficiaire'] ?? null,
-            'mode_paiement' => $validated['mode_paiement'],
-            'motif' => $validated['motif'],
-            'categorie_depense' => $validated['categorie_depense'],
-            'montant' => $validated['montant'],
-            'montant_lettres' => $validated['montant_lettres'] ?? null,
-            'devise' => $validated['devise'] ?? 'GNF',
-            'niveau_urgence' => $validated['niveau_urgence'] ?? 'normale',
-            'motif_urgence' => $validated['motif_urgence'] ?? null,
-            'justification_urgence' => $validated['justification_urgence'] ?? null,
-            'statut' => 'BROUILLON',
-            'demandeur_id' => Auth::id(),
-            'date_demande' => now()->toDateString(),
-        ]);
-
-        /* Enregistrer la création dans l'historique */
-        $bonCaisse->enregistrerCreation();
-
-        /* Upload des pièces jointes si présentes */
-        if ($request->hasFile('pieces_jointes')) {
-            $typesDocuments = $request->input('types_documents', []);
-
-            foreach ($request->file('pieces_jointes') as $index => $fichier) {
-                $chemin = $fichier->store('pieces_jointes/' . $bonCaisse->id, 'public');
-                $typeDoc = $typesDocuments[$index] ?? 'autre';
-
-                $piece = PieceJointe::create([
-                    'bon_caisse_id' => $bonCaisse->id,
-                    'type_document' => $typeDoc,
-                    'nom_fichier' => $fichier->getClientOriginalName(),
-                    'chemin_fichier' => $chemin,
-                    'taille' => $fichier->getSize(),
-                    'mime_type' => $fichier->getMimeType(),
-                ]);
-
-                /* Lancer l'analyse OCR en arrière-plan */
-                ProcessPieceJointeOcrJob::dispatch($piece->id);
-
-                /* Historique pour chaque pièce ajoutée */
-                $bonCaisse->enregistrerAjoutPieceJointe($fichier->getClientOriginalName(), Auth::id());
-            }
-        }
-
-        /* Enregistrer les ventilations analytiques si fournies */
-        if (!empty($validated['ventilations'])) {
-            foreach ($validated['ventilations'] as $ventilation) {
-                $bonCaisse->ventilations()->create([
-                    'code_analytique' => $ventilation['code_analytique'],
-                    'montant' => $ventilation['montant'],
-                    'pourcentage' => $ventilation['pourcentage'] ?? null,
-                ]);
-            }
-        }
-
-        /* Soumettre directement si demandé */
-        if ($request->boolean('soumettre')) {
-            $resultat = $bonCaisse->soumettre();
-            if (!$resultat['success']) {
-                return redirect()
-                    ->route('bons-caisse.show', $bonCaisse)
-                    ->with('error', $resultat['message']);
-            }
-            /* Notifier les validateurs */
-            NotificationService::notifierSoumission($bonCaisse, Auth::user());
-
-            return redirect()
-                ->route('bons-caisse.show', $bonCaisse)
-                ->with('success', $resultat['message']);
-        }
-
-        return redirect()
-            ->route('bons-caisse.show', $bonCaisse)
-            ->with('success', 'Bon de caisse créé avec succès.');
+            'dateDuJour' => today()->toDateString(),
+            'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
+            'services' => Service::where('actif', true)->orderBy('nom')->get(['id', 'nom']),
+            'codesAnalytiques' => CodeAnalytique::where('actif', true)->orderBy('code')->get(['id', 'code', 'libelle', 'service_id']),
+            'categories' => \App\Models\CategorieDepense::actives()->where('proposee_assistant', true)
+                ->get(['code', 'libelle', 'vehicule_obligatoire', 'vehicule_affiche', 'or_affiche']),
+            'motifsUrgence' => MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),
+            'typesBeneficiaire' => collect(BonCaisse::TYPES_BENEFICIAIRE)->only(BonCaisse::TYPES_BENEFICIAIRE_ASSISTANT),
+            'modesPaiement' => collect(BonCaisse::MODES_PAIEMENT)->only(BonCaisse::MODES_PAIEMENT_ASSISTANT),
+            'typesPiece' => collect(PieceJointe::TYPES_DOCUMENTS)->only(PieceJointe::TYPES_PIECE_ASSISTANT),
+            'seuilDP' => Parametre::seuilDP(),
+        ];
     }
 
     /**
@@ -379,12 +269,12 @@ class BonCaisseController extends Controller
         $utilisateur = Auth::user();
 
         /* Restriction de visibilité cohérente avec index() (strict + suivi) :
-         * 1. Propriétaire (demandeur du bon) → toujours autorisé
+         * 1. Propriétaire (demandeur ou initiateur du bon) → toujours autorisé
          * 2. Administrateur → accès global sauf brouillons des autres
          * 3. Validateur → bon en attente à son niveau OU bon déjà validé par lui
          * 4. Caissier → bons à payer/régulariser de son site
          */
-        $estProprietaire = $bonCaisse->demandeur_id === $utilisateur->id;
+        $estProprietaire = $bonCaisse->demandeur_id === $utilisateur->id || $bonCaisse->initiateur_id === $utilisateur->id;
 
         if (!$estProprietaire) {
             $roles = array_unique(array_merge([$utilisateur->role], method_exists($utilisateur, 'rolesValidationEffectifs') ? $utilisateur->rolesValidationEffectifs() : []));
@@ -530,7 +420,7 @@ class BonCaisseController extends Controller
         return Inertia::render('BonsCaisse/Show', [
             'bonCaisse' => $bonCaisse,
             'statutsLabels' => BonCaisse::STATUTS_LABELS,
-            'categoriesDepense' => BonCaisse::CATEGORIES_DEPENSE,
+            'categoriesDepense' => \App\Models\CategorieDepense::libelles(),
             'typesBeneficiaire' => BonCaisse::TYPES_BENEFICIAIRE,
             'modesPaiement' => BonCaisse::MODES_PAIEMENT,
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
@@ -547,177 +437,6 @@ class BonCaisseController extends Controller
             'aDesPiecesRegularisation' => $bonCaisse->aDesPiecesRegularisation(),
             'motifsRejet' => BonCaisse::MOTIFS_REJET,
         ]);
-    }
-
-    /**
-     * Afficher le formulaire d'édition (uniquement pour les brouillons)
-     */
-    public function edit(BonCaisse $bonCaisse)
-    {
-        /* Vérifier que le bon est modifiable (brouillon ou rejeté) et appartient au demandeur */
-        if (!in_array($bonCaisse->statut, ['BROUILLON', 'REJETE']) || $bonCaisse->demandeur_id !== Auth::id()) {
-            abort(403, 'Vous ne pouvez modifier que vos brouillons ou les bons retournés/rejetés.');
-        }
-
-        $bonCaisse->load('piecesJointes', 'ordreMission', 'ventilations');
-
-        /* Motifs d'urgence prédéfinis (Phase 1.1) */
-        $motifsUrgence = MotifUrgence::where('actif', true)->pluck('libelle')->toArray();
-
-        return Inertia::render('BonsCaisse/Edit', [
-            'bonCaisse' => $bonCaisse,
-            'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
-            'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
-            'codesAnalytiques' => CodeAnalytique::actifs()->with('service')->orderBy('code')->get(),
-            'categoriesDepense' => BonCaisse::CATEGORIES_DEPENSE,
-            'typesBeneficiaire' => BonCaisse::TYPES_BENEFICIAIRE,
-            'modesPaiement' => BonCaisse::MODES_PAIEMENT,
-            'montantMax' => Parametre::montantMax(),
-            'seuilDP' => Parametre::seuilDP(),
-            'niveauxUrgence' => BonCaisse::NIVEAUX_URGENCE,
-            'motifsUrgence' => $motifsUrgence,
-        ]);
-    }
-
-    /**
-     * Mettre à jour un bon de caisse (uniquement brouillon)
-     */
-    public function update(Request $request, BonCaisse $bonCaisse)
-    {
-        if (!in_array($bonCaisse->statut, ['BROUILLON', 'REJETE']) || $bonCaisse->demandeur_id !== Auth::id()) {
-            abort(403, 'Vous ne pouvez modifier que vos brouillons ou les bons retournés/rejetés.');
-        }
-
-        $validated = $request->validate([
-            'type_bon' => ['required', Rule::in(['BD', 'BP'])],
-            'site' => ['required', 'string', 'max:255'],
-            'service' => ['required', 'string', 'max:255'],
-            'code_analytique' => ['nullable', 'string', 'max:255'],
-            'beneficiaire' => ['required', 'string', 'max:255'],
-            'type_beneficiaire' => ['required', Rule::in(array_keys(BonCaisse::TYPES_BENEFICIAIRE))],
-            'telephone_beneficiaire' => ['nullable', 'string', 'max:50'],
-            'mode_paiement' => ['required', Rule::in(array_keys(BonCaisse::MODES_PAIEMENT))],
-            'motif' => ['required', 'string', 'min:10'],
-            'categorie_depense' => ['required', Rule::in(array_keys(BonCaisse::CATEGORIES_DEPENSE))],
-            'montant' => ['required', 'numeric', 'min:1', 'max:' . Parametre::montantMax()],
-            'montant_lettres' => ['nullable', 'string', 'max:500'],
-            'devise' => ['nullable', 'string', 'max:10'],
-            'pieces_jointes' => ['nullable', 'array'],
-            'pieces_jointes.*' => [
-                'file',
-                'mimes:' . implode(',', BonCaisse::FORMATS_FICHIERS_AUTORISES),
-                'max:' . (BonCaisse::TAILLE_MAX_FICHIER / 1024),
-            ],
-            'types_documents' => ['nullable', 'array'],
-            'types_documents.*' => ['nullable', 'string'],
-            'niveau_urgence' => ['nullable', 'string', Rule::in(array_keys(BonCaisse::NIVEAUX_URGENCE))],
-            'motif_urgence' => ['nullable', 'required_if:niveau_urgence,urgente,tres_urgente', 'string', 'max:255'],
-            'justification_urgence' => ['nullable', 'required_if:niveau_urgence,urgente,tres_urgente', 'string', 'min:10', 'max:1000'],
-            'ventilations' => ['nullable', 'array'],
-            'ventilations.*.code_analytique' => ['required_with:ventilations', 'string'],
-            'ventilations.*.montant' => ['required_with:ventilations', 'numeric', 'min:0'],
-            'ventilations.*.pourcentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'soumettre' => ['boolean'],
-        ]);
-
-        $bonCaisse->update([
-            'type_bon' => $validated['type_bon'],
-            'site' => $validated['site'],
-            'service' => $validated['service'],
-            'code_analytique' => $validated['code_analytique'] ?? null,
-            'beneficiaire' => $validated['beneficiaire'],
-            'type_beneficiaire' => $validated['type_beneficiaire'],
-            'telephone_beneficiaire' => $validated['telephone_beneficiaire'] ?? null,
-            'mode_paiement' => $validated['mode_paiement'],
-            'motif' => $validated['motif'],
-            'categorie_depense' => $validated['categorie_depense'],
-            'montant' => $validated['montant'],
-            'montant_lettres' => $validated['montant_lettres'] ?? null,
-            'devise' => $validated['devise'] ?? 'GNF',
-            'niveau_urgence' => $validated['niveau_urgence'] ?? $bonCaisse->niveau_urgence,
-            'motif_urgence' => $validated['motif_urgence'] ?? null,
-            'justification_urgence' => $validated['justification_urgence'] ?? null,
-        ]);
-
-        /* Mettre à jour les ventilations analytiques */
-        if (isset($validated['ventilations'])) {
-            $bonCaisse->ventilations()->delete();
-            foreach ($validated['ventilations'] as $ventilation) {
-                $bonCaisse->ventilations()->create([
-                    'code_analytique' => $ventilation['code_analytique'],
-                    'montant' => $ventilation['montant'],
-                    'pourcentage' => $ventilation['pourcentage'] ?? null,
-                ]);
-            }
-        }
-
-        /* Historique de modification : écrit automatiquement par BonCaisse (événement « updated »),
-         * avec l'ancienne et la nouvelle valeur de chaque champ modifié. */
-
-        /* Upload des nouvelles pièces jointes */
-        if ($request->hasFile('pieces_jointes')) {
-            $typesDocuments = $request->input('types_documents', []);
-
-            foreach ($request->file('pieces_jointes') as $index => $fichier) {
-                $chemin = $fichier->store('pieces_jointes/' . $bonCaisse->id, 'public');
-                $typeDoc = $typesDocuments[$index] ?? 'autre';
-
-                $piece = PieceJointe::create([
-                    'bon_caisse_id' => $bonCaisse->id,
-                    'type_document' => $typeDoc,
-                    'nom_fichier' => $fichier->getClientOriginalName(),
-                    'chemin_fichier' => $chemin,
-                    'taille' => $fichier->getSize(),
-                    'mime_type' => $fichier->getMimeType(),
-                ]);
-
-                /* Lancer l'analyse OCR en arrière-plan */
-                ProcessPieceJointeOcrJob::dispatch($piece->id);
-
-                $bonCaisse->enregistrerAjoutPieceJointe($fichier->getClientOriginalName(), Auth::id());
-            }
-        }
-
-        if ($request->boolean('soumettre')) {
-            $resultat = $bonCaisse->soumettre();
-            if (!$resultat['success']) {
-                return redirect()
-                    ->route('bons-caisse.show', $bonCaisse)
-                    ->with('error', $resultat['message']);
-            }
-            /* Notifier les validateurs */
-            NotificationService::notifierSoumission($bonCaisse, Auth::user());
-
-            return redirect()
-                ->route('bons-caisse.show', $bonCaisse)
-                ->with('success', $resultat['message']);
-        }
-
-        return redirect()
-            ->route('bons-caisse.show', $bonCaisse)
-            ->with('success', 'Bon de caisse mis à jour avec succès.');
-    }
-
-    /**
-     * Soumettre un brouillon pour validation
-     */
-    public function soumettre(BonCaisse $bonCaisse)
-    {
-        if ($bonCaisse->demandeur_id !== Auth::id()) {
-            abort(403);
-        }
-
-        $resultat = $bonCaisse->soumettre();
-
-        if ($resultat['success']) {
-            NotificationService::notifierSoumission($bonCaisse, Auth::user());
-
-            return redirect()
-                ->route('bons-caisse.show', $bonCaisse)
-                ->with('success', $resultat['message']);
-        }
-
-        return back()->with('error', $resultat['message']);
     }
 
     /**
