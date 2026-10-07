@@ -1,7 +1,7 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 7 Octobre 2026 (v23 — Lot 4 : pièces justificatives et lecture des tickets carburant, M03-B)
+> Dernière mise à jour : 7 Octobre 2026 (v24 — Référentiels de paramétrage de Neemba : import du classeur tous sites)
 
 ---
 
@@ -2647,6 +2647,147 @@ npm run build
   - liste E-03.1 et fiche E-03.8 : onglet Pièces avec miniatures, qualité, lecture et versions.
 - **OP-BC-5** : choisir le lecteur « vision » des tickets manuscrits, avec l'accord écrit de l'IT Neemba. Puis mesurer le taux de champs corrigés sur les 5 tickets de septembre 2026 (TC-BC-019).
 - **M12** : dates de départ et de retour de la mission pour MSG-BC-025.
+
+---
+
+## 24. Version v24 — Référentiels de paramétrage de Neemba (7 Octobre 2026)
+
+Les données réelles du classeur « Référentiels de paramétrage — tous sites » (points 11 à 14, version du 06/10/2026, après le comité) entrent dans l'application par un **import réexécutable**. Branche `lot4-referentiels`, partie de `lot4-pieces`.
+
+### 24.1 Le classeur
+
+Le classeur est un modèle pré-rempli :
+- les **cellules grises** viennent d'Addvalis ;
+- les **cellules jaunes** sont à compléter par Neemba, avant le 09/10 pour les onglets 1 à 3 et avant le 13/10 pour les onglets 4 et 5 ;
+- beaucoup de valeurs sont encore marquées « (à confirmer) ».
+
+D'où le choix : un import qu'on relance à chaque nouvelle version du classeur, plutôt qu'une saisie unique.
+
+| Onglet | Contenu | Où il va dans l'application |
+|--------|---------|------------------------------|
+| 1-Utilisateurs | Nom, prénom, matricule, e-mail, téléphone, entité, site, service, fonction, statut cadre, N+1, rôles, actif | `users` (+ `entite`, `statut_cadre`, `responsable_id`), rôles |
+| 2-Codes analytiques | Radical, statut (liste de référence ou hors liste), code service du CDG, libellé, usage en caisse 2024, commentaires | `codes_analytiques` (+ `code_service_comptable`, `valide_cdg`) |
+| 3-Services | Code comptable, équivalent sur la fiche ODM, chef de service à Conakry | `services` (+ `equivalent_odm`) |
+| 4-Caisses | Plafond de caisse, seuil de réapprovisionnement, plafond de retrait, gestionnaire, suppléant, réapprovisionnement, destinataires du rapport, encaissements clients | `caisses` (+ `plafond_caisse`, `gestionnaire_id`, `suppleant_id`, `encaissements_clients`, `reapprovisionnement`, `destinataires_rapport`) |
+| 5-Valideurs | CDG, Finance, Directeur Pays, Trésorerie, RH, chefs de service par site et par service | Rôles |
+
+### 24.2 L'import — `php artisan referentiels:importer <classeur.xlsx>`
+
+- **Simulation par défaut**. Tout se fait dans une transaction annulée à la fin : le compte rendu est identique à celui de l'import réel. `--appliquer` enregistre.
+- **Compte rendu** en Markdown, à renvoyer à Neemba :
+  - ce qui est appliqué ;
+  - ce qui attend la double validation ;
+  - les actions de l'administrateur ;
+  - les anomalies ;
+  - les commentaires et points à trancher ;
+  - les valeurs « à confirmer », groupées par onglet avec le responsable et l'échéance du « Mode d'emploi ».
+- **Lecture souple** : la ligne d'en-tête est repérée, et les colonnes sont retrouvées par le début de leur libellé, sans tenir compte des accents ni de la casse. Le classeur peut gagner des lignes ou des colonnes sans casser l'import.
+- **Prudence**. L'import :
+  - n'applique pas une valeur marquée « (à confirmer) » : il la liste ;
+  - ne change rien pour une cellule vide ;
+  - ne supprime rien ;
+  - ne crée pas les codes hors liste de référence (la décision revient au CDG) ;
+  - n'importe pas une caisse dont le site ou l'entité est à confirmer (Simandou / SIMFER, Neemba Mining).
+- **Double validation**. Les plafonds, seuils et avances de caisse donnent lieu à des demandes en attente (Paramétrage › Modifications en attente), avec `--auteur` comme demandeur. Une relance ne double pas une demande déjà en attente.
+  - `--sans-double-validation` : application directe, pour une installation initiale. Cette option est **refusée en production**.
+- **Personnes**. Un compte est retrouvé par son e-mail, puis par son matricule, puis par son nom exact. À défaut, un nom proche est accepté : même nom de famille, prénom à 2 lettres près, une seule possibilité (« Saoudou » → « Souadou », décision Q11).
+  - Un compte nouveau reçoit ses rôles, sans mot de passe connu : la personne le définit par « Mot de passe oublié ».
+  - Sur un compte existant, un **rôle à privilèges** n'est pas ajouté par l'import. C'est une action de l'administrateur à l'écran, comme tout changement de rôle.
+  - Une personne sans e-mail n'a pas de compte : c'est une anomalie, l'e-mail étant indispensable pour se connecter.
+- **Rôles du classeur** :
+  - « Finance (visa DAF) » → DAF ;
+  - « Finance (visa) » → **DAF adjoint** ou **Chef comptable**, selon la fonction ;
+  - « CDG » → contrôle de gestion ;
+  - « Trésorerie » → **trésorerie** ;
+  - « RH » → **rh** ;
+  - « Administrateur technique » → administrateur.
+  - Les rôles en gras sont des **rôles déclarés** (`User::ROLES_DECLARES`, décision Q5) : ils sont attribués dès maintenant, mais leurs droits arriveront avec leur module (Finance élargie M04, Trésorerie M07-M08, RH M09).
+  - Un **chef de service** se désigne dans l'onglet 5, par site et par service, et seulement si le compte est rattaché à ce site et ce service.
+  - « Caissier — caisse Atelier » : la personne devient **gestionnaire** de la caisse, sans le rôle caissier. Ce rôle ouvre aujourd'hui la caisse principale du site (décision Q19).
+- **Sites** : les libellés du classeur sont rattachés par le code site (« CORICA » = Kouroussa, code 49 ; « Mandiana (Siguiri Technique) », code 39). Les noms des sites de l'application ne changent pas.
+
+### 24.3 Résultat sur la version v01 (06/10/2026)
+
+**Appliqué** :
+- 12 comptes créés : BOIRO Saliou (CDG), BAH Mamadou Alpha (chef comptable), CAMARA Mariamagbè (trésorerie), TOUNKARA Raby, BANGOURA Thomas, DIAKITE Baba (administrateur technique)… ;
+- BARRY « Saoudou » devient **Souadou**, avec son adresse de connexion `souadou.barry@neemba.com` ;
+- entité, fonction et N+1 renseignés ;
+- code service du CDG sur les 22 codes analytiques de référence ;
+- libellés des caisses repris du classeur (« Caisse Boké », « Caisse CORICA », « Caisse Siguiri Location »…) ;
+- caisse principale Conakry : encaissements clients, réapprovisionnement par virement bancaire, 4 destinataires du rapport ;
+- caisse Atelier : gestionnaire TOUNKARA Raby.
+
+**Double validation** (21 demandes) :
+
+| Caisse | Plafond de caisse | Seuil | Plafond de retrait |
+|--------|-------------------|-------|--------------------|
+| Caisse principale Conakry | 250 M | 50 M | 20 M (inchangé) |
+| Caisse Orange Money | 500 M | 100 M | sans plafond |
+| Caisse Atelier | 15 M | 3 M | 1 M |
+| Caisse Sangarédi | 100 M | 20 M | **4 M (à confirmer)** |
+| Caisse Boké | 20 M | 5 M | 1 M (inchangé) |
+| Siguiri Location, Siguiri Technique, CORICA | 5 M | 1 M | 1 M |
+
+Cela tranche la décision Q2.
+
+**Anomalies** : 5 personnes sans e-mail n'ont pas de compte (CISS Mor, DAF adjoint ; KEITA Abdoulaye ; SYLLA Mama Aissata ; BAH Thierno Sounounou ; DIALLO Amadou Oury). CISS Mor manque donc aussi au visa Finance et aux destinataires du rapport.
+
+**Reste à confirmer** (25 valeurs) : équivalents ODM des services, chef d'atelier, fonctions, services de Souadou BARRY et d'Astou CAMARA, rôles de Kadiatou SOUMAH et d'Astou CAMARA, origine du réapprovisionnement de l'Atelier, etc.
+
+**Points à trancher par le CDG** :
+- codes imputés à un autre service que leur référence (MACZZZ, SMIZZZ, MKTZZZ, LABZZZ) ;
+- codes sans usage (CGEZZZ, DEPZZZ) ;
+- MMICBS (Neemba Mining) ;
+- codes hors liste (ZZZZZZ, CIDZZZ, KAMZZZ, LOCOPE) ;
+- codes de l'Atelier.
+
+**Comptes absents du classeur** : GOMIS Thierry, BARRY Maïmouna (CDG du pilote), DIALLO Thierno. Ils sont à ajouter au classeur ou à désactiver.
+
+Compte rendu complet : `docs/referentiels/Compte_rendu_import_referentiels_v01.md`.
+
+**Base de développement** : import appliqué avec `--sans-double-validation`. Une relance de la simulation n'applique plus rien (import idempotent).
+
+### 24.4 Écrans
+
+- **Paramétrage › Caisses** :
+  - colonnes « Plafond de caisse » et « Gestionnaire » ;
+  - plafond de caisse en double validation, comme le plafond de retrait et le seuil ;
+  - gestionnaire, suppléant, réapprovisionnement et encaissements clients modifiables tout de suite ;
+  - destinataires du rapport affichés.
+- **Paramétrage › Services** : équivalent sur la fiche ODM.
+- **Paramétrage › Codes analytiques** :
+  - le « Code service » est celui de la liste du CDG (à défaut, celui du service) ;
+  - colonne « Libellé CDG » : Validé / À valider. Les libellés actuels (« Signalisation SGN »…) n'ont jamais été validés.
+- Libellés des rôles déclarés dans le menu et la liste des utilisateurs.
+
+### 24.5 Tests
+
+- **`tests/Feature/Referentiels/ImportReferentielsTest.php`** (11 tests), sur un classeur au même format fabriqué dans le test, sans données réelles. Ils couvrent :
+  - la simulation ;
+  - la création des comptes et des rôles ;
+  - le rapprochement Saoudou / Souadou ;
+  - les valeurs « à confirmer » ;
+  - les rôles à privilèges sur un compte existant ;
+  - l'absence d'e-mail ;
+  - la double validation et son idempotence ;
+  - l'approbation du plafond de caisse ;
+  - le gestionnaire de l'Atelier ;
+  - CORICA = Kouroussa ;
+  - les codes hors liste ;
+  - l'écran Paramétrage.
+- **Total** : **159 tests PHP** et 59 tests JavaScript passent.
+
+### 24.6 Déploiement (production)
+
+```bash
+php artisan migrate
+php artisan referentiels:importer docs/Referentiels_Parametrage_Neemba_tous_sites_v01.xlsx --auteur=<admin>      # simulation : lire le compte rendu
+php artisan referentiels:importer docs/Referentiels_Parametrage_Neemba_tous_sites_v01.xlsx --auteur=<admin> --appliquer
+```
+
+Ensuite :
+- un **second administrateur** approuve les plafonds et seuils dans Modifications en attente ;
+- relancer l'import à chaque nouvelle version du classeur.
 
 ---
 
