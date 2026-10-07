@@ -1,7 +1,7 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 7 Octobre 2026 (v24 — Référentiels de paramétrage de Neemba : import du classeur tous sites)
+> Dernière mise à jour : 7 Octobre 2026 (v25 — Lot 5 : délégation d'initiation, liste et fiche du bon, M03-C)
 
 ---
 
@@ -2788,6 +2788,107 @@ php artisan referentiels:importer docs/Referentiels_Parametrage_Neemba_tous_site
 Ensuite :
 - un **second administrateur** approuve les plafonds et seuils dans Modifications en attente ;
 - relancer l'import à chaque nouvelle version du classeur.
+
+---
+
+## 25. Version v25 — Lot 5 : délégation d'initiation, liste et fiche du bon, M03-C (7 Octobre 2026)
+
+Dernier lot du module M03. Branche `lot5-suivi`, partie de `lot4-referentiels`.
+
+US couvertes :
+- US-BC-13 : délégation d'initiation ;
+- US-BC-14 : bandeau de rejet (la resoumission date du lot 3) ;
+- US-BC-16 : suivi des bons.
+
+### 25.1 Délégation d'initiation (US-BC-13, RG-BC-29)
+
+- **Nouvelle fonctionnalité de délégation « Initiation de bons (pour le compte de) »** (`Delegation::FONCTIONNALITES_LABELS`) :
+  - tout utilisateur qui a le rôle demandeur peut la déléguer ;
+  - le parcours ne change pas : création, acceptation par le back-up, période (décision Q6) ;
+  - sur l'écran de création d'une délégation, elle n'est **pas cochée par défaut** ;
+  - une délégation enregistrée sans liste de fonctionnalités ne la donne pas.
+- **Qui peut créer une délégation** : tout utilisateur qui a une fonctionnalité à déléguer (`Delegation::fonctionnalitesDelegablesPar`). Avant, un simple demandeur ne pouvait pas déléguer.
+- **Assistant, étape 1** : le champ « Pour le compte de » apparaît en tête si l'utilisateur est le back-up d'au moins une délégation d'initiation active.
+  - Il propose « Moi-même », si l'utilisateur a le rôle demandeur, et les titulaires, avec la date de fin de leur délégation.
+  - Choisir un titulaire reprend son site, son service et le bénéficiaire par défaut.
+  - Le résumé indique « Pour le compte de ».
+- **Serveur** (`EnregistrementBon::titulaire`) :
+  - le titulaire devient `demandeur_id`, l'auteur réel reste `initiateur_id` ;
+  - sans délégation active, la saisie est refusée (MSG-BC-033) ;
+  - sans le rôle demandeur, un back-up doit choisir un titulaire ;
+  - `User::peutInitierBon()` tient compte des délégations d'initiation, pour le bouton « Nouveau bon » et la policy.
+- **Contrôle 12 de l'étape 5** : il est rouge (MSG-BC-033) si la délégation n'est plus active au moment où l'initiateur soumet. Le bon reste en brouillon (TC-BC-028). Le titulaire peut toujours soumettre lui-même.
+- **Notifications** :
+  - le chef de service du service du bon (celui du titulaire) reçoit « … a soumis le bon … pour le compte de … » ;
+  - le titulaire reçoit « Bon soumis pour votre compte ».
+- **Mention « Initié par X pour le compte de Y »** sur la fiche et dans le PDF.
+- **Correction de sécurité** : `Delegation::delegantsActifsPour()` ne retient plus que les délégations qui couvrent la validation. Elle sert aux services visibles et validables d'un chef de service par délégation. Sans ce filtre, une délégation d'initiation aurait donné au back-up les droits de validation du titulaire.
+
+### 25.2 Liste « Bons de Caisse » (E-03.1, US-BC-16)
+
+- **Périmètre** (RG-BC-32) : les bons dont on est demandeur ou initiateur, et ceux dont on est **bénéficiaire** à partir de la soumission. S'y ajoutent les règles de rôle de la v15 (décision Q4). Le bénéficiaire peut aussi ouvrir la fiche.
+- **Filtres** : statut, type, **urgence**, **période** (du / au, sur la date de la demande). La **recherche se lance à la frappe** (300 ms), sans tenir compte de la casse ni des accents. Les filtres restent dans l'adresse de la page, avec un bouton « Réinitialiser les filtres ».
+- **20 lignes par page**, triées par date de création, du plus récent au plus ancien.
+- **Colonne Âge** : durée depuis la soumission pour un bon en cours (en validation, approuvé, en attente de régularisation). Elle passe **en rouge** au-delà de 2 × le délai de l'étape de validation en cours, ce délai étant divisé par 2 pour un bon très urgent.
+- **Cartes** (RG-BC-33, ANO-08) : Total, À valider, Payés, Rejetés. Chacune donne un nombre et un montant (« Montant total rejeté : … GNF »), calculés **sur la même requête filtrée que la liste**.
+  - Un bon rejeté puis archivé compte parmi les rejetés, et non plus parmi les payés.
+  - TC-BC-031 : avec le filtre « Rejeté », la carte vaut le nombre de lignes affichées.
+- **Mise en page** : la colonne principale du gabarit commun a reçu `min-w-0`. Un tableau large défile désormais dans son cadre au lieu d'élargir toute la page ; le tableau des bons tient à 1366 px.
+
+### 25.3 Fiche du bon (E-03.8)
+
+- **Bandeau rouge d'un bon rejeté** (US-BC-14) : niveau, valideur, date, motif et commentaire, avec le bouton « Corriger et resoumettre ».
+- **En-tête** : âge du bon depuis la soumission, et mention « Initié par … pour le compte de … ».
+- **Onglet Validations** : une ligne par niveau, regroupée par version pour un bon resoumis.
+  - **Fait** : valideur, « **au titre de** » s'il s'agit d'un suppléant, date et durée de traitement.
+  - **En cours** : valideurs possibles, durée d'attente et échéance (en rouge si dépassée).
+  - **À venir**.
+  - **Non atteint**, pour un bon rejeté ou annulé.
+  - Nouvelle colonne `validations.au_titre_de_id`, renseignée quand un suppléant valide par délégation.
+- **Onglet Pièces** : qualité, résultat de la lecture des tickets (montant et litres validés), version, et mention « remplacée ».
+- **Chronologie** : création, soumission, chaque validation ou rejet (avec la version), paiement, régularisation, annulation.
+- **Correction** : `Validation::slaDepasse()` et `doitEscalader()` décalaient la date d'attribution du modèle en mémoire, car `addHours()` modifie l'objet Carbon lui-même. Elles calculent désormais sur une copie.
+
+### 25.4 Tests
+
+- **`tests/Feature/M03/SuiviEtDelegationTest.php`** (14 tests), qui couvrent :
+  - TC-BC-027 et TC-BC-028 ;
+  - les notifications ;
+  - le back-up sans rôle demandeur ;
+  - l'absence de droits de validation par une délégation d'initiation ;
+  - « au titre de » ;
+  - le périmètre de la liste ;
+  - TC-BC-031 et les cartes ;
+  - les filtres et les 20 lignes ;
+  - l'âge en alerte ;
+  - le bandeau de rejet ;
+  - l'onglet Validations.
+- **Total** : **173 tests PHP** et 59 tests JavaScript passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 14 vérifications. On y passe successivement par :
+  - la connexion avec la nouvelle adresse de Souadou ;
+  - les cartes, filtres et colonne Âge ;
+  - la recherche à la frappe ;
+  - le bandeau de rejet et l'onglet Validations ;
+  - « Pour le compte de » avec une délégation de Mohamed DIAKITE.
+
+### 25.5 Déploiement
+
+```bash
+php artisan migrate        # validations.au_titre_de_id
+php artisan optimize:clear
+npm run build
+```
+
+### 25.6 Bilan du module M03
+
+Les 16 US de la SFD v1.3 sont couvertes (lots 3, 4 et 5). Restent hors de ces lots :
+
+| Point | Où |
+|-------|-----|
+| Lecteur « vision » des tickets manuscrits, et mesure du taux de corrections sur les tickets de septembre 2026 (TC-BC-019) | OP-BC-5, décision Q8 |
+| Choix de l'ordre de mission dans l'étape 3 ; dates de départ pour MSG-BC-025 | M12 |
+| Matrice Excel de traçabilité à cocher (hash des commits) | Fichier non présent dans le dépôt |
+| Recette sur l'environnement séparé avec les comptes pilote ; comparaison visuelle aux maquettes HTML | À planifier avec Neemba |
 
 ---
 
