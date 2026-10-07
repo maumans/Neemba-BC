@@ -36,6 +36,11 @@ const rolesLabels = {
     daf: 'DAF',
     directeur_pays: 'Directeur Pays',
     caissier: 'Caissier',
+    administrateur: 'Administrateur',
+    daf_adjoint: 'DAF adjoint',
+    chef_comptable: 'Chef comptable',
+    tresorerie: 'Trésorerie',
+    rh: 'Ressources humaines',
 };
 
 export default function Index({ utilisateurs, filtres = {}, roles = {} }) {

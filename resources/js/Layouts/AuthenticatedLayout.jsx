@@ -150,6 +150,11 @@ const rolesLabels = {
     directeur_pays: "Directeur Pays",
     caissier: "Caissier",
     administrateur: "Administrateur",
+    /* Rôles déclarés (référentiel Neemba) : droits ajoutés avec leur module */
+    daf_adjoint: "DAF adjoint",
+    chef_comptable: "Chef comptable",
+    tresorerie: "Trésorerie",
+    rh: "Ressources humaines",
 };
 
 export default function AuthenticatedLayout({ header, children }) {

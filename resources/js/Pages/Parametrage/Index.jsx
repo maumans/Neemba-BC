@@ -292,7 +292,7 @@ const LIBELLES_GROUPES_PARAMETRES = {
     carburant: 'Carburant',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], caisses = [], typesCaisse = {}, modesCaisse = {} }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
     /* ─── SITES ─── */
     const [siteDialog, setSiteDialog] = useState({ open: false, item: null });
     const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '' });
@@ -323,8 +323,10 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     const [caisseDialog, setCaisseDialog] = useState({ open: false, item: null });
     const caisseForm = useForm({
         code: '', libelle: '', site_id: '', type: 'especes', mode: 'standard',
-        montant_avance: '', plafond_retrait: '', seuil_alerte: '', solde: '',
+        montant_avance: '', plafond_retrait: '', seuil_alerte: '', plafond_caisse: '', solde: '',
+        gestionnaire_id: '', suppleant_id: '', encaissements_clients: false, reapprovisionnement: '',
     });
+    const nomUtilisateur = (id) => utilisateursActifs.find((u) => u.id === id)?.libelle ?? '';
 
     const caissesFormat = caisses.map((c) => ({
         ...c,
@@ -333,6 +335,8 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
         solde_affiche: formaterMontant(c.solde),
         plafond_affiche: c.plafond_retrait !== null ? formaterMontant(c.plafond_retrait) : 'Aucun',
         seuil_affiche: c.seuil_alerte !== null ? formaterMontant(c.seuil_alerte) : 'Paramètre général',
+        plafond_caisse_affiche: c.plafond_caisse !== null ? formaterMontant(c.plafond_caisse) : '—',
+        gestionnaire_affiche: c.gestionnaire ? `${(c.gestionnaire.name ?? '').toUpperCase()} ${c.gestionnaire.prenom ?? ''}`.trim() : '—',
     }));
 
     const openCaisseAdd = () => {
@@ -345,7 +349,9 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
         caisseForm.setData({
             code: item.code, libelle: item.libelle, site_id: item.site_id, type: item.type, mode: item.mode,
             montant_avance: item.montant_avance ?? '', plafond_retrait: item.plafond_retrait ?? '',
-            seuil_alerte: item.seuil_alerte ?? '', solde: item.solde ?? '',
+            seuil_alerte: item.seuil_alerte ?? '', plafond_caisse: item.plafond_caisse ?? '', solde: item.solde ?? '',
+            gestionnaire_id: item.gestionnaire_id ?? '', suppleant_id: item.suppleant_id ?? '',
+            encaissements_clients: Boolean(item.encaissements_clients), reapprovisionnement: item.reapprovisionnement ?? '',
         });
         setCaisseDialog({ open: true, item });
     };
@@ -357,7 +363,11 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
             montant_avance: d.montant_avance === '' ? null : d.montant_avance,
             plafond_retrait: d.plafond_retrait === '' ? null : d.plafond_retrait,
             seuil_alerte: d.seuil_alerte === '' ? null : d.seuil_alerte,
+            plafond_caisse: d.plafond_caisse === '' ? null : d.plafond_caisse,
             solde: d.solde === '' ? null : d.solde,
+            gestionnaire_id: d.gestionnaire_id === '' ? null : d.gestionnaire_id,
+            suppleant_id: d.suppleant_id === '' ? null : d.suppleant_id,
+            reapprovisionnement: d.reapprovisionnement === '' ? null : d.reapprovisionnement,
         }));
         if (caisseDialog.item) {
             caisseForm.put(route('parametrage.caisses.update', caisseDialog.item.id), options);
@@ -369,14 +379,14 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
 
     /* ─── SERVICES ─── */
     const [serviceDialog, setServiceDialog] = useState({ open: false, item: null });
-    const serviceForm = useForm({ nom: '', code: '' });
+    const serviceForm = useForm({ nom: '', code: '', equivalent_odm: '' });
 
     const openServiceAdd = () => {
         serviceForm.reset();
         setServiceDialog({ open: true, item: null });
     };
     const openServiceEdit = (item) => {
-        serviceForm.setData({ nom: item.nom, code: item.code || '' });
+        serviceForm.setData({ nom: item.nom, code: item.code || '', equivalent_odm: item.equivalent_odm || '' });
         setServiceDialog({ open: true, item });
     };
     const submitService = (e) => {
@@ -395,12 +405,14 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
 
     /* ─── CODES ANALYTIQUES ─── */
     const [codeDialog, setCodeDialog] = useState({ open: false, item: null });
-    const codeForm = useForm({ code: '', libelle: '', service_id: '' });
+    const codeForm = useForm({ code: '', libelle: '', service_id: '', code_service_comptable: '', valide_cdg: false });
 
+    /* Code service : celui de la liste de référence du CDG (référentiel Neemba, point 12), à défaut celui du service */
     const codesAnalytiquesFormat = codesAnalytiques.map(c => ({
         ...c,
-        service_code: c.service?.code || '',
-        service_nom: c.service?.nom || ''
+        service_code: c.code_service_comptable || c.service?.code || '',
+        service_nom: c.service?.nom || '',
+        validation_cdg: c.valide_cdg ? 'Validé' : 'À valider',
     }));
 
     const openCodeAdd = () => {
@@ -408,7 +420,10 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
         setCodeDialog({ open: true, item: null });
     };
     const openCodeEdit = (item) => {
-        codeForm.setData({ code: item.code, libelle: item.libelle, service_id: item.service_id || '' });
+        codeForm.setData({
+            code: item.code, libelle: item.libelle, service_id: item.service_id || '',
+            code_service_comptable: item.code_service_comptable || '', valide_cdg: Boolean(item.valide_cdg),
+        });
         setCodeDialog({ open: true, item });
     };
     const submitCode = (e) => {
@@ -551,6 +566,8 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                         { key: 'solde_affiche', label: 'Solde' },
                                         { key: 'plafond_affiche', label: 'Retrait espèces max' },
                                         { key: 'seuil_affiche', label: "Seuil d'alerte" },
+                                        { key: 'plafond_caisse_affiche', label: 'Plafond de caisse' },
+                                        { key: 'gestionnaire_affiche', label: 'Gestionnaire' },
                                     ]}
                                     onAdd={openCaisseAdd}
                                     onEdit={openCaisseEdit}
@@ -566,6 +583,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                     columns={[
                                         { key: 'nom', label: 'Nom du service' },
                                         { key: 'code', label: 'Code' },
+                                        { key: 'equivalent_odm', label: 'Équivalent ODM' },
                                     ]}
                                     onAdd={openServiceAdd}
                                     onEdit={openServiceEdit}
@@ -583,6 +601,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                         { key: 'libelle', label: 'Libellé' },
                                         { key: 'service_code', label: 'Code Service' },
                                         { key: 'service_nom', label: 'Service / Business Unit' },
+                                        { key: 'validation_cdg', label: 'Libellé CDG' },
                                     ]}
                                     onAdd={openCodeAdd}
                                     onEdit={openCodeEdit}
@@ -774,6 +793,11 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                         <Input type="number" min="0" value={caisseForm.data.seuil_alerte} onChange={(e) => caisseForm.setData('seuil_alerte', e.target.value)} className="mt-1" placeholder="Vide = paramètre général" />
                         {caisseForm.errors.seuil_alerte && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.seuil_alerte}</p>}
                     </div>
+                    <div>
+                        <Label>Plafond de caisse (GNF)</Label>
+                        <Input type="number" min="0" value={caisseForm.data.plafond_caisse} onChange={(e) => caisseForm.setData('plafond_caisse', e.target.value)} className="mt-1" placeholder="Encaisse maximale" />
+                        {caisseForm.errors.plafond_caisse && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.plafond_caisse}</p>}
+                    </div>
                     {caisseDialog.item && (
                         <div>
                             <Label>Correction du solde (GNF)</Label>
@@ -783,6 +807,39 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                             </p>
                             {caisseForm.errors.solde && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.solde}</p>}
                         </div>
+                    )}
+                </div>
+                <div className="pt-2 border-t space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label>Gestionnaire (caissier)</Label>
+                            <select className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={caisseForm.data.gestionnaire_id} onChange={(e) => caisseForm.setData('gestionnaire_id', e.target.value === '' ? '' : Number(e.target.value))}>
+                                <option value="">—</option>
+                                {utilisateursActifs.map((u) => <option key={u.id} value={u.id}>{u.libelle}</option>)}
+                            </select>
+                            {caisseForm.errors.gestionnaire_id && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.gestionnaire_id}</p>}
+                        </div>
+                        <div>
+                            <Label>Suppléant</Label>
+                            <select className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={caisseForm.data.suppleant_id} onChange={(e) => caisseForm.setData('suppleant_id', e.target.value === '' ? '' : Number(e.target.value))}>
+                                <option value="">—</option>
+                                {utilisateursActifs.map((u) => <option key={u.id} value={u.id}>{u.libelle}</option>)}
+                            </select>
+                            {caisseForm.errors.suppleant_id && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.suppleant_id}</p>}
+                        </div>
+                    </div>
+                    <div>
+                        <Label>Réapprovisionnement</Label>
+                        <Input value={caisseForm.data.reapprovisionnement} onChange={(e) => caisseForm.setData('reapprovisionnement', e.target.value)} className="mt-1" placeholder="Ex : Virement bancaire — Banque" />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" className="rounded border-gray-300" checked={caisseForm.data.encaissements_clients} onChange={(e) => caisseForm.setData('encaissements_clients', e.target.checked)} />
+                        Reçoit des encaissements clients
+                    </label>
+                    {caisseDialog.item?.destinataires_rapport?.length > 0 && (
+                        <p className="text-xs text-gray-500">
+                            Destinataires du rapport journalier : {caisseDialog.item.destinataires_rapport.map(nomUtilisateur).filter(Boolean).join(', ')}
+                        </p>
                     )}
                 </div>
             </FormDialog>
@@ -804,6 +861,11 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <Label>Code</Label>
                     <Input value={serviceForm.data.code} onChange={(e) => serviceForm.setData('code', e.target.value)} placeholder="Ex: IT, FIN, RH" className="mt-1" />
                     {serviceForm.errors.code && <p className="text-sm text-red-500 mt-1">{serviceForm.errors.code}</p>}
+                </div>
+                <div>
+                    <Label>Équivalent sur la fiche d'ordre de mission</Label>
+                    <Input value={serviceForm.data.equivalent_odm} onChange={(e) => serviceForm.setData('equivalent_odm', e.target.value.toUpperCase())} placeholder="Ex : SERVICE, LOCATION, ADMINISTRATION" className="mt-1" />
+                    {serviceForm.errors.equivalent_odm && <p className="text-sm text-red-500 mt-1">{serviceForm.errors.equivalent_odm}</p>}
                 </div>
             </FormDialog>
 
@@ -840,6 +902,17 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                         ))}
                     </select>
                     {codeForm.errors.service_id && <p className="text-sm text-red-500 mt-1">{codeForm.errors.service_id}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <Label>Code service (liste du CDG)</Label>
+                        <Input value={codeForm.data.code_service_comptable} onChange={(e) => codeForm.setData('code_service_comptable', e.target.value)} placeholder="Ex : 200" className="mt-1" />
+                        {codeForm.errors.code_service_comptable && <p className="text-sm text-red-500 mt-1">{codeForm.errors.code_service_comptable}</p>}
+                    </div>
+                    <label className="flex items-center gap-2 text-sm pt-7">
+                        <input type="checkbox" className="rounded border-gray-300" checked={codeForm.data.valide_cdg} onChange={(e) => codeForm.setData('valide_cdg', e.target.checked)} />
+                        Libellé validé par le CDG
+                    </label>
                 </div>
             </FormDialog>
 

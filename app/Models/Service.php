@@ -15,7 +15,7 @@ class Service extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nom', 'code', 'actif'];
+    protected $fillable = ['nom', 'code', 'equivalent_odm', 'actif'];
 
     protected $casts = [
         'actif' => 'boolean',

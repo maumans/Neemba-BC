@@ -35,6 +35,9 @@ class Caisse extends Model
     protected $fillable = [
         'code', 'libelle', 'site_id', 'type', 'mode', 'montant_avance',
         'solde', 'plafond_retrait', 'seuil_alerte', 'actif',
+        /* Matrice de paramétrage par caisse (référentiel Neemba, point 14) */
+        'plafond_caisse', 'gestionnaire_id', 'suppleant_id', 'encaissements_clients',
+        'reapprovisionnement', 'destinataires_rapport',
     ];
 
     protected $casts = [
@@ -42,8 +45,24 @@ class Caisse extends Model
         'solde' => 'decimal:2',
         'plafond_retrait' => 'decimal:2',
         'seuil_alerte' => 'decimal:2',
+        'plafond_caisse' => 'decimal:2',
         'actif' => 'boolean',
+        'encaissements_clients' => 'boolean',
+        'destinataires_rapport' => 'array',
     ];
+
+    /** Champs réglés par double validation (ModificationEnAttente) */
+    public const CHAMPS_SENSIBLES = ['montant_avance', 'plafond_retrait', 'seuil_alerte', 'plafond_caisse'];
+
+    public function gestionnaire(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'gestionnaire_id');
+    }
+
+    public function suppleant(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'suppleant_id');
+    }
 
     /* ----------------------------------------------------------------
      * RELATIONS ET SCOPES

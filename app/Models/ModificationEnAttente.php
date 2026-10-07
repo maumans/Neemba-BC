@@ -114,7 +114,7 @@ class ModificationEnAttente extends Model
                     } elseif ($ecart < 0) {
                         $caisse->debiter(-$ecart, 'correction_solde', $contexte);
                     }
-                } elseif ($caisse && in_array($this->champ, ['montant_avance', 'plafond_retrait', 'seuil_alerte'], true)) {
+                } elseif ($caisse && in_array($this->champ, Caisse::CHAMPS_SENSIBLES, true)) {
                     $caisse->update([$this->champ => $this->nouvelle_valeur === '' ? null : $this->nouvelle_valeur]);
                 }
             } elseif ($this->type_entite === 'utilisateur_role') {

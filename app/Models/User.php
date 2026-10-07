@@ -38,7 +38,35 @@ class User extends Authenticatable
         'site',
         'poste',
         'actif',
+        'entite',
+        'statut_cadre',
+        'responsable_id',
     ];
+
+    /**
+     * Rôles de la plateforme. Les rôles « déclarés » (décision Q5) s'attribuent dès maintenant, à partir du
+     * référentiel de Neemba ; leurs droits arrivent avec leur module (Finance élargie M04, Trésorerie M07-M08, RH M09).
+     */
+    public const ROLES = [
+        'demandeur' => 'Demandeur',
+        'responsable_service' => 'Chef de service',
+        'controle_gestion' => 'Contrôle de gestion',
+        'daf' => 'DAF',
+        'directeur_pays' => 'Directeur Pays',
+        'caissier' => 'Caissier',
+        'administrateur' => 'Administrateur',
+        'daf_adjoint' => 'DAF adjoint',
+        'chef_comptable' => 'Chef comptable',
+        'tresorerie' => 'Trésorerie',
+        'rh' => 'Ressources humaines',
+    ];
+
+    public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh'];
+
+    public function responsable(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(self::class, 'responsable_id');
+    }
 
     /**
      * The attributes that should be hidden for serialization.

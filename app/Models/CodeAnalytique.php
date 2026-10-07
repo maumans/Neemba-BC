@@ -24,11 +24,14 @@ class CodeAnalytique extends Model
         'description',
         'categorie_depense_defaut',
         'service_id',
+        'code_service_comptable',
+        'valide_cdg',
         'actif',
     ];
 
     protected $casts = [
         'actif' => 'boolean',
+        'valide_cdg' => 'boolean',
     ];
 
     /* ----------------------------------------------------------------

@@ -9,6 +9,7 @@ use App\Models\Parametre;
 use App\Models\Service;
 use App\Models\Site;
 use App\Models\TypeDocument;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -28,7 +29,7 @@ class ParametrageController extends Controller
     {
         return Inertia::render('Parametrage/Index', [
             'sites' => Site::with('caisses')->orderBy('nom')->get(),
-            'caisses' => Caisse::with('site')->orderBy('site_id')->orderBy('id')->get()
+            'caisses' => Caisse::with(['site', 'gestionnaire:id,name,prenom', 'suppleant:id,name,prenom'])->orderBy('site_id')->orderBy('id')->get()
                 ->map(fn (Caisse $caisse) => $caisse->append(['solde_format', 'type_label'])),
             'typesCaisse' => Caisse::TYPES,
             'modesCaisse' => Caisse::MODES,
@@ -37,6 +38,9 @@ class ParametrageController extends Controller
             'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
             'typesDocument' => TypeDocument::orderBy('nom')->get(),
             'parametres' => Parametre::orderBy('groupe')->orderBy('libelle')->get(),
+            /* Gestionnaire, suppléant et destinataires du rapport d'une caisse (référentiel Neemba, point 14) */
+            'utilisateursActifs' => User::where('actif', true)->orderBy('name')->orderBy('prenom')->get(['id', 'name', 'prenom'])
+                ->map(fn (User $u) => ['id' => $u->id, 'libelle' => trim(mb_strtoupper($u->name) . ' ' . $u->prenom)]),
         ]);
     }
 
@@ -91,7 +95,8 @@ class ParametrageController extends Controller
             'montant_avance'  => ['nullable', 'numeric', 'min:0', 'required_if:mode,avance_fixe'],
             'plafond_retrait' => ['nullable', 'numeric', 'min:0'],
             'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
-        ]);
+            'plafond_caisse'  => ['nullable', 'numeric', 'min:0'],
+        ] + self::reglesResponsablesCaisse());
 
         Caisse::create($validated + ['solde' => 0, 'actif' => true]);
 
@@ -110,11 +115,12 @@ class ParametrageController extends Controller
             'montant_avance'  => ['nullable', 'numeric', 'min:0'],
             'plafond_retrait' => ['nullable', 'numeric', 'min:0'],
             'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
+            'plafond_caisse'  => ['nullable', 'numeric', 'min:0'],
             'solde'           => ['nullable', 'numeric'],
-        ]);
+        ] + self::reglesResponsablesCaisse());
 
         $enAttente = 0;
-        foreach (['montant_avance', 'plafond_retrait', 'seuil_alerte', 'solde'] as $champ) {
+        foreach ([...Caisse::CHAMPS_SENSIBLES, 'solde'] as $champ) {
             if (!array_key_exists($champ, $validated)) {
                 continue;
             }
@@ -136,11 +142,25 @@ class ParametrageController extends Controller
             }
         }
 
-        $caisse->update(['code' => $validated['code'], 'libelle' => $validated['libelle']]);
+        /* Code, libellé, gestionnaire, suppléant, encaissements et réapprovisionnement : modifiés tout de suite */
+        $caisse->update(array_intersect_key($validated, array_flip([
+            'code', 'libelle', 'gestionnaire_id', 'suppleant_id', 'encaissements_clients', 'reapprovisionnement',
+        ])));
 
         return back()->with('success', $enAttente
             ? "Caisse mise à jour. {$enAttente} modification(s) sensible(s) en attente de double validation."
             : 'Caisse mise à jour.');
+    }
+
+    /** Matrice de paramétrage par caisse (référentiel Neemba, point 14) : champs sans double validation */
+    private static function reglesResponsablesCaisse(): array
+    {
+        return [
+            'gestionnaire_id'       => ['nullable', 'integer', 'exists:users,id'],
+            'suppleant_id'          => ['nullable', 'integer', 'exists:users,id', 'different:gestionnaire_id'],
+            'encaissements_clients' => ['boolean'],
+            'reapprovisionnement'   => ['nullable', 'string', 'max:255'],
+        ];
     }
 
     public function toggleCaisse(Caisse $caisse)
@@ -163,6 +183,7 @@ class ParametrageController extends Controller
         $validated = $request->validate([
             'nom' => ['required', 'string', 'max:255', 'unique:services'],
             'code' => ['nullable', 'string', 'max:50'],
+            'equivalent_odm' => ['nullable', 'string', 'max:40'],
         ]);
 
         Service::create($validated);
@@ -175,6 +196,7 @@ class ParametrageController extends Controller
         $validated = $request->validate([
             'nom' => ['required', 'string', 'max:255', 'unique:services,nom,' . $service->id],
             'code' => ['nullable', 'string', 'max:50'],
+            'equivalent_odm' => ['nullable', 'string', 'max:40'],
             'actif' => ['boolean'],
         ]);
 
@@ -199,6 +221,8 @@ class ParametrageController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
             'categorie_depense_defaut' => ['nullable', 'string', 'max:255'],
             'service_id' => ['nullable', 'exists:services,id'],
+            'code_service_comptable' => ['nullable', 'string', 'max:10'],
+            'valide_cdg' => ['boolean'],
         ]);
 
         CodeAnalytique::create($validated);
@@ -214,6 +238,8 @@ class ParametrageController extends Controller
             'description' => ['nullable', 'string', 'max:1000'],
             'categorie_depense_defaut' => ['nullable', 'string', 'max:255'],
             'service_id' => ['nullable', 'exists:services,id'],
+            'code_service_comptable' => ['nullable', 'string', 'max:10'],
+            'valide_cdg' => ['boolean'],
             'actif' => ['boolean'],
         ]);
 
