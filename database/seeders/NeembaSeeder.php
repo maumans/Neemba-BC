@@ -126,7 +126,7 @@ class NeembaSeeder extends Seeder
         /* S01-S05-S09-S11 : Demandeur */
         $demandeur = User::create([
             'name'       => 'BARRY',
-            'prenom'     => 'Saoudou',
+            'prenom'     => 'Souadou',
             'email'      => 'saoudou.barry@neemba.com',
             'password'   => Hash::make('Neemba@2026'),
             'matricule'  => 'NMB-P001',
@@ -231,7 +231,7 @@ class NeembaSeeder extends Seeder
         /* ================================================================
          * 6. BONS DE CAISSE PRÉ-POSITIONNÉS
          *
-         * S01/S02 → créés en direct par Saoudou pendant le test
+         * S01/S02 → créés en direct par Souadou pendant le test
          * S10     → délégation créée via l'UI pendant le test
          *
          * Seuil DG Pays = 1 500 000 GNF
@@ -279,7 +279,7 @@ class NeembaSeeder extends Seeder
             'site'                 => 'Conakry',
             'service'              => 'Aftermarket',
             'code_analytique'      => 'ADAZZZ',
-            'beneficiaire'         => 'Saoudou BARRY',
+            'beneficiaire'         => 'Souadou BARRY',
             'type_beneficiaire'    => 'employe',
             'telephone_beneficiaire' => '622461261',
             'mode_paiement'        => 'especes',
@@ -303,14 +303,14 @@ class NeembaSeeder extends Seeder
         HistoriqueAction::enregistrer($bonS04, 'soumission', null, 'EN_ATTENTE_CHEF_SERVICE', $demandeur->id, 'Soumission du bon');
 
         /* ── S05 : Bon Provisoire payé → à régulariser ──────────────── */
-        // Deadline dans 2 jours — Saoudou doit régulariser pendant le test.
+        // Deadline dans 2 jours — Souadou doit régulariser pendant le test.
         $bonS05 = BonCaisse::create([
             'numero'                   => 'BC-2026-0003',
             'type_bon'                 => 'BP',
             'site'                     => 'Conakry',
             'service'                  => 'Aftermarket',
             'code_analytique'          => 'ADAZZZ',
-            'beneficiaire'             => 'Saoudou BARRY',
+            'beneficiaire'             => 'Souadou BARRY',
             'type_beneficiaire'        => 'employe',
             'telephone_beneficiaire'   => '622461261',
             'mode_paiement'            => 'especes',
@@ -338,7 +338,7 @@ class NeembaSeeder extends Seeder
         HistoriqueAction::enregistrer($bonS05, 'paiement', 'APPROUVE', 'PAYE', $caissier->id, 'Paiement effectué — avance mission Sangarédi');
 
         /* ── S06 : Bon approuvé → prêt pour paiement OTP ───────────── */
-        // TOURE doit générer l'OTP, le faire communiquer par Saoudou, puis payer.
+        // TOURE doit générer l'OTP, le faire communiquer par Souadou, puis payer.
         $bonS06 = BonCaisse::create([
             'numero'               => 'BC-2026-0004',
             'type_bon'             => 'BD',

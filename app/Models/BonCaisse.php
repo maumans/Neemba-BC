@@ -655,7 +655,7 @@ class BonCaisse extends Model
         if ($this->type_bon === 'BP') {
             /* BP : vérifier si des pièces de régularisation ont été pré-uploadées */
             if ($this->aDesPiecesRegularisation()) {
-                /* Pré-régularisé → passer directement à REGULARISE puis ARCHIVE */
+                /* Pré-régularisé → passer directement à REGULARISE (Q14 : pas d'archivage automatique) */
                 $this->statut = 'PAYE';
                 $this->date_regularisation = now();
                 $this->save();
@@ -672,12 +672,6 @@ class BonCaisse extends Model
                     'Bon provisoire auto-régularisé (pièces fournies avant paiement).',
                 );
 
-                /* Auto-archivage */
-                $this->statut = 'ARCHIVE';
-                $this->save();
-                HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_ARCHIVAGE, 'REGULARISE', 'ARCHIVE', $caissier->id,
-                    'Archivage automatique après régularisation.',
-                );
             } else {
                 /* Pas de pièces → attente de régularisation (workflow standard) */
                 $this->statut = 'EN_ATTENTE_REGULARISATION';
@@ -697,20 +691,13 @@ class BonCaisse extends Model
                 );
             }
         } else {
-            /* BD : payer puis archiver automatiquement */
+            /* BD : le bon reste « Payé » (SFD §1.4, Q14) ; l'archivage est une action à part */
             $this->statut = 'PAYE';
             $this->save();
 
             HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'PAYE', $caissier->id,
                 'Paiement effectué par ' . $caissier->nom_complet . ' en ' . self::MODES_PAIEMENT[$modePaiement] . '.',
                 ['mode_paiement' => $modePaiement, 'date_paiement' => $this->date_paiement->toIso8601String()],
-            );
-
-            /* Auto-archivage du BD */
-            $this->statut = 'ARCHIVE';
-            $this->save();
-            HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_ARCHIVAGE, 'PAYE', 'ARCHIVE', $caissier->id,
-                'Archivage automatique après paiement.',
             );
         }
 
@@ -744,18 +731,6 @@ class BonCaisse extends Model
             $motifRegularisation
                 ? "Bon provisoire régularisé. Motif : {$motifRegularisation}"
                 : 'Bon provisoire régularisé avec justificatifs.',
-        );
-
-        /* Auto-archivage après régularisation */
-        $this->statut = 'ARCHIVE';
-        $this->save();
-        HistoriqueAction::enregistrer(
-            $this,
-            HistoriqueAction::ACTION_ARCHIVAGE,
-            'REGULARISE',
-            'ARCHIVE',
-            $utilisateurId,
-            'Archivage automatique après régularisation.',
         );
 
         return true;

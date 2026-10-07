@@ -35,6 +35,16 @@ class BonCaisseSocleTest extends TestCase
         $this->assertSame('Annulé', $bon->fresh()->statut_label);
     }
 
+    /** Q14 : les statuts « Payé » et « Régularisé » de la SFD restent visibles (plus d'archivage automatique) */
+    public function test_un_bp_regularise_reste_regularise(): void
+    {
+        $bon = BonCaisse::factory()->provisoire()->statut('EN_ATTENTE_REGULARISATION')->create();
+
+        $this->assertTrue($bon->regulariser(null, 'Justificatifs fournis au retour de mission'));
+
+        $this->assertSame('REGULARISE', $bon->fresh()->statut);
+    }
+
     public function test_une_modification_est_journalisee_avec_ancienne_et_nouvelle_valeur(): void
     {
         $demandeur = User::factory()->create();

@@ -42,7 +42,7 @@ class StabilisationTest extends TestCase
         $this->assertEquals(1000000, (float) $site->solde_especes);
         $this->assertEquals(500000, (float) $site->solde_om);
         $this->assertEquals('orange_money', $bon->fresh()->mode_paiement_effectif);
-        $this->assertEquals('ARCHIVE', $bon->fresh()->statut);   // un BD payé est archivé aussitôt
+        $this->assertEquals('PAYE', $bon->fresh()->statut);   // Q14 : un BD payé reste « Payé »
         $this->assertTrue((bool) $otp->fresh()->is_used);
     }
 
