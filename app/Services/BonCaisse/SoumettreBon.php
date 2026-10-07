@@ -32,14 +32,14 @@ class SoumettreBon
 
             /* Double clic / nouvel envoi de la même demande : résultat déjà acquis */
             if ($cleIdempotence && $bon->cle_soumission === $cleIdempotence && !in_array($bon->statut, ['BROUILLON', 'REJETE'], true)) {
-                return [$bon, ControlesBon::executer($bon), false];
+                return [$bon, ControlesBon::executer($bon, $auteur), false];
             }
 
             if (!in_array($bon->statut, ['BROUILLON', 'REJETE'], true)) {
                 throw new ErreurMetier('BON_DEJA_SOUMIS', 'MSG-APP-001', [], 'RG-BC-27', null, 409);
             }
 
-            $controles = ControlesBon::executer($bon);
+            $controles = ControlesBon::executer($bon, $auteur);
             $bloquants = ControlesBon::bloquants($controles);
             if ($bloquants) {
                 $premier = $bloquants[0];
@@ -82,7 +82,12 @@ class SoumettreBon
         });
 
         if ($nouvelle) {
-            NotificationService::notifierSoumission($bon->fresh(['demandeur']), $bon->demandeur);
+            $bon = $bon->fresh(['demandeur']);
+            NotificationService::notifierSoumission($bon, $auteur);
+            /* US-BC-13 : le titulaire est prévenu du bon soumis pour son compte */
+            if ($auteur->id !== $bon->demandeur_id) {
+                NotificationService::notifierBonPourLeCompteDe($bon, $auteur);
+            }
         }
 
         return [$bon, $controles];

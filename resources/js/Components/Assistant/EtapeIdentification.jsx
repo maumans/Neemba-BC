@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/Components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { codesDuService } from '@/utils/assistant';
+import { formaterDate } from '@/utils/format';
 import Champ from './Champ';
 
 const NIVEAUX_URGENCE = [
@@ -14,7 +15,18 @@ const NIVEAUX_URGENCE = [
     { valeur: 'tres_urgente', libelle: 'Très urgente' },
 ];
 
-export default function EtapeIdentification({ donnees, changer, erreurs, sites, services, codesAnalytiques, motifsUrgence }) {
+export default function EtapeIdentification({
+    donnees,
+    changer,
+    erreurs,
+    sites,
+    services,
+    codesAnalytiques,
+    motifsUrgence,
+    titulaires = [],
+    utilisateur,
+    choisirTitulaire,
+}) {
     const service = services.find((s) => s.nom === donnees.service);
     const codes = codesDuService(codesAnalytiques, service?.id ?? null);
     const urgent = donnees.niveau_urgence !== 'normale';
@@ -40,6 +52,32 @@ export default function EtapeIdentification({ donnees, changer, erreurs, sites, 
 
     return (
         <div className="space-y-5">
+            {/* US-BC-13 : back-up d'au moins une délégation d'initiation active */}
+            {titulaires.length > 0 && (
+                <Champ
+                    champ="demandeur_id"
+                    libelle="Pour le compte de"
+                    obligatoire
+                    erreur={erreurs.demandeur_id}
+                    aide="Le bon sera au nom du collègue choisi ; vous en restez l'initiateur."
+                    className="sm:max-w-md"
+                >
+                    <Select value={donnees.demandeur_id ? String(donnees.demandeur_id) : undefined} onValueChange={(valeur) => choisirTitulaire(Number(valeur))}>
+                        <SelectTrigger id="champ-demandeur_id">
+                            <SelectValue placeholder="Choisir le titulaire" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {utilisateur?.demandeur && <SelectItem value={String(utilisateur.id)}>Moi-même</SelectItem>}
+                            {titulaires.map((titulaire) => (
+                                <SelectItem key={titulaire.id} value={String(titulaire.id)}>
+                                    {titulaire.nom_complet} — délégation jusqu'au {formaterDate(titulaire.date_fin)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </Champ>
+            )}
+
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <Champ champ="type_bon" libelle="Type de bon" obligatoire erreur={erreurs.type_bon}>
                     <Select value={donnees.type_bon || undefined} onValueChange={(valeur) => changer('type_bon', valeur)}>

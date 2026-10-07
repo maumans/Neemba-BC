@@ -88,7 +88,7 @@ function formaterTempsEcoule(dateStr) {
     return { texte: texte.trim(), jours };
 }
 
-export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutValider = false, roleUtilisateur = '', statsIndex = {} }) {
+export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutValider = false, roleUtilisateur = '', statsIndex = {}, niveauxUrgence = {} }) {
     const { auth } = usePage().props;
     const [recherche, setRecherche] = useState(filtres.recherche || '');
     const [, forceUpdate] = useState(0);
@@ -117,6 +117,19 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
         filtrer({ recherche });
     };
 
+    /* Recherche à la frappe, 300 ms après la dernière touche (E-03.1) */
+    useEffect(() => {
+        if ((recherche || '') === (filtres.recherche || '')) return undefined;
+        const minuterie = setTimeout(() => filtrer({ recherche }), 300);
+        return () => clearTimeout(minuterie);
+    }, [recherche]);
+
+    const filtresActifs = ['statut', 'type_bon', 'niveau_urgence', 'du', 'au', 'recherche'].some((cle) => filtres[cle]);
+    const reinitialiser = () => {
+        setRecherche('');
+        router.get(route('bons-caisse.index'), {}, { preserveScroll: true });
+    };
+
     return (
         <AuthenticatedLayout header="Bons de Caisse">
             <Head title="Bons de Caisse" />
@@ -139,117 +152,32 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                 )}
             </div>
 
-            {/* KPI Stats Cards */}
-            {statsIndex && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-                    {/* Card 1 : Total bons */}
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}>
-                        <Card className="overflow-hidden border-t-2 border-t-neemba-400 hover:shadow-md transition-shadow">
+            {/* Cartes (E-03.1, RG-BC-33) : calculées sur le périmètre et les filtres de la liste */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                {[
+                    { cle: 'total', titre: 'Total bons', icone: FileText, bordure: 'border-t-neemba-400', couleur: 'text-gray-900', sous: 'Montant total' },
+                    { cle: 'a_valider', titre: 'À valider', icone: Clock, bordure: 'border-t-amber-400', couleur: 'text-amber-600', sous: 'Montant en validation' },
+                    { cle: 'payes', titre: 'Payés', icone: CheckCircle2, bordure: 'border-t-emerald-400', couleur: 'text-emerald-600', sous: 'Montant total payé' },
+                    { cle: 'rejetes', titre: 'Rejetés', icone: XCircle, bordure: 'border-t-red-400', couleur: 'text-red-600', sous: 'Montant total rejeté' },
+                ].map(({ cle, titre, icone: Icone, bordure, couleur, sous }, index) => (
+                    <motion.div key={cle} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }}>
+                        <Card className={`overflow-hidden border-t-2 ${bordure} hover:shadow-md transition-shadow`}>
                             <CardContent className="p-4">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <p className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Total bons</p>
-                                        <p className="text-2xl font-bold text-gray-900 mt-0.5">{statsIndex.total || 0}</p>
+                                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{titre}</p>
+                                        <p className={`text-2xl font-bold mt-0.5 ${couleur}`}>{statsIndex[cle]?.nombre ?? 0}</p>
                                     </div>
-                                    <div className="h-10 w-10 rounded-full bg-neemba-50 flex items-center justify-center">
-                                        <FileText className="h-5 w-5 text-neemba-500" />
-                                    </div>
+                                    <Icone className={`h-5 w-5 ${couleur}`} />
                                 </div>
-                                <div className="flex items-center gap-1 mt-2">
-                                    <TrendingUp className="h-3 w-3 text-green-500" />
-                                    <span className="text-[10px] text-gray-500">{statsIndex.payes_ce_mois || 0} payés ce mois</span>
-                                </div>
+                                <p className="mt-2 pt-2 border-t border-gray-100 text-[11px] text-gray-500">
+                                    {sous} : {formatMontant(statsIndex[cle]?.montant ?? 0)}
+                                </p>
                             </CardContent>
                         </Card>
                     </motion.div>
-
-                    {/* Card 2 : En attente / À valider */}
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-                        <Card className="overflow-hidden border-t-2 border-t-amber-400 hover:shadow-md transition-shadow">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">
-                                            {peutValider ? 'À valider' : 'En attente'}
-                                        </p>
-                                        <p className="text-2xl font-bold text-amber-600 mt-0.5">
-                                            {peutValider ? (statsIndex.a_valider || 0) : (statsIndex.en_attente || 0)}
-                                        </p>
-                                    </div>
-                                    <div className="h-10 w-10 rounded-full bg-amber-50 flex items-center justify-center">
-                                        <Clock className="h-5 w-5 text-amber-500" />
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1 mt-2">
-                                    <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                    <span className="text-[10px] text-gray-500">{statsIndex.approuves || 0} approuvés</span>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-
-                    {/* Card 3 : Montant payé */}
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-                        <Card className="overflow-hidden border-t-2 border-t-emerald-400 hover:shadow-md transition-shadow">
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">Payés</p>
-                                        <p className="text-2xl font-bold text-emerald-600 mt-0.5">{statsIndex.payes || 0}</p>
-                                    </div>
-                                    <div className="h-10 w-10 rounded-full bg-emerald-50 flex items-center justify-center">
-                                        <Banknote className="h-5 w-5 text-emerald-500" />
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1 mt-2">
-                                    <Banknote className="h-3 w-3 text-emerald-500" />
-                                    <span className="text-[10px] text-gray-500">
-                                        {formatMontant(statsIndex.montant_paye_ce_mois)} ce mois
-                                    </span>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-
-                    {/* Card 4 : Rejetés ou BP en retard */}
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-                        <Card className={`overflow-hidden border-t-2 hover:shadow-md transition-shadow ${
-                            (statsIndex.bp_en_retard || 0) > 0 ? 'border-t-red-400' : 'border-t-gray-300'
-                        }`}>
-                            <CardContent className="p-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-[11px] text-gray-500 uppercase tracking-wider font-medium">
-                                            {roleUtilisateur === 'caissier' ? 'BP en retard' : 'Rejetés'}
-                                        </p>
-                                        <p className={`text-2xl font-bold mt-0.5 ${
-                                            roleUtilisateur === 'caissier'
-                                                ? ((statsIndex.bp_en_retard || 0) > 0 ? 'text-red-600' : 'text-gray-400')
-                                                : ((statsIndex.rejetes || 0) > 0 ? 'text-red-600' : 'text-gray-400')
-                                        }`}>
-                                            {roleUtilisateur === 'caissier' ? (statsIndex.bp_en_retard || 0) : (statsIndex.rejetes || 0)}
-                                        </p>
-                                    </div>
-                                    <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                                        (statsIndex.bp_en_retard || 0) > 0 || (statsIndex.rejetes || 0) > 0
-                                            ? 'bg-red-50' : 'bg-gray-50'
-                                    }`}>
-                                        {roleUtilisateur === 'caissier'
-                                            ? <AlertTriangle className={`h-5 w-5 ${(statsIndex.bp_en_retard || 0) > 0 ? 'text-red-500' : 'text-gray-400'}`} />
-                                            : <XCircle className={`h-5 w-5 ${(statsIndex.rejetes || 0) > 0 ? 'text-red-500' : 'text-gray-400'}`} />
-                                        }
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1 mt-2">
-                                    <span className="text-[10px] text-gray-500">
-                                        Montant total : {formatMontant(statsIndex.montant_total_paye)}
-                                    </span>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </motion.div>
-                </div>
-            )}
+                ))}
+            </div>
 
             {/* Filtres */}
             <Card className="mb-5">
@@ -260,7 +188,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
-                                    placeholder="Rechercher par numéro, bénéficiaire..."
+                                    placeholder="Rechercher par numéro, bénéficiaire, motif…"
                                     value={recherche}
                                     onChange={(e) => setRecherche(e.target.value)}
                                     className="pl-9"
@@ -301,6 +229,36 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                 <SelectItem value="BP">Bon Provisoire</SelectItem>
                             </SelectContent>
                         </Select>
+
+                        {/* Filtre par urgence */}
+                        <Select
+                            value={filtres.niveau_urgence || 'toutes'}
+                            onValueChange={(val) => filtrer({ niveau_urgence: val === 'toutes' ? '' : val })}
+                        >
+                            <SelectTrigger className="w-full sm:w-[160px]">
+                                <SelectValue placeholder="Toutes urgences" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="toutes">Toutes urgences</SelectItem>
+                                {Object.entries(niveauxUrgence).map(([cle, libelle]) => (
+                                    <SelectItem key={cle} value={cle}>{libelle}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Période (date de la demande) */}
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                        <span>Période du</span>
+                        <Input type="date" value={filtres.du || ''} onChange={(e) => filtrer({ du: e.target.value })} className="h-9 w-auto" aria-label="Du" />
+                        <span>au</span>
+                        <Input type="date" value={filtres.au || ''} onChange={(e) => filtrer({ au: e.target.value })} className="h-9 w-auto" aria-label="Au" />
+                        {filtresActifs && (
+                            <Button type="button" variant="ghost" size="sm" onClick={reinitialiser}>
+                                Réinitialiser les filtres
+                            </Button>
+                        )}
+                        <span className="ml-auto text-xs text-gray-500">{bonsCaisse.total} bon(s)</span>
                     </div>
                 </CardContent>
             </Card>
@@ -326,7 +284,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                         ) : (
                             <>
                                 <div className="overflow-x-auto">
-                                <Table>
+                                <Table className="[&_th]:px-3 [&_td]:px-3">
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="text-xs">Numéro</TableHead>
@@ -336,6 +294,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                             <TableHead className="text-xs text-right">Montant</TableHead>
                                             <TableHead className="text-xs">Statut</TableHead>
                                             <TableHead className="text-xs hidden sm:table-cell">Date</TableHead>
+                                            <TableHead className="text-xs hidden md:table-cell" title="Depuis la soumission ; en rouge au-delà de 2 × le délai de l'étape en cours">Âge</TableHead>
                                             <TableHead className="text-xs text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -376,7 +335,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="hidden md:table-cell text-sm py-2">{bon.beneficiaire}</TableCell>
-                                                <TableCell className="hidden lg:table-cell max-w-[200px] truncate text-sm py-2">
+                                                <TableCell className="hidden lg:table-cell max-w-[160px] truncate text-sm py-2">
                                                     {bon.motif}
                                                 </TableCell>
                                                 <TableCell className="text-right font-semibold text-xs sm:text-sm py-2">
@@ -398,6 +357,9 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                                             </div>
                                                         );
                                                     })()}
+                                                </TableCell>
+                                                <TableCell className={cn('text-xs hidden md:table-cell py-2 whitespace-nowrap', bon.age_alerte ? 'font-semibold text-red-600' : 'text-gray-500')}>
+                                                    {bon.age ?? '—'}
                                                 </TableCell>
                                                 <TableCell className="text-right py-2">
                                                     <div className="flex items-center justify-end gap-1">

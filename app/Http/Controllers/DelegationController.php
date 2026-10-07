@@ -38,9 +38,7 @@ class DelegationController extends Controller
             ->where('statut', 'en_attente')
             ->get();
 
-        $peutCreer = in_array($utilisateur->role, [
-            'employe', 'caissier', 'responsable_service', 'controle_gestion', 'daf', 'directeur_pays', 'administrateur',
-        ]);
+        $peutCreer = Delegation::fonctionnalitesDelegablesPar($utilisateur) !== [];
 
         return Inertia::render('Delegations/Index', [
             'delegationsDonnees' => $delegationsDonnees,
@@ -59,8 +57,9 @@ class DelegationController extends Controller
     {
         $utilisateur = Auth::user();
 
-        /* Tous les utilisateurs peuvent déléguer */
-        if (!in_array($utilisateur->role, ['employe', 'caissier', 'responsable_service', 'controle_gestion', 'daf', 'directeur_pays', 'administrateur'])) {
+        /* Tout utilisateur qui a une fonctionnalité à déléguer (validation, paiement… ou initiation de bons) */
+        $fonctionnalitesDisponibles = Delegation::fonctionnalitesDelegablesPar($utilisateur);
+        if ($fonctionnalitesDisponibles === []) {
             abort(403, 'Vous n\'êtes pas autorisé à créer des délégations.');
         }
 
@@ -69,9 +68,6 @@ class DelegationController extends Controller
             ->where('id', '!=', $utilisateur->id)
             ->orderBy('name')
             ->get(['id', 'name', 'prenom', 'role', 'service', 'site']);
-
-        /* Fonctionnalités délégables en fonction du rôle de l'utilisateur */
-        $fonctionnalitesDisponibles = Delegation::FONCTIONNALITES_PAR_ROLE[$utilisateur->role] ?? [];
 
         return Inertia::render('Delegations/Create', [
             'deleguesPotentiels' => $deleguesPotentiels,
@@ -87,7 +83,8 @@ class DelegationController extends Controller
     {
         $utilisateur = Auth::user();
 
-        if (!in_array($utilisateur->role, ['employe', 'caissier', 'responsable_service', 'controle_gestion', 'daf', 'directeur_pays', 'administrateur'])) {
+        $fonctionnalitesDisponibles = Delegation::fonctionnalitesDelegablesPar($utilisateur);
+        if ($fonctionnalitesDisponibles === []) {
             abort(403);
         }
 
@@ -97,7 +94,7 @@ class DelegationController extends Controller
             'date_fin' => ['required', 'date', 'after:date_debut'],
             'motif' => ['nullable', 'string', 'max:500'],
             'fonctionnalites' => ['nullable', 'array', 'min:1'],
-            'fonctionnalites.*' => ['string', 'in:validation,paiement,rapport_caisse,mouvement_caisse,archivage'],
+            'fonctionnalites.*' => ['string', \Illuminate\Validation\Rule::in($fonctionnalitesDisponibles)],
         ]);
 
         /* Vérifier qu'il n'y a pas de chevauchement */
@@ -122,8 +119,9 @@ class DelegationController extends Controller
             'delegue_id' => $validated['delegue_id'],
             'date_debut' => $validated['date_debut'],
             'date_fin' => $validated['date_fin'],
-            'motif' => $validated['motif'],
-            'fonctionnalites' => $validated['fonctionnalites'] ?? null,
+            'motif' => $validated['motif'] ?? null,
+            /* Liste explicite : « toutes » ne doit pas inclure l'initiation par surprise */
+            'fonctionnalites' => $validated['fonctionnalites'] ?? array_values(array_diff($fonctionnalitesDisponibles, ['initiation'])),
             'statut' => 'en_attente',
         ]);
 

@@ -411,7 +411,7 @@ export default function AuthenticatedLayout({ header, children }) {
                 {/* ============================================================
                     CONTENU PRINCIPAL
                    ============================================================ */}
-                <div className="flex-1 flex flex-col lg:pl-64">
+                <div className="flex-1 flex flex-col lg:pl-64 min-w-0">
                     {/* Top bar */}
                     <header className="sticky top-0 z-30 flex items-center h-16 bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8">
                         {/* Bouton menu mobile */}

@@ -172,6 +172,7 @@ class ReglesSaisie
             'references_or.*' => ['regex:/^\d{8}$/'],
             'lie_mission' => ['nullable', 'boolean'],
             'date_retour_mission' => ['nullable', 'date'],
+            'demandeur_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
         ];
     }
 

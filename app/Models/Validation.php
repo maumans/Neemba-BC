@@ -32,6 +32,7 @@ class Validation extends Model
         'version',
         'commentaire',
         'validateur_id',
+        'au_titre_de_id',
         'date_validation',
         'date_attribution',
         'date_relance',
@@ -118,7 +119,8 @@ class Validation extends Model
         if ($this->statut !== 'en_attente' || !$this->date_attribution) {
             return false;
         }
-        return $this->date_attribution->addHours($this->slaHeures())->isPast();
+        /* copy() : addHours() modifierait la date d'attribution du modèle */
+        return $this->date_attribution->copy()->addMinutes((int) round($this->slaHeures() * 60))->isPast();
     }
 
     /**
@@ -130,7 +132,7 @@ class Validation extends Model
             return false;
         }
         $multiplicateur = (float) Parametre::valeur('sla_multiplicateur_escalade', 2);
-        return $this->date_attribution->addHours($this->slaHeures() * $multiplicateur)->isPast();
+        return $this->date_attribution->copy()->addMinutes((int) round($this->slaHeures() * $multiplicateur * 60))->isPast();
     }
 
     /**
@@ -166,6 +168,7 @@ class Validation extends Model
         $this->update([
             'statut' => 'approuve',
             'validateur_id' => $validateur->id,
+            'au_titre_de_id' => $this->titulaireRemplacePar($validateur),
             'commentaire' => $commentaire,
             'date_validation' => now(),
         ]);
@@ -180,11 +183,32 @@ class Validation extends Model
      * @param User $validateur L'utilisateur qui rejette
      * @param string $commentaire Motif du rejet (obligatoire)
      */
+    /**
+     * Titulaire au nom duquel valide un suppléant (délégation de validation) ; null si le valideur a lui-même le rôle.
+     * Affiché sur la fiche : « X au titre de Y » (E-03.8).
+     */
+    private function titulaireRemplacePar(User $validateur): ?int
+    {
+        if ($validateur->aLeRole($this->role)) {
+            return null;
+        }
+
+        return Delegation::actives()->where('delegue_id', $validateur->id)->with('delegant')->get()
+            ->first(fn (Delegation $d) => $d->autorise('validation') && $d->delegant?->aLeRole($this->role))
+            ?->delegant_id;
+    }
+
+    public function auTitreDe(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'au_titre_de_id');
+    }
+
     public function rejeter(User $validateur, string $commentaire): void
     {
         $this->update([
             'statut' => 'rejete',
             'validateur_id' => $validateur->id,
+            'au_titre_de_id' => $this->titulaireRemplacePar($validateur),
             'commentaire' => $commentaire,
             'date_validation' => now(),
         ]);

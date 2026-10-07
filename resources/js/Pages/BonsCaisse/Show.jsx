@@ -162,6 +162,9 @@ export default function Show({
     peutPreRegulariser = false,
     aDesPiecesRegularisation = false,
     motifsRejet = {},
+    etapesValidation = [],
+    rejet = null,
+    ageBon = null,
 }) {
     const { auth, flash } = usePage().props;
     const user = auth.user;
@@ -399,6 +402,27 @@ export default function Show({
                 </motion.div>
             )}
 
+            {/* US-BC-14 : bandeau rouge du rejet (motif, commentaire, valideur, date) */}
+            {rejet && (
+                <div className="mb-6 flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 sm:flex-row sm:items-start">
+                    <XCircle className="h-5 w-5 shrink-0 text-red-500" />
+                    <div className="flex-1 space-y-1">
+                        <p className="font-semibold">
+                            Bon rejeté{rejet.niveau ? ` au niveau ${rejet.niveau}` : ''}{rejet.valideur ? ` par ${rejet.valideur}` : ''}{rejet.date ? ` le ${rejet.date}` : ''}
+                        </p>
+                        {rejet.motif && <p>Motif : {rejet.motif}</p>}
+                        {rejet.commentaire && <p>Commentaire : {rejet.commentaire}</p>}
+                    </div>
+                    {estDemandeur && (
+                        <Link href={route('bons-caisse.edit', bonCaisse.id)} className="shrink-0">
+                            <Button size="sm">
+                                <Pencil className="mr-1 h-4 w-4" /> Corriger et resoumettre
+                            </Button>
+                        </Link>
+                    )}
+                </div>
+            )}
+
             <BandeauPiecesDejaUtilisees pieces={bonCaisse.pieces_jointes} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -433,6 +457,13 @@ export default function Show({
                                         <CardDescription className="mt-1">
                                             Créé le {formatDate(bonCaisse.date_demande)}
                                             {bonCaisse.date_soumission && ` · Soumis le ${formatDateTime(bonCaisse.date_soumission)}`}
+                                            {ageBon && ` · Âge : ${ageBon}`}
+                                            {/* US-BC-13 : bon initié par un back-up */}
+                                            {bonCaisse.initiateur && bonCaisse.initiateur_id !== bonCaisse.demandeur_id && (
+                                                <span className="block pt-0.5 text-gray-700">
+                                                    Initié par {bonCaisse.initiateur.prenom} {bonCaisse.initiateur.name} pour le compte de {bonCaisse.demandeur?.prenom} {bonCaisse.demandeur?.name}
+                                                </span>
+                                            )}
                                         </CardDescription>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -833,72 +864,78 @@ export default function Show({
                             <TabsContent value="validations">
                                 <Card>
                                     <CardContent className="p-6">
-                                        {(!bonCaisse.validations || bonCaisse.validations.length === 0) ? (
+                                        {etapesValidation.length === 0 ? (
                                             <p className="text-center text-gray-400 py-8">
                                                 Aucune étape de validation enregistrée.
-                                                {bonCaisse.statut === 'BROUILLON' && ' Soumettez le bon pour démarrer le workflow.'}
+                                                {bonCaisse.statut === 'BROUILLON' && ' Soumettez le bon pour démarrer le circuit.'}
                                             </p>
                                         ) : (
-                                            <div className="space-y-4">
-                                                {bonCaisse.validations.map((validation, index) => (
-                                                    <div key={validation.id} className="flex gap-4">
-                                                        {/* Icône de statut */}
-                                                        <div className="flex flex-col items-center">
-                                                            {validation.statut === 'approuve' ? (
-                                                                <CheckCircle2 className="h-8 w-8 text-green-500" />
-                                                            ) : validation.statut === 'rejete' ? (
-                                                                <XCircle className="h-8 w-8 text-red-500" />
-                                                            ) : (
-                                                                <Clock className="h-8 w-8 text-neemba-400" />
-                                                            )}
-                                                            {index < bonCaisse.validations.length - 1 && (
-                                                                <div className="w-0.5 h-full bg-gray-200 mt-1" />
-                                                            )}
-                                                        </div>
-
-                                                        {/* Détails */}
-                                                        <div className="flex-1 pb-4">
-                                                            <div className="flex items-center justify-between">
-                                                                <p className="font-medium text-sm">
-                                                                    Niveau {validation.niveau} - {rolesValidation[validation.role] || validation.role}
+                                            <div className="space-y-6">
+                                                {[...new Set(etapesValidation.map((e) => e.version))].map((version) => {
+                                                    const etapes = etapesValidation.filter((e) => e.version === version);
+                                                    const plusieurs = new Set(etapesValidation.map((e) => e.version)).size > 1;
+                                                    return (
+                                                        <div key={version}>
+                                                            {plusieurs && (
+                                                                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                                                    Version {version}{version === bonCaisse.version ? ' (en cours)' : ''}
                                                                 </p>
-                                                                <Badge
-                                                                    variant={
-                                                                        validation.statut === 'approuve' ? 'approuve'
-                                                                        : validation.statut === 'rejete' ? 'rejete'
-                                                                        : 'en_attente'
-                                                                    }
-                                                                    className="text-[10px]"
-                                                                >
-                                                                    {validation.statut === 'approuve' ? 'Approuvé'
-                                                                        : validation.statut === 'rejete' ? 'Rejeté'
-                                                                        : 'En attente'}
-                                                                </Badge>
+                                                            )}
+                                                            <div className="space-y-4">
+                                                                {etapes.map((etape, index) => (
+                                                                    <div key={etape.id} className="flex gap-4">
+                                                                        <div className="flex flex-col items-center">
+                                                                            {etape.statut === 'approuve' ? (
+                                                                                <CheckCircle2 className="h-8 w-8 text-green-500" />
+                                                                            ) : etape.statut === 'rejete' ? (
+                                                                                <XCircle className="h-8 w-8 text-red-500" />
+                                                                            ) : etape.etat === 'en_cours' ? (
+                                                                                <Clock className={`h-8 w-8 ${etape.en_retard ? 'text-red-500' : 'text-neemba-500'}`} />
+                                                                            ) : (
+                                                                                <Clock className="h-8 w-8 text-gray-300" />
+                                                                            )}
+                                                                            {index < etapes.length - 1 && <div className="w-0.5 h-full bg-gray-200 mt-1" />}
+                                                                        </div>
+                                                                        <div className="flex-1 pb-4">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <p className="font-medium text-sm">Niveau {etape.niveau} — {etape.libelle}</p>
+                                                                                <Badge
+                                                                                    variant={etape.statut === 'approuve' ? 'approuve' : etape.statut === 'rejete' ? 'rejete' : etape.etat === 'en_cours' ? 'en_attente' : 'brouillon'}
+                                                                                    className="text-[10px]"
+                                                                                >
+                                                                                    {etape.statut === 'approuve' ? 'Approuvé' : etape.statut === 'rejete' ? 'Rejeté' : etape.etat === 'en_cours' ? 'En cours' : etape.etat === 'non_atteint' ? 'Non atteint' : 'À venir'}
+                                                                                </Badge>
+                                                                            </div>
+                                                                            {etape.etat === 'fait' && etape.valideur && (
+                                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                                    Par {etape.valideur}{etape.au_titre_de ? ` au titre de ${etape.au_titre_de}` : ''}
+                                                                                    {etape.date && ` le ${etape.date}`}
+                                                                                    {etape.duree && ` · traité en ${etape.duree}`}
+                                                                                </p>
+                                                                            )}
+                                                                            {['en_cours', 'a_venir'].includes(etape.etat) && (
+                                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                                    {etape.valideurs_possibles?.length
+                                                                                        ? `Valideur(s) possible(s) : ${etape.valideurs_possibles.join(', ')}`
+                                                                                        : 'Aucun valideur disponible : le bon sera transmis au niveau supérieur.'}
+                                                                                </p>
+                                                                            )}
+                                                                            {etape.etat === 'en_cours' && (
+                                                                                <p className={`text-xs mt-1 flex items-center gap-1 ${etape.en_retard ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                                                                                    <Timer className="h-3 w-3" />
+                                                                                    {etape.duree ? `En attente depuis ${etape.duree} · échéance le ${etape.echeance}${etape.en_retard ? ' (dépassée)' : ''}` : 'En attente de validation'}
+                                                                                </p>
+                                                                            )}
+                                                                            {etape.commentaire && (
+                                                                                <p className="text-sm mt-1 text-gray-600 bg-gray-50 rounded p-2">{etape.commentaire}</p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
                                                             </div>
-                                                            {validation.validateur && (
-                                                                <p className="text-xs text-gray-500 mt-1">
-                                                                    Par {validation.validateur.prenom
-                                                                        ? `${validation.validateur.prenom} ${validation.validateur.name}`
-                                                                        : validation.validateur.name}
-                                                                    {validation.date_validation &&
-                                                                        ` le ${formatDateTime(validation.date_validation)}`}
-                                                                </p>
-                                                            )}
-                                                            {validation.commentaire && (
-                                                                <p className="text-sm mt-1 text-gray-600 bg-gray-50 rounded p-2">
-                                                                    {validation.commentaire}
-                                                                </p>
-                                                            )}
-                                                            {/* Délai de traitement (Phase 1.3) */}
-                                                            {delaisValidation[validation.id] && (
-                                                                <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
-                                                                    <Timer className="h-3 w-3" />
-                                                                    Délai : {delaisValidation[validation.id]}
-                                                                </p>
-                                                            )}
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
 
@@ -948,7 +985,7 @@ export default function Show({
                                                     return (
                                                         <div
                                                             key={piece.id}
-                                                            className="border rounded-lg overflow-hidden"
+                                                            className={`border rounded-lg overflow-hidden ${piece.remplacee_par_id ? 'opacity-60' : ''}`}
                                                         >
                                                             <div className="flex items-center justify-between p-3">
                                                                 <div className="flex items-center gap-3 min-w-0">
@@ -964,6 +1001,23 @@ export default function Show({
                                                                                 <span className="ml-2 text-green-600">· Analysé</span>
                                                                             )}
                                                                         </p>
+                                                                        {/* E-03.8 : qualité, lecture du ticket, versions */}
+                                                                        <div className="mt-1 flex flex-wrap gap-1">
+                                                                            {piece.qualite && (
+                                                                                <Badge variant={{ conforme: 'statut_vert_clair', moyenne: 'statut_orange', illisible: 'statut_rouge' }[piece.qualite]} className="text-[10px]">
+                                                                                    {{ conforme: 'Conforme', moyenne: 'Qualité moyenne', illisible: 'Illisible' }[piece.qualite]}
+                                                                                </Badge>
+                                                                            )}
+                                                                            {piece.lecture_ticket && (
+                                                                                <Badge variant={piece.lecture_ticket.statut === 'validee' ? 'statut_vert_clair' : 'statut_orange'} className="text-[10px]">
+                                                                                    {piece.lecture_ticket.statut === 'validee'
+                                                                                        ? `Lecture validée · ${formatMontant(piece.lecture_ticket.valeurs_validees?.montant ?? 0)}${piece.lecture_ticket.valeurs_validees?.litres ? ` · ${String(piece.lecture_ticket.valeurs_validees.litres).replace('.', ',')} L` : ''}`
+                                                                                        : 'Lecture à vérifier'}
+                                                                                </Badge>
+                                                                            )}
+                                                                            {piece.version > 1 && <Badge variant="statut_gris" className="text-[10px]">Version {piece.version}</Badge>}
+                                                                            {piece.remplacee_par_id && <Badge variant="statut_gris" className="text-[10px]">Remplacée par une nouvelle version</Badge>}
+                                                                        </div>
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -1877,6 +1931,14 @@ export default function Show({
                                             <span>{formatDateTime(bonCaisse.date_soumission)}</span>
                                         </div>
                                     )}
+                                    {etapesValidation.filter((e) => e.etat === 'fait' && e.date).slice().reverse().map((e) => (
+                                        <div key={e.id} className="flex justify-between gap-2">
+                                            <span className="text-gray-500">
+                                                {e.statut === 'rejete' ? 'Rejet' : 'Validation'} {e.libelle}{e.version > 1 ? ` (v${e.version})` : ''}
+                                            </span>
+                                            <span className="text-right">{e.date}</span>
+                                        </div>
+                                    ))}
                                     {bonCaisse.date_paiement && (
                                         <div className="flex justify-between">
                                             <span className="text-gray-500">Paiement</span>
@@ -1887,6 +1949,12 @@ export default function Show({
                                         <div className="flex justify-between">
                                             <span className="text-gray-500">Régularisation</span>
                                             <span>{formatDateTime(bonCaisse.date_regularisation)}</span>
+                                        </div>
+                                    )}
+                                    {bonCaisse.date_annulation && (
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-500">Annulation</span>
+                                            <span>{formatDateTime(bonCaisse.date_annulation)}</span>
                                         </div>
                                     )}
                                 </CardContent>

@@ -72,6 +72,7 @@ class Delegation extends Model
         'rapport_caisse'   => 'Rapports de caisse',
         'mouvement_caisse' => 'Mouvements de caisse',
         'archivage'        => 'Archivage des bons',
+        'initiation'       => 'Initiation de bons (pour le compte de)',
     ];
 
     /* ----------------------------------------------------------------
@@ -214,12 +215,56 @@ class Delegation extends Model
     /**
      * Récupérer les utilisateurs pour qui ce délégué a des délégations actives
      */
-    public static function delegantsActifsPour(int $delegueId): \Illuminate\Support\Collection
+    public static function delegantsActifsPour(int $delegueId, string $fonctionnalite = 'validation'): \Illuminate\Support\Collection
+    {
+        /* Seules les délégations qui couvrent la fonctionnalité comptent : une délégation d'initiation
+         * ne donne pas les droits de validation du titulaire */
+        return static::actives()
+            ->where('delegue_id', $delegueId)
+            ->with('delegant')
+            ->get()
+            ->filter(fn (self $delegation) => $delegation->autorise($fonctionnalite))
+            ->pluck('delegant');
+    }
+
+    /**
+     * Fonctionnalités qu'un utilisateur peut déléguer : celles de ses rôles, plus l'initiation de bons
+     * s'il a le rôle demandeur (US-BC-13).
+     *
+     * @return string[]
+     */
+    public static function fonctionnalitesDelegablesPar(User $utilisateur): array
+    {
+        $fonctionnalites = [];
+        foreach ($utilisateur->listeRoles() as $role) {
+            $fonctionnalites = array_merge($fonctionnalites, self::FONCTIONNALITES_PAR_ROLE[$role] ?? []);
+        }
+        if ($utilisateur->aLeRole('demandeur')) {
+            $fonctionnalites[] = 'initiation';
+        }
+
+        return array_values(array_unique($fonctionnalites));
+    }
+
+    /**
+     * Délégations d'initiation actives reçues (RG-BC-29) : l'initiation doit être cochée explicitement,
+     * une ancienne délégation sans liste de fonctionnalités ne la donne pas.
+     *
+     * @return \Illuminate\Support\Collection<int, self>
+     */
+    public static function initiationsActivesPour(int $delegueId): \Illuminate\Support\Collection
     {
         return static::actives()
             ->where('delegue_id', $delegueId)
             ->with('delegant')
             ->get()
-            ->pluck('delegant');
+            ->filter(fn (self $delegation) => in_array('initiation', $delegation->fonctionnalites ?? [], true) && $delegation->delegant?->actif)
+            ->values();
+    }
+
+    /** Délégation d'initiation active du titulaire vers le back-up, à la date du jour */
+    public static function initiationActiveEntre(int $titulaireId, int $delegueId): ?self
+    {
+        return self::initiationsActivesPour($delegueId)->firstWhere('delegant_id', $titulaireId);
     }
 }

@@ -28,6 +28,8 @@ function Contenu({ resume }) {
                     <Badge variant={resume.type === 'BP' ? 'statut_orange' : 'statut_bleu'}>{resume.type}</Badge>
                 )}
             </Ligne>
+            {resume.pourLeCompteDe && <Ligne libelle="Pour le compte de">{resume.pourLeCompteDe}</Ligne>}
+            {resume.initiePar && <Ligne libelle="Initié par">{resume.initiePar}</Ligne>}
             <Ligne libelle="Site">{resume.site}</Ligne>
             <Ligne libelle="Caisse payeuse">{resume.caisse}</Ligne>
             <Ligne libelle="Service">{resume.service}</Ligne>

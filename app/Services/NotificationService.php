@@ -40,7 +40,8 @@ class NotificationService
                 expediteur: $demandeur,
                 type: Notification::TYPE_SOUMISSION,
                 titre: $titre,
-                message: "{$demandeur->nom_complet} a soumis le bon {$bon->numero} ({$bon->montant_format}) pour validation."
+                message: "{$demandeur->nom_complet} a soumis le bon {$bon->numero} ({$bon->montant_format}) pour validation"
+                    . ($bon->demandeur_id !== $demandeur->id ? ', pour le compte de ' . $bon->demandeur?->nom_complet : '') . '.'
                     . ($bon->niveau_urgence !== 'normale' ? " ⚠ Niveau d'urgence : {$urgenceLabel}." : ''),
                 metadata: [
                     'montant' => $bon->montant,
@@ -156,6 +157,27 @@ class NotificationService
             message: "Votre bon {$bon->numero} a été rejeté par {$roleLabel} ({$validateur->nom_complet})."
                 . ($motif ? " Motif : {$motif}" : ''),
             metadata: ['motif' => $motif, 'role_validateur' => $validateur->role],
+        );
+    }
+
+    /**
+     * Bon soumis pour le compte d'un collègue par son back-up (US-BC-13)
+     * → Destinataire : le titulaire
+     */
+    public static function notifierBonPourLeCompteDe(BonCaisse $bon, User $initiateur): void
+    {
+        if (!$bon->demandeur) {
+            return;
+        }
+
+        self::creerEtDiffuser(
+            destinataire: $bon->demandeur,
+            bon: $bon,
+            expediteur: $initiateur,
+            type: Notification::TYPE_SOUMISSION,
+            titre: 'Bon soumis pour votre compte',
+            message: "{$initiateur->nom_complet} a soumis le bon {$bon->numero} ({$bon->montant_format}) pour votre compte.",
+            metadata: ['initiateur_id' => $initiateur->id],
         );
     }
 

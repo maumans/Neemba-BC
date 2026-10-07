@@ -259,7 +259,8 @@ class User extends Authenticatable
      */
     public function peutInitierBon(): bool
     {
-        return $this->aLeRole('demandeur');
+        /* Rôle demandeur, ou délégation d'initiation active d'un collègue (US-BC-13) */
+        return $this->aLeRole('demandeur') || Delegation::initiationsActivesPour($this->id)->isNotEmpty();
     }
 
     /**

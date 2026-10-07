@@ -183,6 +183,12 @@ class PiecesEtTicketsTest extends TestCase
         $this->actingAs($this->souadou)->getJson(route('api.bons.controles', $bon))
             ->assertJsonPath('soumission_possible', true)
             ->assertJsonPath('controles.6.niveau', 'ok');
+
+        /* Fiche E-03.8, onglet Pièces : résultat de la lecture */
+        $this->actingAs($this->souadou)->get(route('bons-caisse.show', $bon))
+            ->assertInertia(fn ($page) => $page
+                ->where('bonCaisse.pieces_jointes.0.lecture_ticket.statut', 'validee')
+                ->where('bonCaisse.pieces_jointes.0.qualite', 'conforme'));
     }
 
     /** TC-BC-020, TC-BC-021 : prix au litre comparé au prix de référence (12 000 GNF/L, ± 10 %) */

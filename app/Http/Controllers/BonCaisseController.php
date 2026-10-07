@@ -48,8 +48,10 @@ class BonCaisseController extends Controller
         /** @var \App\Models\User $utilisateur */
         $utilisateur = Auth::user();
 
-        $query = BonCaisse::with('demandeur')
-            ->latest('date_demande');
+        /* E-03.1 : du plus récent au plus ancien ; étape de validation en cours chargée pour la colonne Âge */
+        $query = BonCaisse::with(['demandeur', 'validations' => fn ($q) => $q->where('statut', 'en_attente')])
+            ->latest('created_at')
+            ->latest('id');
 
         /* Filtrage par statut si spécifié */
         if ($request->filled('statut')) {
@@ -61,7 +63,18 @@ class BonCaisseController extends Controller
             $query->where('type_bon', $request->type_bon);
         }
 
-        /* Recherche par numéro ou bénéficiaire */
+        /* Filtres urgence et période (E-03.1) */
+        if ($request->filled('niveau_urgence')) {
+            $query->where('niveau_urgence', $request->niveau_urgence);
+        }
+        if ($request->filled('du')) {
+            $query->whereDate('date_demande', '>=', $request->date('du'));
+        }
+        if ($request->filled('au')) {
+            $query->whereDate('date_demande', '<=', $request->date('au'));
+        }
+
+        /* Recherche par numéro, bénéficiaire ou motif (collation insensible à la casse et aux accents) */
         if ($request->filled('recherche')) {
             $recherche = $request->recherche;
             $query->where(function ($q) use ($recherche) {
@@ -90,6 +103,7 @@ class BonCaisseController extends Controller
             /* Administrateur : accès global, voit tout sauf brouillons des autres */
             $query->where(function ($q) use ($utilisateur) {
                 $q->where('demandeur_id', $utilisateur->id)
+                  ->orWhere('initiateur_id', $utilisateur->id)
                   ->orWhere('statut', '!=', 'BROUILLON');
             });
         } else {
@@ -124,8 +138,10 @@ class BonCaisseController extends Controller
             }
 
             $query->where(function ($q) use ($utilisateur, $statutsEnAttenteVisibles, $bonsDejaValides, $servicesAccessibles, $roles) {
-                /* 1. Ses propres bons (tous statuts) */
-                $q->where('demandeur_id', $utilisateur->id);
+                /* 1. Ses bons (RG-BC-32) : demandeur ou initiateur, tous statuts ; bénéficiaire, dès la soumission */
+                $q->where('demandeur_id', $utilisateur->id)
+                    ->orWhere('initiateur_id', $utilisateur->id)
+                    ->orWhere(fn ($q2) => $q2->where('beneficiaire_id', $utilisateur->id)->where('statut', '!=', 'BROUILLON'));
 
                 /* 2. Bons en attente à son niveau de validation */
                 if (!empty($statutsEnAttenteVisibles)) {
@@ -156,57 +172,163 @@ class BonCaisseController extends Controller
             });
         }
 
-        /* ====== Statistiques contextuelles par utilisateur ======
-         * Clone pris AVANT paginate() : paginate() pose LIMIT/OFFSET sur le builder,
-         * et les count()/sum() du clone renvoyaient 0 dès la page 2. */
+        /* RG-BC-33 (ANO-08) : les cartes comptent exactement les lignes du filtre courant.
+         * Clone pris AVANT paginate() : paginate() pose LIMIT/OFFSET sur le builder. */
         $statsQuery = (clone $query)->reorder();
-        $debutMois = now()->startOfMonth();
+        $statsIndex = self::cartesListe($statsQuery);
 
-        $bonsCaisse = $query->paginate(15)->withQueryString();
-
-        $statsIndex = [
-            'total' => (clone $statsQuery)->where('statut', '!=', 'BROUILLON')->count(),
-            'en_attente' => (clone $statsQuery)->whereIn('statut', [
-                'EN_ATTENTE_CHEF_SERVICE', 'EN_ATTENTE_CDG', 'EN_ATTENTE_DAF', 'EN_ATTENTE_DP',
-            ])->count(),
-            'approuves' => (clone $statsQuery)->where('statut', 'APPROUVE')->count(),
-            'payes' => (clone $statsQuery)->whereIn('statut', ['PAYE', 'ARCHIVE', 'REGULARISE', 'EN_ATTENTE_REGULARISATION'])->count(),
-            'rejetes' => (clone $statsQuery)->where('statut', 'REJETE')->count(),
-            'montant_total_paye' => (clone $statsQuery)->whereIn('statut', ['PAYE', 'ARCHIVE', 'REGULARISE', 'EN_ATTENTE_REGULARISATION'])->sum('montant'),
-            'payes_ce_mois' => (clone $statsQuery)->whereIn('statut', ['PAYE', 'ARCHIVE', 'REGULARISE'])->where('date_paiement', '>=', $debutMois)->count(),
-            'montant_paye_ce_mois' => (clone $statsQuery)->whereIn('statut', ['PAYE', 'ARCHIVE', 'REGULARISE'])->where('date_paiement', '>=', $debutMois)->sum('montant'),
-            'bp_en_retard' => (clone $statsQuery)->where('statut', 'EN_ATTENTE_REGULARISATION')
-                ->whereNotNull('date_limite_regularisation')
-                ->where('date_limite_regularisation', '<', now())->count(),
-        ];
-
-        /* Stats spécifiques au rôle */
-        if ($utilisateur->peutValider()) {
-            $rolesEffectifs = $utilisateur->rolesValidationEffectifs();
-            $statutsAttendus = [];
-            foreach ($rolesEffectifs as $role) {
-                $statut = match ($role) {
-                    'responsable_service' => 'EN_ATTENTE_CHEF_SERVICE',
-                    'controle_gestion' => 'EN_ATTENTE_CDG',
-                    'daf' => 'EN_ATTENTE_DAF',
-                    'directeur_pays' => 'EN_ATTENTE_DP',
-                    default => null,
-                };
-                if ($statut) $statutsAttendus[] = $statut;
-            }
-            $statsIndex['a_valider'] = !empty($statutsAttendus)
-                ? BonCaisse::whereIn('statut', $statutsAttendus)->count()
-                : 0;
-        }
+        $bonsCaisse = $query->paginate(20)->withQueryString();
+        $bonsCaisse->getCollection()->transform(fn (BonCaisse $bon) => self::avecAge($bon));
 
         return Inertia::render('BonsCaisse/Index', [
             'bonsCaisse' => $bonsCaisse,
-            'filtres' => $request->only(['statut', 'type_bon', 'recherche']),
+            'filtres' => $request->only(['statut', 'type_bon', 'niveau_urgence', 'du', 'au', 'recherche']),
+            'niveauxUrgence' => BonCaisse::NIVEAUX_URGENCE,
             'statuts' => BonCaisse::STATUTS_LABELS,
             'peutValider' => $utilisateur->peutValider(),
             'roleUtilisateur' => $utilisateur->role,
             'statsIndex' => $statsIndex,
         ]);
+    }
+
+    private const LIBELLES_NIVEAUX = [
+        'responsable_service' => 'Chef de service',
+        'controle_gestion' => 'Contrôle de gestion',
+        'daf' => 'Finance',
+        'directeur_pays' => 'Directeur Pays',
+    ];
+
+    private const NIVEAUX_CIRCUIT = [
+        'responsable_service' => 'CHEF_SERVICE',
+        'controle_gestion' => 'CDG',
+        'daf' => 'FINANCE',
+        'directeur_pays' => 'DIRECTEUR_PAYS',
+    ];
+
+    /**
+     * Onglet Validations (E-03.8, US-BC-16) : une ligne par niveau et par version.
+     * Fait : valideur (« au titre de » si suppléant), date, durée ; en cours : valideurs possibles et échéance ; à venir.
+     */
+    private static function etapesValidation(BonCaisse $bon): array
+    {
+        $circuit = collect(\App\Services\BonCaisse\CircuitPrevisionnel::pour($bon))->keyBy('niveau');
+        /* Étape en cours : celle du statut du bon (même si sa date d'attribution manque, cas des données anciennes) */
+        $roleEnCours = array_search($bon->statut, [
+            'responsable_service' => 'EN_ATTENTE_CHEF_SERVICE',
+            'controle_gestion' => 'EN_ATTENTE_CDG',
+            'daf' => 'EN_ATTENTE_DAF',
+            'directeur_pays' => 'EN_ATTENTE_DP',
+        ], true);
+
+        return $bon->validations
+            ->sortBy([['version', 'desc'], ['niveau', 'asc']])
+            ->map(function (Validation $validation) use ($bon, $circuit, $roleEnCours) {
+                $validation->setRelation('bonCaisse', $bon);
+                $courante = (int) ($validation->version ?? 1) === (int) ($bon->version ?? 1) && $validation->role === $roleEnCours;
+                $etat = match (true) {
+                    $validation->statut !== 'en_attente' => 'fait',
+                    in_array($bon->statut, ['REJETE', 'ANNULE'], true) => 'non_atteint',   // circuit arrêté
+                    $validation->date_attribution !== null || $courante => 'en_cours',
+                    default => 'a_venir',
+                };
+
+                return [
+                    'id' => $validation->id,
+                    'version' => (int) ($validation->version ?? 1),
+                    'niveau' => $validation->niveau,
+                    'libelle' => self::LIBELLES_NIVEAUX[$validation->role] ?? $validation->role,
+                    'statut' => $validation->statut,
+                    'etat' => $etat,
+                    'valideur' => $validation->validateur?->nom_complet,
+                    'au_titre_de' => $validation->auTitreDe?->nom_complet,
+                    'date' => $validation->date_validation ? Format::dateHeure($validation->date_validation) : null,
+                    'duree' => $etat === 'fait' && $validation->date_attribution
+                        ? Format::dureeEntre($validation->date_attribution, $validation->date_validation)
+                        : ($etat === 'en_cours' && $validation->date_attribution ? Format::dureeEntre($validation->date_attribution) : null),
+                    'echeance' => $etat === 'en_cours' && $validation->date_attribution
+                        ? Format::dateHeure($validation->date_attribution->copy()->addMinutes((int) round($validation->slaHeures() * 60)))
+                        : null,
+                    'en_retard' => $etat === 'en_cours' && $validation->slaDepasse(),
+                    'valideurs_possibles' => in_array($etat, ['fait', 'non_atteint'], true) ? [] : ($circuit[self::NIVEAUX_CIRCUIT[$validation->role] ?? '']['valideurs'] ?? []),
+                    'commentaire' => $validation->commentaire,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Bandeau de rejet (US-BC-14) : motif, commentaire, valideur et date du dernier rejet.
+     */
+    private static function rejet(BonCaisse $bon): ?array
+    {
+        if ($bon->statut !== 'REJETE') {
+            return null;
+        }
+        $validation = $bon->validations->where('statut', 'rejete')->sortByDesc('date_validation')->first();
+        $texte = $validation?->commentaire ?? $bon->commentaire_rejet ?? '';
+
+        /* Le commentaire enregistré est « Motif - commentaire » (motifs de BonCaisse::MOTIFS_REJET) */
+        $motif = collect(BonCaisse::MOTIFS_REJET)->first(fn (string $libelle) => str_starts_with($texte, $libelle));
+        $commentaire = $motif ? ltrim(substr($texte, strlen($motif)), ' -') : $texte;
+
+        return [
+            'motif' => $motif,
+            'commentaire' => $commentaire !== '' ? $commentaire : null,
+            'valideur' => $validation?->validateur?->nom_complet,
+            'niveau' => $validation ? (self::LIBELLES_NIVEAUX[$validation->role] ?? $validation->role) : null,
+            'date' => $validation?->date_validation ? Format::dateHeure($validation->date_validation) : null,
+        ];
+    }
+
+    /** Statuts comptés comme « payés » ; un bon archivé l'est seulement s'il a été payé */
+    private const STATUTS_PAYES = ['PAYE', 'EN_ATTENTE_REGULARISATION', 'REGULARISE'];
+
+    /**
+     * Les 4 cartes de la liste (E-03.1) : nombre et montant, sur la requête filtrée de la liste.
+     * Un bon rejeté puis archivé compte parmi les rejetés, plus parmi les payés.
+     */
+    private static function cartesListe(\Illuminate\Database\Eloquent\Builder $requete): array
+    {
+        $carte = function (\Closure $filtre) use ($requete) {
+            $sousRequete = $filtre(clone $requete);
+
+            return ['nombre' => (clone $sousRequete)->count(), 'montant' => (float) (clone $sousRequete)->sum('montant')];
+        };
+
+        return [
+            'total' => $carte(fn ($q) => $q),
+            'a_valider' => $carte(fn ($q) => $q->whereIn('statut', ['EN_ATTENTE_CHEF_SERVICE', 'EN_ATTENTE_CDG', 'EN_ATTENTE_DAF', 'EN_ATTENTE_DP'])),
+            'payes' => $carte(fn ($q) => $q->where(fn ($q2) => $q2->whereIn('statut', self::STATUTS_PAYES)
+                ->orWhere(fn ($q3) => $q3->where('statut', 'ARCHIVE')->whereNotNull('date_paiement')))),
+            'rejetes' => $carte(fn ($q) => $q->where(fn ($q2) => $q2->where('statut', 'REJETE')
+                ->orWhere(fn ($q3) => $q3->where('statut', 'ARCHIVE')->whereNull('date_paiement')->whereNotNull('commentaire_rejet')))),
+        ];
+    }
+
+    /**
+     * Âge du bon depuis la soumission (E-03.1), en rouge au-delà de 2 × le délai de l'étape de validation en cours.
+     */
+    private static function avecAge(BonCaisse $bon): BonCaisse
+    {
+        $enCours = in_array($bon->statut, ['EN_ATTENTE_CHEF_SERVICE', 'EN_ATTENTE_CDG', 'EN_ATTENTE_DAF', 'EN_ATTENTE_DP', 'APPROUVE', 'EN_ATTENTE_REGULARISATION'], true);
+        $age = null;
+        $alerte = false;
+
+        if ($enCours && $bon->date_soumission) {
+            $age = Format::dureeEntre($bon->date_soumission);
+            $etape = $bon->validations->sortBy('niveau')->first();
+            if ($etape && str_starts_with($bon->statut, 'EN_ATTENTE_') && $bon->statut !== 'EN_ATTENTE_REGULARISATION') {
+                $etape->setRelation('bonCaisse', $bon);
+                $alerte = $bon->date_soumission->diffInMinutes(now()) > 2 * $etape->slaHeures() * 60;
+            }
+        }
+
+        $bon->setAttribute('age', $age);
+        $bon->setAttribute('age_alerte', $alerte);
+        $bon->unsetRelation('validations');
+
+        return $bon;
     }
 
     /**
@@ -246,6 +368,18 @@ class BonCaisseController extends Controller
                 'site' => $demandeur->site,
                 'service' => $demandeur->service,
             ],
+            /* US-BC-13 : collègues qui ont délégué l'initiation à l'utilisateur (« Pour le compte de ») */
+            'titulaires' => Delegation::initiationsActivesPour($utilisateur->id)
+                ->map(fn (Delegation $d) => AssistantBonController::beneficiaire($d->delegant) + [
+                    'site' => $d->delegant->site,
+                    'service' => $d->delegant->service,
+                    'date_fin' => $d->date_fin->toDateString(),
+                ])->values(),
+            'utilisateur' => AssistantBonController::beneficiaire($utilisateur) + [
+                'site' => $utilisateur->site,
+                'service' => $utilisateur->service,
+                'demandeur' => $utilisateur->aLeRole('demandeur'),
+            ],
             'dateDuJour' => today()->toDateString(),
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'services' => Service::where('actif', true)->orderBy('nom')->get(['id', 'nom']),
@@ -283,6 +417,11 @@ class BonCaisseController extends Controller
 
             /* Administrateur : accès global sauf brouillons */
             if (in_array('administrateur', $roles) && $bonCaisse->statut !== 'BROUILLON') {
+                $autorise = true;
+            }
+
+            /* Bénéficiaire (RG-BC-32) : consultation dès la soumission */
+            if ($bonCaisse->beneficiaire_id === $utilisateur->id && $bonCaisse->statut !== 'BROUILLON') {
                 $autorise = true;
             }
 
@@ -348,10 +487,13 @@ class BonCaisseController extends Controller
 
         $bonCaisse->load([
             'demandeur',
+            'initiateur',
             'caissier',
             'validations.validateur',
+            'validations.auTitreDe',
             'piecesJointes',
             'piecesJointes.doublonDe.bonCaisse:id,numero',   // RG-BC-19 : bandeau des pièces déjà utilisées
+            'piecesJointes.lectureTicket',                    // E-03.8 : résultat de lecture des tickets
             'ordreMission',
             'historiqueActions.utilisateur',
             'ventilations',
@@ -433,6 +575,12 @@ class BonCaisseController extends Controller
             'roleUtilisateur' => $utilisateur->role,
             'estProprietaire' => $estProprietaire,
             'delaisValidation' => $delaisValidation,
+            /* E-03.8 : étapes de validation (fait / en cours / à venir), bandeau de rejet, âge du bon */
+            'etapesValidation' => self::etapesValidation($bonCaisse),
+            'rejet' => self::rejet($bonCaisse),
+            'ageBon' => $bonCaisse->date_soumission && !in_array($bonCaisse->statut, ['PAYE', 'REGULARISE', 'ARCHIVE', 'ANNULE', 'REJETE'], true)
+                ? Format::dureeEntre($bonCaisse->date_soumission)
+                : null,
             'soldeCaisseSite' => $soldeCaisseSite,
             'codesAnalytiques' => CodeAnalytique::actifs()->with('service')->orderBy('code')->get(),
             'peutPreRegulariser' => $estProprietaire && $bonCaisse->peutPreRegulariser(),
@@ -734,7 +882,7 @@ class BonCaisseController extends Controller
      */
     public function exportPdf(BonCaisse $bonCaisse)
     {
-        $bonCaisse->load(['demandeur', 'validations.validateur', 'caissier', 'piecesJointes']);
+        $bonCaisse->load(['demandeur', 'initiateur', 'validations.validateur', 'caissier', 'piecesJointes']);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.bon-caisse-pdf', [
             'bon' => $bonCaisse,

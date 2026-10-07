@@ -2,8 +2,10 @@
 
 namespace App\Services\BonCaisse;
 
+use App\Exceptions\ErreurMetier;
 use App\Models\BonCaisse;
 use App\Models\Caisse;
+use App\Models\Delegation;
 use App\Models\User;
 
 /**
@@ -15,15 +17,19 @@ use App\Models\User;
  * - Règles appliquées à l'enregistrement : bénéficiaire employé repris du référentiel (RG-BC-06), urgence normale
  *   = motif et justification effacés (US-BC-03), mission seulement pour un BP (RG-BC-14), caisse payeuse (RG-BC-12),
  *   téléphone au format +224, véhicule en majuscules, numéros d'OR sans doublon.
+ * - « Pour le compte de » (US-BC-13, RG-BC-29) : le titulaire qui a délégué l'initiation devient le demandeur,
+ *   l'auteur réel reste l'initiateur ; les valeurs par défaut sont celles du titulaire.
  */
 class EnregistrementBon
 {
-    public static function creer(User $demandeur, array $saisie): BonCaisse
+    public static function creer(User $auteur, array $saisie): BonCaisse
     {
+        $demandeur = self::titulaire($auteur, $saisie['demandeur_id'] ?? null);
+
         $bon = new BonCaisse([
             'statut' => 'BROUILLON',
             'demandeur_id' => $demandeur->id,
-            'initiateur_id' => $demandeur->id,
+            'initiateur_id' => $auteur->id,
             'date_demande' => today(),
             'devise' => 'GNF',
             'version' => 1,
@@ -42,8 +48,36 @@ class EnregistrementBon
         return $bon;
     }
 
-    public static function appliquer(BonCaisse $bon, array $saisie): BonCaisse
+    /**
+     * Titulaire du bon : l'auteur lui-même, ou le collègue qui lui a délégué l'initiation (délégation active).
+     * Sans le rôle demandeur, l'auteur doit choisir un titulaire.
+     */
+    public static function titulaire(User $auteur, mixed $titulaireId): User
     {
+        if ($titulaireId === null || $titulaireId === '' || (int) $titulaireId === $auteur->id) {
+            if (!$auteur->aLeRole('demandeur')) {
+                throw new ErreurMetier('POUR_LE_COMPTE_DE_OBLIGATOIRE', 'MSG-BC-001', [], 'RG-BC-29', 'demandeur_id');
+            }
+
+            return $auteur;
+        }
+
+        $delegation = Delegation::initiationActiveEntre((int) $titulaireId, $auteur->id);
+        if (!$delegation) {
+            $titulaire = User::find((int) $titulaireId);
+            throw new ErreurMetier('DELEGATION_INACTIVE', 'MSG-BC-033', ['titulaire' => $titulaire?->nom_complet ?? 'ce collègue'], 'RG-BC-29', 'demandeur_id');
+        }
+
+        return $delegation->delegant;
+    }
+
+    public static function appliquer(BonCaisse $bon, array $saisie, ?User $auteur = null): BonCaisse
+    {
+        /* Changement de titulaire d'un brouillon par son initiateur */
+        if ($auteur && $bon->exists && array_key_exists('demandeur_id', $saisie) && $bon->initiateur_id === $auteur->id) {
+            $bon->demandeur_id = self::titulaire($auteur, $saisie['demandeur_id'])->id;
+        }
+
         $bon->fill(array_intersect_key($saisie, array_flip(ReglesSaisie::champs())));
 
         /* US-BC-03 : retour à « Normale » → motif et justification effacés */

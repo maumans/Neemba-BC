@@ -83,15 +83,17 @@ class StabilisationTest extends TestCase
     public function test_les_cartes_de_la_liste_ne_tombent_pas_a_zero_en_page_2(): void
     {
         $demandeur = $this->utilisateur('demandeur');
-        for ($i = 0; $i < 20; $i++) {
+        for ($i = 0; $i < 25; $i++) {
             $this->bon(['demandeur_id' => $demandeur->id, 'statut' => 'REJETE']);
         }
 
+        /* 20 lignes par page (E-03.1) : la page 2 en montre 5, les cartes comptent les 25 */
         $this->actingAs($demandeur)
             ->get(route('bons-caisse.index', ['page' => 2]))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('statsIndex.total', 20)
-                ->where('statsIndex.rejetes', 20));
+                ->has('bonsCaisse.data', 5)
+                ->where('statsIndex.total.nombre', 25)
+                ->where('statsIndex.rejetes.nombre', 25));
     }
 
     public function test_la_fiche_transmet_les_motifs_de_rejet(): void

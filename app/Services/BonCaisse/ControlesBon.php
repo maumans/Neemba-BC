@@ -46,7 +46,7 @@ class ControlesBon
      * @return array<int, array{numero: int, code: string, libelle: string, niveau: string, message: string,
      *                          regle: ?string, message_cle: ?string, valeurs: array, etape: ?int, champ: ?string}>
      */
-    public static function executer(BonCaisse $bon): array
+    public static function executer(BonCaisse $bon, ?\App\Models\User $auteur = null): array
     {
         $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse']);
         $caisse = Caisse::payeusePour((string) $bon->site, $bon->mode_paiement);
@@ -64,7 +64,7 @@ class ControlesBon
             self::circuit($bon),
             self::visaDirecteurPays($bon),
             self::suiviApresPaiement($bon),
-            self::delegation($bon),
+            self::delegation($bon, $auteur),
         ];
     }
 
@@ -289,10 +289,33 @@ class ControlesBon
     }
 
     /** US-BC-13 (lot 5) : bon saisi pour le compte d'un collègue absent */
-    private static function delegation(BonCaisse $bon): array
+    /**
+     * Contrôle 12 — RG-BC-29 : un bon initié pour le compte d'un collègue exige une délégation d'initiation encore active
+     * au moment où l'initiateur le soumet (MSG-BC-033). Le titulaire peut toujours soumettre son propre bon.
+     */
+    private static function delegation(BonCaisse $bon, ?\App\Models\User $auteur): array
     {
+        if (!$bon->initiateur_id || $bon->initiateur_id === $bon->demandeur_id) {
+            return self::controle(12, 'DELEGATION', 'Délégation', self::OK, 'Sans objet');
+        }
+
+        $bon->loadMissing(['demandeur', 'initiateur']);
+        $acteurId = $auteur?->id ?? $bon->initiateur_id;
+        if ($acteurId === $bon->demandeur_id) {
+            return self::controle(12, 'DELEGATION', 'Délégation', self::OK,
+                'Bon initié pour votre compte par ' . ($bon->initiateur?->nom_complet ?? 'un collègue'));
+        }
+
+        $delegation = \App\Models\Delegation::initiationActiveEntre($bon->demandeur_id, $acteurId);
+        if (!$delegation) {
+            $valeurs = ['titulaire' => $bon->demandeur?->nom_complet ?? 'le titulaire'];
+
+            return self::controle(12, 'DELEGATION_EXPIREE', 'Délégation', self::BLOQUANT,
+                ErreurMetier::texte('MSG-BC-033', $valeurs), 'MSG-BC-033', $valeurs, 1, 'demandeur_id');
+        }
+
         return self::controle(12, 'DELEGATION', 'Délégation', self::OK,
-            $bon->initiateur_id && $bon->initiateur_id !== $bon->demandeur_id ? 'Délégation active' : 'Sans objet');
+            "Délégation de {$bon->demandeur->nom_complet} active jusqu'au " . Format::date($delegation->date_fin));
     }
 
     private static function controle(int $numero, string $code, string $libelle, string $niveau, string $message,

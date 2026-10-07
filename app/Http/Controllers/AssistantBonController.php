@@ -54,17 +54,17 @@ class AssistantBonController extends Controller
     {
         Gate::authorize('modifier', $bonCaisse);
 
-        EnregistrementBon::appliquer($bonCaisse, $this->saisie($request));
+        EnregistrementBon::appliquer($bonCaisse, $this->saisie($request), $request->user());
 
         return response()->json($this->reponse($bonCaisse, $this->erreursEtape($bonCaisse, $request->integer('etape'))));
     }
 
     /** GET /api/v1/bons/{bon}/controles — écran Contrôle (US-BC-10) */
-    public function controles(BonCaisse $bonCaisse): JsonResponse
+    public function controles(Request $request, BonCaisse $bonCaisse): JsonResponse
     {
         Gate::authorize('modifier', $bonCaisse);
 
-        $controles = ControlesBon::executer($bonCaisse);
+        $controles = ControlesBon::executer($bonCaisse, $request->user());
 
         return response()->json([
             'controles' => $controles,
@@ -276,6 +276,10 @@ class AssistantBonController extends Controller
     private function saisie(Request $request): array
     {
         $saisie = $request->only(ReglesSaisie::champs());
+        /* « Pour le compte de » (US-BC-13) : vérifié par EnregistrementBon::titulaire() */
+        if ($request->exists('demandeur_id')) {
+            $saisie['demandeur_id'] = $request->input('demandeur_id');
+        }
         if (array_key_exists('montant', $saisie) && is_string($saisie['montant'])) {
             // séparateurs de milliers retirés ; « 12,5 » ou « abc » restent refusés (MSG-BC-003)
             $montant = preg_replace('/[\s\x{00A0}\x{202F}]/u', '', $saisie['montant']);
@@ -316,8 +320,14 @@ class AssistantBonController extends Controller
     {
         $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse', 'caisse', 'beneficiaireUtilisateur']);
 
+        $bon->loadMissing(['demandeur', 'initiateur']);
+
         return ReglesSaisie::donneesDu($bon) + [
             'id' => $bon->id,
+            'demandeur_id' => $bon->demandeur_id,
+            'demandeur_nom' => $bon->demandeur?->nom_complet,
+            'initiateur_id' => $bon->initiateur_id,
+            'initiateur_nom' => $bon->initiateur?->nom_complet,
             'numero' => $bon->numero,
             'statut' => $bon->statut,
             'version' => $bon->version,

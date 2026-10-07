@@ -41,6 +41,7 @@ const URGENCES = { normale: 'Normale', urgente: 'Urgente', tres_urgente: 'Très 
 /** Valeurs de la saisie : celles du bon enregistré, sinon les valeurs par défaut (RG-BC-02) */
 function valeursDe(bon, demandeur) {
     return {
+        demandeur_id: bon?.demandeur_id ?? demandeur.id,
         type_bon: bon?.type_bon ?? '',
         code_analytique: bon?.code_analytique ?? '',
         site: bon?.site ?? demandeur.site ?? '',
@@ -116,7 +117,13 @@ export default function Assistant({
     typesPiece = {},
     seuilDP,
     prixLitreReference,
+    titulaires = [],
+    utilisateur,
 }) {
+    /* Sans le rôle demandeur, un back-up crée forcément pour un titulaire (US-BC-13) */
+    if (!bonInitial && utilisateur && !utilisateur.demandeur && titulaires.length > 0) {
+        demandeur = titulaires[0];
+    }
     const [bon, setBon] = useState(bonInitial);
     const [donnees, setDonnees] = useState(() => valeursDe(bonInitial, demandeur));
     const [employeChoisi, setEmployeChoisi] = useState(() => employeDe(bonInitial, demandeur));
@@ -142,6 +149,9 @@ export default function Assistant({
 
     const occupe = action !== null;
     const rejete = bon?.statut === 'REJETE';
+    /* « Pour le compte de » : à la création, ou sur un brouillon que l'utilisateur a initié */
+    const choixTitulaire = titulaires.length > 0 && (!bon || bon.initiateur_id === utilisateur?.id);
+    const personneDe = (id) => (id === utilisateur?.id ? utilisateur : titulaires.find((t) => t.id === id)) ?? null;
 
     /* ------------------------------------------------------------------
      * Saisie
@@ -168,6 +178,19 @@ export default function Assistant({
         },
         [changer],
     );
+
+    /* US-BC-13 : les valeurs par défaut deviennent celles du titulaire choisi */
+    const choisirTitulaire = (id) => {
+        const precedent = personneDe(donnees.demandeur_id);
+        const titulaire = personneDe(id);
+        changer('demandeur_id', id);
+        if (!titulaire) return;
+        changer('site', titulaire.site ?? '');
+        changer('service', titulaire.service ?? '');
+        if (donnees.type_beneficiaire === 'employe' && (!employeChoisi || employeChoisi.id === precedent?.id)) {
+            choisirEmploye(titulaire);
+        }
+    };
 
     const mettreAJourBon = (nouveau) => {
         bonActuel.current = nouveau;
@@ -536,8 +559,15 @@ export default function Assistant({
 
     /* ------------------------------------------------------------------ */
 
+    const titulaireChoisi = personneDe(donnees.demandeur_id);
     const resume = {
         numero: bon?.numero,
+        pourLeCompteDe: donnees.demandeur_id && donnees.demandeur_id !== utilisateur?.id
+            ? (titulaireChoisi?.nom_complet ?? bon?.demandeur_nom)
+            : null,
+        initiePar: bon && bon.initiateur_id && bon.initiateur_id !== bon.demandeur_id && bon.initiateur_id !== utilisateur?.id
+            ? bon.initiateur_nom
+            : null,
         type: donnees.type_bon,
         site: donnees.site,
         caisse: caisses.payeuse?.libelle ?? (['cheque', 'virement'].includes(donnees.mode_paiement) ? 'Aucune (hors caisse)' : null),
@@ -588,7 +618,8 @@ export default function Assistant({
                                         {DESCRIPTIONS[etape]}
                                         {etape === 1 && (
                                             <span className="block pt-1">
-                                                Date : {formaterDate(dateDuJour)} · Demandeur : {demandeur.nom_complet}
+                                                Date : {formaterDate(dateDuJour)} · Demandeur : {titulaireChoisi?.nom_complet ?? bon?.demandeur_nom ?? demandeur.nom_complet}
+                                                {resume.pourLeCompteDe && ` · Initié par ${utilisateur?.nom_complet ?? ''}`}
                                             </span>
                                         )}
                                     </CardDescription>
@@ -603,6 +634,9 @@ export default function Assistant({
                                             services={services}
                                             codesAnalytiques={codesAnalytiques}
                                             motifsUrgence={motifsUrgence}
+                                            titulaires={choixTitulaire ? titulaires : []}
+                                            utilisateur={utilisateur}
+                                            choisirTitulaire={choisirTitulaire}
                                         />
                                     )}
                                     {etape === 2 && (

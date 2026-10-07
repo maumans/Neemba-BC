@@ -201,7 +201,7 @@
                 <th style="width: 20%;">CHEF DE SER</th>
                 <th style="width: 20%;">RCDG</th>
                 <th style="width: 20%;">DAF</th>
-                <th style="width: 20%;">DP (≥ {{ \App\Support\Format::nombre($seuildp) }})</th>
+                <th style="width: 20%;">DP (&gt; {{ \App\Support\Format::nombre($seuildp) }})</th>
             </tr>
         </thead>
         <tbody>
@@ -210,6 +210,10 @@
                 <td class="visa-cell">
                     <div class="visa-label">Nom :</div>
                     <div class="visa-value">{{ $bon->demandeur?->nom_complet ?? '—' }}</div>
+                    {{-- US-BC-13 : bon initié par un back-up --}}
+                    @if ($bon->initiateur_id && $bon->initiateur_id !== $bon->demandeur_id)
+                        <div class="visa-label" style="margin-top: 4px;">Initié par {{ $bon->initiateur?->nom_complet }} pour le compte de {{ $bon->demandeur?->nom_complet }}</div>
+                    @endif
                     <div class="visa-label" style="margin-top: 4px;">Date :</div>
                     <div class="visa-value">{{ $bon->date_demande?->format('d/m/Y') ?? '—' }}</div>
                     <div class="visa-label" style="margin-top: 4px;">Visa :</div>

@@ -20,7 +20,8 @@ export default function Create({ deleguesPotentiels = [], fonctionnalitesDisponi
         date_debut: '',
         date_fin: '',
         motif: '',
-        fonctionnalites: [...fonctionnalitesDisponibles], // Toutes cochées par défaut
+        /* Toutes cochées par défaut, sauf l'initiation de bons à son nom (US-BC-13) : à cocher volontairement */
+        fonctionnalites: fonctionnalitesDisponibles.filter((f) => f !== 'initiation'),
     });
 
     /** Toggle une fonctionnalité dans la liste */
