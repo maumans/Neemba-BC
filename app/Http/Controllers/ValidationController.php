@@ -195,16 +195,10 @@ class ValidationController extends Controller
         if ($roleValidation === 'controle_gestion') {
             if ($request->filled('code_analytique')) {
                 $ancienCode = $bonCaisse->code_analytique;
-                $bonCaisse->update(['code_analytique' => $validated['code_analytique']]);
-
-                \App\Models\HistoriqueAction::enregistrer(
-                    $bonCaisse,
-                    'modification_code_analytique',
-                    $bonCaisse->statut,
-                    $bonCaisse->statut,
-                    $utilisateur->id,
+                $bonCaisse->modifierAvecJournal(
+                    ['code_analytique' => $validated['code_analytique']],
+                    \App\Models\HistoriqueAction::ACTION_MODIFICATION_CODE_ANALYTIQUE,
                     "Code analytique modifié par CDG : {$ancienCode} → {$validated['code_analytique']}",
-                    ['ancien_code' => $ancienCode, 'nouveau_code' => $validated['code_analytique']],
                 );
             }
 

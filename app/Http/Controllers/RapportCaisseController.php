@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Support\Format;
 
 /**
  * Contrôleur des Rapports de Caisse
@@ -155,13 +156,13 @@ class RapportCaisseController extends Controller
             $soldeCaisseSite = [
                 'nom' => 'Tous les sites (Consolidé)',
                 'solde' => (float) $totalSolde,
-                'solde_format' => number_format($totalSolde, 0, ',', ' ') . ' GNF',
+                'solde_format' => Format::montant($totalSolde),
                 'solde_especes' => (float) $totalEspeces,
-                'solde_especes_format' => number_format($totalEspeces, 0, ',', ' ') . ' GNF',
+                'solde_especes_format' => Format::montant($totalEspeces),
                 'solde_om' => (float) $totalOm,
-                'solde_om_format' => number_format($totalOm, 0, ',', ' ') . ' GNF',
+                'solde_om_format' => Format::montant($totalOm),
                 'plafond_caisse' => $totalPlafond > 0 ? (float) $totalPlafond : null,
-                'plafond_format' => number_format($totalPlafond, 0, ',', ' ') . ' GNF',
+                'plafond_format' => Format::montant($totalPlafond),
                 'sous_seuil' => $sitesActifs->contains(fn($site) => $site->soldeSousSeuil()),
             ];
         }

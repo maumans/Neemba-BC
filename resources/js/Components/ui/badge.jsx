@@ -22,6 +22,14 @@ const badgeVariants = cva(
                 paye: 'border-transparent bg-blue-100 text-blue-800',
                 rejete: 'border-transparent bg-red-100 text-red-800',
                 regularise: 'border-transparent bg-purple-100 text-purple-800',
+                /* Pastilles de statut de la SFD (§1.4), utilisées par BadgeStatut / utils/statuts.js */
+                statut_gris: 'border-transparent bg-gray-100 text-gray-700',
+                statut_bleu: 'border-transparent bg-blue-100 text-blue-800',
+                statut_vert_clair: 'border-transparent bg-green-50 text-green-700 ring-1 ring-inset ring-green-200',
+                statut_vert: 'border-transparent bg-green-600 text-white',
+                statut_rouge: 'border-transparent bg-red-100 text-red-800',
+                statut_orange: 'border-transparent bg-orange-100 text-orange-800',
+                statut_annule: 'border-transparent bg-gray-100 text-gray-500 line-through',
             },
         },
         defaultVariants: {

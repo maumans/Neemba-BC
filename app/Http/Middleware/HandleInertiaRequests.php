@@ -34,7 +34,14 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user() ? array_merge($request->user()->toArray(), [
-                    'roles_effectifs' => method_exists($request->user(), 'rolesValidationEffectifs') ? array_values(array_unique(array_merge([$request->user()->role], $request->user()->rolesValidationEffectifs()))) : [$request->user()->role],
+                    /* Rôles propres (principal + attribués) */
+                    'roles' => $request->user()->listeRoles(),
+                    /* Rôles propres + rôles reçus par délégation (menu, droits d'écran) */
+                    'roles_effectifs' => array_values(array_unique(array_merge(
+                        $request->user()->listeRoles(),
+                        $request->user()->rolesValidationEffectifs(),
+                    ))),
+                    'peut_initier_bon' => $request->user()->peutInitierBon(),
                 ]) : null,
             ],
             /* Messages flash pour les notifications (succès, erreur) */

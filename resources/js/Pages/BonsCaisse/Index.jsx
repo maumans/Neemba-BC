@@ -46,6 +46,7 @@ import {
 } from '@/Components/ui/table';
 import { formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
 import { cn } from '@/lib/utils';
+import BadgeStatut from '@/Components/BadgeStatut';
 
 /** Couleurs d'urgence pour les lignes du tableau */
 const URGENCE_CONFIG = {
@@ -62,24 +63,6 @@ const URGENCE_CONFIG = {
         dotCls: 'bg-orange-500',
     },
 };
-
-/** Variante de badge selon le statut */
-function badgeVariantParStatut(statut) {
-    const map = {
-        'BROUILLON': 'brouillon',
-        'EN_ATTENTE_CHEF_SERVICE': 'en_attente',
-        'EN_ATTENTE_CDG': 'en_attente',
-        'EN_ATTENTE_DAF': 'en_attente',
-        'EN_ATTENTE_DP': 'en_attente',
-        'APPROUVE': 'approuve',
-        'PAYE': 'paye',
-        'REJETE': 'rejete',
-        'EN_ATTENTE_REGULARISATION': 'en_attente',
-        'REGULARISE': 'regularise',
-        'ARCHIVE': 'brouillon',
-    };
-    return map[statut] || 'default';
-}
 
 /** Mapping rôle → statut en attente de ce rôle */
 const ROLE_STATUT_MAP = {
@@ -105,6 +88,7 @@ function formaterTempsEcoule(dateStr) {
 }
 
 export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutValider = false, roleUtilisateur = '', statsIndex = {} }) {
+    const { auth } = usePage().props;
     const [recherche, setRecherche] = useState(filtres.recherche || '');
     const [, forceUpdate] = useState(0);
 
@@ -144,12 +128,14 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                         Gérez vos demandes de fonds
                     </p>
                 </div>
-                <Link href={route('bons-caisse.create')} className="flex-shrink-0">
-                    <Button size="sm" className="sm:size-default">
-                        <Plus className="mr-1.5 h-4 w-4" />
-                        Nouveau Bon
-                    </Button>
-                </Link>
+                {auth.user?.peut_initier_bon && (
+                    <Link href={route('bons-caisse.create')} className="flex-shrink-0">
+                        <Button size="sm" className="sm:size-default">
+                            <Plus className="mr-1.5 h-4 w-4" />
+                            Nouveau Bon
+                        </Button>
+                    </Link>
+                )}
             </div>
 
             {/* KPI Stats Cards */}
@@ -217,7 +203,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                 <div className="flex items-center gap-1 mt-2">
                                     <Banknote className="h-3 w-3 text-emerald-500" />
                                     <span className="text-[10px] text-gray-500">
-                                        {parseFloat(statsIndex.montant_paye_ce_mois || 0).toLocaleString('fr-FR')} GNF ce mois
+                                        {formatMontant(statsIndex.montant_paye_ce_mois)} ce mois
                                     </span>
                                 </div>
                             </CardContent>
@@ -255,7 +241,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                 </div>
                                 <div className="flex items-center gap-1 mt-2">
                                     <span className="text-[10px] text-gray-500">
-                                        Montant total : {parseFloat(statsIndex.montant_total_paye || 0).toLocaleString('fr-FR')} GNF
+                                        Montant total : {formatMontant(statsIndex.montant_total_paye)}
                                     </span>
                                 </div>
                             </CardContent>
@@ -395,9 +381,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                                     {formatMontant(bon.montant)}
                                                 </TableCell>
                                                 <TableCell className="py-2">
-                                                    <Badge variant={badgeVariantParStatut(bon.statut)} className="text-[10px] whitespace-nowrap">
-                                                        {statuts[bon.statut] || bon.statut}
-                                                    </Badge>
+                                                    <BadgeStatut statut={bon.statut} className="text-[10px]" />
                                                 </TableCell>
                                                 <TableCell className="text-xs text-gray-500 hidden sm:table-cell py-2">
                                                     {new Date(bon.date_demande).toLocaleDateString('fr-FR')}

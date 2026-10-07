@@ -43,11 +43,11 @@
     <table class="resume-table">
         <tr>
             <td>Total entrées</td>
-            <td class="number">{{ number_format($rapports->sum('total_entrees'), 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($rapports->sum('total_entrees')) }}</td>
         </tr>
         <tr>
             <td>Total sorties</td>
-            <td class="number">{{ number_format($rapports->sum('total_sorties'), 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($rapports->sum('total_sorties')) }}</td>
         </tr>
         <tr>
             <td>Nombre total de bons payés</td>
@@ -60,11 +60,11 @@
         @endphp
         <tr>
             <td>Solde ouverture (début période)</td>
-            <td class="number">{{ number_format($premier->solde_ouverture, 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($premier->solde_ouverture) }}</td>
         </tr>
         <tr style="background: #e8f5e9;">
             <td>Solde clôture (fin période)</td>
-            <td class="number">{{ number_format($dernier->solde_cloture, 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($dernier->solde_cloture) }}</td>
         </tr>
         @endif
     </table>
@@ -91,10 +91,10 @@
                 <td>{{ $rapport->date_rapport->format('d/m/Y') }}</td>
                 <td>{{ $rapport->site }}</td>
                 <td>{{ $rapport->caissier ? $rapport->caissier->prenom . ' ' . $rapport->caissier->name : '-' }}</td>
-                <td class="number">{{ number_format($rapport->solde_ouverture, 0, ',', ' ') }}</td>
-                <td class="number">{{ number_format($rapport->total_entrees, 0, ',', ' ') }}</td>
-                <td class="number">{{ number_format($rapport->total_sorties, 0, ',', ' ') }}</td>
-                <td class="number">{{ number_format($rapport->solde_cloture, 0, ',', ' ') }}</td>
+                <td class="number">{{ \App\Support\Format::nombre($rapport->solde_ouverture) }}</td>
+                <td class="number">{{ \App\Support\Format::nombre($rapport->total_entrees) }}</td>
+                <td class="number">{{ \App\Support\Format::nombre($rapport->total_sorties) }}</td>
+                <td class="number">{{ \App\Support\Format::nombre($rapport->solde_cloture) }}</td>
                 <td style="text-align:center">{{ $rapport->nombre_bons ?? 0 }}</td>
                 <td>
                     <span class="{{ $rapport->cloture ? 'cloture' : 'ouvert' }}">
@@ -105,8 +105,8 @@
             @endforeach
             <tr class="total-row">
                 <td colspan="4" style="text-align:right">TOTAL</td>
-                <td class="number">{{ number_format($rapports->sum('total_entrees'), 0, ',', ' ') }} GNF</td>
-                <td class="number">{{ number_format($rapports->sum('total_sorties'), 0, ',', ' ') }} GNF</td>
+                <td class="number">{{ \App\Support\Format::montant($rapports->sum('total_entrees')) }}</td>
+                <td class="number">{{ \App\Support\Format::montant($rapports->sum('total_sorties')) }}</td>
                 <td></td>
                 <td style="text-align:center">{{ $rapports->sum('nombre_bons') }}</td>
                 <td></td>

@@ -6,6 +6,7 @@ use App\Events\NouvelleNotification;
 use App\Models\BonCaisse;
 use App\Models\Notification;
 use App\Models\User;
+use App\Support\Format;
 
 /**
  * Service de Notification Intelligente NEEMBA
@@ -375,7 +376,7 @@ class NotificationService
             })
             ->get();
 
-        $seuilFormat = number_format($site->seuil_minimum_caisse, 0, ',', ' ') . ' GNF';
+        $seuilFormat = Format::montant($site->seuil_minimum_caisse);
 
         foreach ($destinataires as $destinataire) {
             if ($declencheur && $destinataire->id === $declencheur->id) continue;
@@ -453,7 +454,7 @@ class NotificationService
             \Illuminate\Support\Facades\Cache::put($cacheKey, true, now()->endOfDay());
 
             $resultats[$site->nom] = "Solde : {$site->solde_caisse_format} — Seuil : "
-                . number_format($site->seuil_minimum_caisse, 0, ',', ' ') . ' GNF — Alertes envoyées';
+                . Format::montant($site->seuil_minimum_caisse) . ' — Alertes envoyées';
         }
 
         return $resultats;
@@ -476,7 +477,7 @@ class NotificationService
             default             => ucfirst($mouvement->type),
         };
 
-        $montantFormat = number_format($mouvement->montant, 0, ',', ' ') . ' GNF';
+        $montantFormat = Format::montant($mouvement->montant);
 
         $destinataires = User::actifs()
             ->whereIn('role', ['daf', 'directeur_pays'])
@@ -510,7 +511,7 @@ class NotificationService
         $createur = $mouvement->effectuePar;
         if (!$createur || $createur->id === $validateur->id) return;
 
-        $montantFormat = number_format($mouvement->montant, 0, ',', ' ') . ' GNF';
+        $montantFormat = Format::montant($mouvement->montant);
 
         self::creerEtDiffuserSimple(
             destinataire: $createur,
@@ -537,7 +538,7 @@ class NotificationService
         $createur = $mouvement->effectuePar;
         if (!$createur || $createur->id === $validateur->id) return;
 
-        $montantFormat = number_format($mouvement->montant, 0, ',', ' ') . ' GNF';
+        $montantFormat = Format::montant($mouvement->montant);
 
         self::creerEtDiffuserSimple(
             destinataire: $createur,

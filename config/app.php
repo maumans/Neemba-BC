@@ -65,7 +65,8 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    /* Fuseau de la SFD (§1.4) : Africa/Conakry = UTC+0 toute l'année, sans heure d'été */
+    'timezone' => env('APP_TIMEZONE', 'Africa/Conakry'),
 
     /*
     |--------------------------------------------------------------------------

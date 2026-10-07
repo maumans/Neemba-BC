@@ -185,7 +185,7 @@
     <div class="montant-section">
         <div class="montant-chiffre">
             <span class="info-label">MONTANT TOTAL (en chiffre) :</span>
-            <span class="info-value-box">{{ number_format((float)$bon->montant, 0, ',', ' ') }} {{ $bon->devise ?? 'GNF' }}</span>
+            <span class="info-value-box">{{ \App\Support\Format::nombre((float)$bon->montant) }} {{ $bon->devise ?? 'GNF' }}</span>
         </div>
         <div class="montant-lettres">
             <span class="info-label">(En lettres) :</span>
@@ -201,7 +201,7 @@
                 <th style="width: 20%;">CHEF DE SER</th>
                 <th style="width: 20%;">RCDG</th>
                 <th style="width: 20%;">DAF</th>
-                <th style="width: 20%;">DP (≥ {{ number_format($seuilDP, 0, ',', '.') }})</th>
+                <th style="width: 20%;">DP (≥ {{ \App\Support\Format::nombre($seuildp) }})</th>
             </tr>
         </thead>
         <tbody>
@@ -265,7 +265,7 @@
                 <tr>
                     <td style="height: 18px;">{{ $bon->code_analytique ?? '' }}</td>
                     <td>{{ $bon->motif ?? '' }}</td>
-                    <td style="text-align: right;">{{ number_format((float)$bon->montant, 0, ',', ' ') }}</td>
+                    <td style="text-align: right;">{{ \App\Support\Format::nombre((float)$bon->montant) }}</td>
                 </tr>
                 <tr><td style="height: 18px;">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
                 <tr><td style="height: 18px;">&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>

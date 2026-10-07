@@ -16,6 +16,7 @@ use App\Models\Site;
 use App\Models\Validation;
 use App\Services\NimbaSmsService;
 use App\Services\NotificationService;
+use App\Support\Format;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -210,6 +211,9 @@ class BonCaisseController extends Controller
      */
     public function create()
     {
+        /* US-BC-01 : seul un utilisateur ayant le rôle DEMANDEUR peut créer un bon */
+        abort_unless(Auth::user()->peutInitierBon(), 403, 'Vous n\'avez pas le rôle demandeur.');
+
         /* Motifs d'urgence prédéfinis (Phase 1.1) */
         $motifsUrgence = MotifUrgence::where('actif', true)->pluck('libelle')->toArray();
 
@@ -233,6 +237,9 @@ class BonCaisseController extends Controller
      */
     public function store(Request $request)
     {
+        /* US-BC-01, TC-BC-032 : refus aussi pour un appel direct qui contourne l'écran */
+        abort_unless(Auth::user()->peutInitierBon(), 403, 'Vous n\'avez pas le rôle demandeur.');
+
         $validated = $request->validate([
             /* Section 1 : Identification */
             'type_bon' => ['required', Rule::in(['BD', 'BP'])],
@@ -461,20 +468,11 @@ class BonCaisseController extends Controller
         $delaisValidation = [];
         foreach ($bonCaisse->validations as $validation) {
             $delai = null;
+            /* Durée au format SFD §1.4 (« 2 h 15 min », « 3 j 4 h ») ; l'ancien calcul ignorait les mois */
             if ($validation->date_validation && $validation->date_attribution) {
-                $diff = $validation->date_attribution->diff($validation->date_validation);
-                $parts = [];
-                if ($diff->d > 0) $parts[] = $diff->d . 'j';
-                if ($diff->h > 0) $parts[] = $diff->h . 'h';
-                if ($diff->i > 0) $parts[] = $diff->i . 'min';
-                $delai = implode(' ', $parts) ?: '< 1min';
+                $delai = Format::dureeEntre($validation->date_attribution, $validation->date_validation);
             } elseif ($validation->statut === 'en_attente' && $validation->date_attribution) {
-                $diff = $validation->date_attribution->diff(now());
-                $parts = [];
-                if ($diff->d > 0) $parts[] = $diff->d . 'j';
-                if ($diff->h > 0) $parts[] = $diff->h . 'h';
-                if ($diff->i > 0) $parts[] = $diff->i . 'min';
-                $delai = (implode(' ', $parts) ?: '< 1min') . ' (en cours)';
+                $delai = Format::dureeEntre($validation->date_attribution) . ' (en cours)';
             }
             $delaisValidation[$validation->id] = $delai;
         }
@@ -647,8 +645,8 @@ class BonCaisseController extends Controller
             }
         }
 
-        /* Historique de modification */
-        $bonCaisse->enregistrerModification(Auth::id());
+        /* Historique de modification : écrit automatiquement par BonCaisse (événement « updated »),
+         * avec l'ancienne et la nouvelle valeur de chaque champ modifié. */
 
         /* Upload des nouvelles pièces jointes */
         if ($request->hasFile('pieces_jointes')) {

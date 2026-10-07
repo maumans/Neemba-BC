@@ -27,8 +27,8 @@ class VerifierRole
             abort(403, 'Non authentifié.');
         }
 
-        // Récupérer le rôle propre + tous les rôles délégués actifs
-        $rolesPossedes = [$utilisateur->role];
+        // Récupérer les rôles propres (principal + attribués) + tous les rôles délégués actifs
+        $rolesPossedes = $utilisateur->listeRoles();
 
         $delegants = \App\Models\Delegation::actives()
             ->where('delegue_id', $utilisateur->id)

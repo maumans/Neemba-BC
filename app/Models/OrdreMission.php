@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Support\Format;
 
 /**
  * Modèle OrdreMission - Ordre de Mission
@@ -67,7 +68,7 @@ class OrdreMission extends Model
      */
     public function getMontantIndemnitesFormatAttribute(): string
     {
-        return number_format($this->montant_indemnites, 0, ',', ' ') . ' GNF';
+        return Format::montant($this->montant_indemnites);
     }
 
     /* ----------------------------------------------------------------

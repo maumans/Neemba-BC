@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Support\Format;
 
 /**
  * Modèle VentilationAnalytique - Ventilation multi-codes analytiques
@@ -49,6 +50,6 @@ class VentilationAnalytique extends Model
 
     public function getMontantFormatAttribute(): string
     {
-        return number_format($this->montant, 0, ',', ' ') . ' GNF';
+        return Format::montant($this->montant);
     }
 }

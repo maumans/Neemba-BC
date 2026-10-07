@@ -43,6 +43,7 @@ import {
 import { Label } from '@/Components/ui/label';
 import { Textarea } from '@/Components/ui/textarea';
 import { useState } from 'react';
+import { formaterMontant } from '@/utils/format';
 
 const TYPES_CONFIG = {
     approvisionnement: { label: 'Approvisionnement', icone: ArrowUpCircle, couleur: 'text-green-600' },
@@ -60,10 +61,6 @@ const STATUTS_CONFIG = {
     valide: { label: 'Validé', couleur: 'bg-green-100 text-green-800' },
     rejete: { label: 'Rejeté', couleur: 'bg-red-100 text-red-800' },
 };
-
-function formaterMontant(montant) {
-    return new Intl.NumberFormat('fr-FR').format(montant) + ' GNF';
-}
 
 export default function Index({
     mouvements = { data: [] },

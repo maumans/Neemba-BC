@@ -103,6 +103,56 @@ class User extends Authenticatable
     /**
      * Délégations reçues par cet utilisateur (il remplace quelqu'un)
      */
+    /**
+     * Rôles attribués (un utilisateur peut en avoir plusieurs ; le rôle principal reste dans users.role)
+     */
+    public function roles(): HasMany
+    {
+        return $this->hasMany(RoleUtilisateur::class, 'user_id');
+    }
+
+    protected static function booted(): void
+    {
+        /* Le rôle principal figure toujours parmi les rôles. Un nouveau compte reçoit aussi « demandeur » :
+         * tout le monde peut créer un bon tant que l'administration des rôles (M02) n'existe pas. */
+        static::created(function (User $utilisateur) {
+            $utilisateur->ajouterRoles([$utilisateur->role, 'demandeur']);
+        });
+
+        /* « updated » (et non « saved ») : wasRecentlyCreated reste vrai sur l'instance créée */
+        static::updated(function (User $utilisateur) {
+            if (!$utilisateur->wasChanged('role')) {
+                return;
+            }
+            $ancien = $utilisateur->getOriginal('role');
+            if ($ancien && $ancien !== 'demandeur') {
+                $utilisateur->roles()->where('role', $ancien)->delete();
+            }
+            $utilisateur->ajouterRoles([$utilisateur->role]);
+        });
+    }
+
+    /**
+     * Attribuer des rôles (ceux déjà présents sont ignorés)
+     */
+    public function ajouterRoles(array $roles): void
+    {
+        foreach (array_unique(array_filter($roles)) as $role) {
+            $this->roles()->firstOrCreate(['role' => $role]);
+        }
+        $this->rolesCharges = null;
+    }
+
+    /**
+     * Remplacer tous les rôles par la liste donnée
+     */
+    public function definirRoles(array $roles): void
+    {
+        $roles = array_values(array_unique(array_filter($roles)));
+        $this->roles()->whereNotIn('role', $roles)->delete();
+        $this->ajouterRoles($roles);
+    }
+
     public function delegationsRecues(): HasMany
     {
         return $this->hasMany(Delegation::class, 'delegue_id');
@@ -155,9 +205,33 @@ class User extends Authenticatable
     /**
      * Vérifie si l'utilisateur a un rôle spécifique
      */
-    public function aLeRole(string $role): bool
+    public function aLeRole(string|array $roles): bool
     {
-        return $this->role === $role;
+        return !empty(array_intersect($this->listeRoles(), (array) $roles));
+    }
+
+    /** Rôles chargés (cache de l'instance) */
+    protected ?array $rolesCharges = null;
+
+    /**
+     * Rôles de l'utilisateur : rôle principal + rôles attribués
+     */
+    public function listeRoles(): array
+    {
+        if ($this->rolesCharges === null) {
+            $attribues = $this->exists ? $this->roles()->pluck('role')->all() : [];
+            $this->rolesCharges = array_values(array_unique(array_filter([$this->role, ...$attribues])));
+        }
+
+        return $this->rolesCharges;
+    }
+
+    /**
+     * Peut créer un bon de caisse (rôle DEMANDEUR — US-BC-01, TC-BC-032)
+     */
+    public function peutInitierBon(): bool
+    {
+        return $this->aLeRole('demandeur');
     }
 
     /**
@@ -173,7 +247,7 @@ class User extends Authenticatable
             'directeur_pays',
         ];
 
-        if (in_array($this->role, $rolesValidateurs)) {
+        if ($this->aLeRole($rolesValidateurs)) {
             return true;
         }
 
@@ -193,8 +267,8 @@ class User extends Authenticatable
      */
     public function rolesValidationEffectifs(): array
     {
-        // Inclure d'abord le rôle propre de l'utilisateur
-        $roles = [$this->role];
+        // Inclure d'abord les rôles propres de l'utilisateur
+        $roles = $this->listeRoles();
 
         // Ajouter les rôles de tous les délégants actifs ayant autorisé la 'validation'
         $delegations = \App\Models\Delegation::actives()
@@ -233,7 +307,7 @@ class User extends Authenticatable
      */
     public function peutPayer(): bool
     {
-        if ($this->role === 'caissier') {
+        if ($this->aLeRole('caissier')) {
             return true;
         }
 
@@ -254,9 +328,10 @@ class User extends Authenticatable
     public function peutEffectuer(string $fonctionnalite): bool
     {
         /* Vérifier si le rôle propre inclut cette fonctionnalité */
-        $fonctionnalitesRole = Delegation::FONCTIONNALITES_PAR_ROLE[$this->role] ?? [];
-        if (in_array($fonctionnalite, $fonctionnalitesRole)) {
-            return true;
+        foreach ($this->listeRoles() as $role) {
+            if (in_array($fonctionnalite, Delegation::FONCTIONNALITES_PAR_ROLE[$role] ?? [])) {
+                return true;
+            }
         }
 
         /* Vérifier les délégations actives */
@@ -271,7 +346,7 @@ class User extends Authenticatable
      */
     public function estAdministrateur(): bool
     {
-        return $this->role === 'administrateur';
+        return $this->aLeRole('administrateur');
     }
 
     /**
@@ -279,6 +354,6 @@ class User extends Authenticatable
      */
     public function estCaissierDuSite(string $site): bool
     {
-        return $this->role === 'caissier' && $this->site === $site;
+        return $this->aLeRole('caissier') && $this->site === $site;
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Support\Format;
 
 /**
  * Modèle MouvementCaisse - Mouvements de caisse (approvisionnement, retrait, ajustement)
@@ -100,7 +101,7 @@ class MouvementCaisse extends Model
 
     public function getMontantFormatAttribute(): string
     {
-        return number_format($this->montant, 0, ',', ' ') . ' GNF';
+        return Format::montant($this->montant);
     }
 
     public function getTypeLabelAttribute(): string

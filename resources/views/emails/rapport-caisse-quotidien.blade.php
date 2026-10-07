@@ -58,19 +58,19 @@
             <table class="summary-table">
                 <tr>
                     <td>Solde d'ouverture</td>
-                    <td>{{ number_format($rapport->solde_ouverture, 0, ',', ' ') }} GNF</td>
+                    <td>{{ \App\Support\Format::montant($rapport->solde_ouverture) }}</td>
                 </tr>
                 <tr>
                     <td>Total entrées</td>
-                    <td>{{ number_format($rapport->total_entrees, 0, ',', ' ') }} GNF</td>
+                    <td>{{ \App\Support\Format::montant($rapport->total_entrees) }}</td>
                 </tr>
                 <tr>
                     <td>Total sorties ({{ $rapport->nombre_bons ?? $bonsPaye->count() }} bons)</td>
-                    <td>{{ number_format($rapport->total_sorties, 0, ',', ' ') }} GNF</td>
+                    <td>{{ \App\Support\Format::montant($rapport->total_sorties) }}</td>
                 </tr>
                 <tr class="total-row">
                     <td>Solde de clôture</td>
-                    <td>{{ number_format($rapport->solde_cloture, 0, ',', ' ') }} GNF</td>
+                    <td>{{ \App\Support\Format::montant($rapport->solde_cloture) }}</td>
                 </tr>
             </table>
 

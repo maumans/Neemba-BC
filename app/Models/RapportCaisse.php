@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Support\Format;
 
 /**
  * Modèle RapportCaisse - Rapport Journalier de Caisse
@@ -132,7 +133,7 @@ class RapportCaisse extends Model
      */
     public function getSoldeClotureFormatAttribute(): string
     {
-        return number_format($this->solde_cloture, 0, ',', ' ') . ' GNF';
+        return Format::montant($this->solde_cloture);
     }
 
     /* ----------------------------------------------------------------

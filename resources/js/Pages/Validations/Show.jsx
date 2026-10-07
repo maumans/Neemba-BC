@@ -43,6 +43,7 @@ import {
     DialogTrigger,
 } from '@/Components/ui/dialog';
 import { nombreEnLettres, formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
+import BadgeStatut from '@/Components/BadgeStatut';
 
 export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [], motifsRejet = {} }) {
     const { auth } = usePage().props;
@@ -127,9 +128,7 @@ export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques =
                                             {bonCaisse.type_bon === 'BD' ? 'Bon Définitif' : 'Bon Provisoire'}
                                         </CardDescription>
                                     </div>
-                                    <Badge variant="en_attente" className="text-sm px-3 py-1">
-                                        {statutsLabels[bonCaisse.statut] || bonCaisse.statut}
-                                    </Badge>
+                                    <BadgeStatut statut={bonCaisse.statut} className="text-sm px-3 py-1" />
                                 </div>
                             </CardHeader>
                         </Card>

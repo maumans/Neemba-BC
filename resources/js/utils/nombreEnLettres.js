@@ -1,10 +1,13 @@
 /**
- * Convertit un nombre en toutes lettres en français
- * Supporte les montants jusqu'à 999 999 999 999
- * 
- * @param {number|string} nombre - Le nombre à convertir
- * @param {string} devise - La devise (par défaut 'francs guinéens')
- * @returns {string} Le nombre en toutes lettres
+ * Montant en lettres (RG-BC-08, ANO-01).
+ *
+ * Aperçu à l'écran pendant la frappe : la valeur enregistrée est toujours recalculée
+ * par le serveur (App\Support\MontantEnLettres), avec les mêmes règles :
+ * - trait d'union sous cent (« quatre-vingt-deux »), « et » pour 21, 31… 71 ;
+ * - « cent » et « vingt » prennent un s quand ils terminent le nombre ou précèdent
+ *   million(s) / milliard(s), jamais devant « mille » (« deux cent mille », « deux cents millions ») ;
+ * - « de » quand le montant se termine par million(s) / milliard(s) (« un million de francs guinéens »).
+ * Cas de référence : tests/fixtures/montants_lettres.json.
  */
 
 const UNITES = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
@@ -12,131 +15,88 @@ const UNITES = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'hui
 
 const DIZAINES = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante', 'quatre-vingt', 'quatre-vingt'];
 
-function convertirCentaine(n) {
-    if (n === 0) return '';
-
-    let resultat = '';
-
+/**
+ * Nombre de 1 à 999 en lettres.
+ * @param {number} n
+ * @param {boolean} pluriel - false devant « mille » (cent et vingt restent invariables)
+ */
+function centaine(n, pluriel) {
     const centaines = Math.floor(n / 100);
     const reste = n % 100;
+    const mots = [];
 
     if (centaines > 0) {
-        if (centaines === 1) {
-            resultat = 'cent';
-        } else {
-            resultat = UNITES[centaines] + ' cent';
-        }
-        if (reste === 0 && centaines > 1) {
-            resultat += 's';
-        }
+        const cent = centaines === 1 ? 'cent' : `${UNITES[centaines]} cent`;
+        mots.push(reste === 0 && centaines > 1 && pluriel ? `${cent}s` : cent);
     }
 
     if (reste > 0) {
-        if (resultat) resultat += ' ';
-
-        if (reste < 20) {
-            resultat += UNITES[reste];
-        } else {
-            const dizaine = Math.floor(reste / 10);
-            const unite = reste % 10;
-
-            if (dizaine === 7 || dizaine === 9) {
-                /* 70-79 : soixante-dix... / 90-99 : quatre-vingt-dix... */
-                const base = dizaine === 7 ? 'soixante' : 'quatre-vingt';
-                const sousNombre = reste - (dizaine === 7 ? 60 : 80);
-                if (sousNombre === 1 && dizaine === 7) {
-                    resultat += base + ' et onze';
-                } else {
-                    resultat += base + '-' + UNITES[sousNombre];
-                }
-            } else {
-                resultat += DIZAINES[dizaine];
-                if (unite === 1 && dizaine !== 8) {
-                    resultat += ' et un';
-                } else if (unite > 0) {
-                    resultat += '-' + UNITES[unite];
-                } else if (dizaine === 8) {
-                    resultat += 's';
-                }
-            }
-        }
+        mots.push(dizaine(reste, pluriel));
     }
 
-    return resultat;
+    return mots.join(' ');
 }
 
-export function nombreEnLettres(nombre, devise = 'francs guinéens') {
-    if (nombre === null || nombre === undefined || nombre === '') return '';
+/** Nombre de 1 à 99 en lettres */
+function dizaine(n, pluriel) {
+    if (n < 20) return UNITES[n];
 
-    const n = Math.floor(Math.abs(parseFloat(nombre)));
+    const rang = Math.floor(n / 10);
+    const unite = n % 10;
 
-    if (isNaN(n)) return '';
-    if (n === 0) return 'zéro ' + devise;
-
-    const parties = [];
-
-    /* Milliards */
-    const milliards = Math.floor(n / 1000000000);
-    if (milliards > 0) {
-        if (milliards === 1) {
-            parties.push('un milliard');
-        } else {
-            parties.push(convertirCentaine(milliards) + ' milliards');
-        }
+    /* 70-79 et 90-99 : soixante-dix…, quatre-vingt-dix… */
+    if (rang === 7 || rang === 9) {
+        const base = DIZAINES[rang];
+        const sousNombre = n - (rang === 7 ? 60 : 80);
+        return sousNombre === 11 && rang === 7 ? `${base} et onze` : `${base}-${UNITES[sousNombre]}`;
     }
 
-    /* Millions */
-    const millions = Math.floor((n % 1000000000) / 1000000);
-    if (millions > 0) {
-        if (millions === 1) {
-            parties.push('un million');
-        } else {
-            parties.push(convertirCentaine(millions) + ' millions');
-        }
+    if (unite === 0) {
+        return rang === 8 && pluriel ? 'quatre-vingts' : DIZAINES[rang];
     }
 
-    /* Milliers */
-    const milliers = Math.floor((n % 1000000) / 1000);
-    if (milliers > 0) {
-        if (milliers === 1) {
-            parties.push('mille');
-        } else {
-            parties.push(convertirCentaine(milliers) + ' mille');
-        }
-    }
-
-    /* Centaines */
-    const centaines = n % 1000;
-    if (centaines > 0) {
-        parties.push(convertirCentaine(centaines));
-    }
-
-    let texte = parties.join(' ').replace(/\s+/g, ' ').trim();
-
-    /* Première lettre en majuscule */
-    texte = texte.charAt(0).toUpperCase() + texte.slice(1);
-
-    return texte + ' ' + devise;
+    return unite === 1 && rang !== 8
+        ? `${DIZAINES[rang]} et un`
+        : `${DIZAINES[rang]}-${UNITES[unite]}`;
 }
 
 /**
- * Formate un nombre avec séparateur de milliers (format français)
- * @param {number|string} nombre
- * @returns {string}
+ * Nombre entier positif en lettres (sans devise).
+ * @param {number} n
  */
-export function formaterNombre(nombre) {
-    if (nombre === null || nombre === undefined || nombre === '') return '0';
-    const n = parseFloat(nombre);
-    if (isNaN(n)) return '0';
-    return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n);
+export function nombreEnMots(n) {
+    if (n === 0) return 'zéro';
+
+    const milliards = Math.floor(n / 1_000_000_000);
+    const millions = Math.floor((n % 1_000_000_000) / 1_000_000);
+    const milliers = Math.floor((n % 1_000_000) / 1_000);
+    const unites = n % 1_000;
+    const mots = [];
+
+    if (milliards > 0) mots.push(milliards === 1 ? 'un milliard' : `${centaine(milliards, true)} milliards`);
+    if (millions > 0) mots.push(millions === 1 ? 'un million' : `${centaine(millions, true)} millions`);
+    if (milliers > 0) mots.push(milliers === 1 ? 'mille' : `${centaine(milliers, false)} mille`);
+    if (unites > 0) mots.push(centaine(unites, true));
+
+    return mots.join(' ');
 }
 
 /**
- * Formate un montant avec devise GNF
+ * Montant en GNF en lettres : « un million deux cent mille francs guinéens ».
+ * Renvoie '' si la valeur n'est pas un nombre.
  * @param {number|string} montant
- * @returns {string}
  */
-export function formaterMontant(montant) {
-    if (!montant && montant !== 0) return '0 GNF';
-    return formaterNombre(montant) + ' GNF';
+export function nombreEnLettres(montant) {
+    if (montant === null || montant === undefined || montant === '') return '';
+    const n = Math.floor(Math.abs(Number.parseFloat(montant)));
+    if (Number.isNaN(n)) return '';
+
+    const mots = nombreEnMots(n);
+    const de = n >= 1_000_000 && n % 1_000_000 === 0 ? ' de' : '';
+    const devise = n < 2 ? 'franc guinéen' : 'francs guinéens';
+
+    return `${mots}${de} ${devise}`;
 }
+
+/* Formatage des nombres et montants : utilitaire commun (SFD §1.4) */
+export { formaterNombre, formaterMontant } from './format';

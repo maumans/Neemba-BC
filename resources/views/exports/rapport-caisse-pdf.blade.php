@@ -68,19 +68,19 @@
     <table class="resume-table">
         <tr>
             <td>Solde d'ouverture</td>
-            <td class="number">{{ number_format($rapport->solde_ouverture, 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($rapport->solde_ouverture) }}</td>
         </tr>
         <tr>
             <td>Total entrées</td>
-            <td class="number">{{ number_format($rapport->total_entrees, 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($rapport->total_entrees) }}</td>
         </tr>
         <tr>
             <td>Total sorties ({{ $rapport->nombre_bons ?? $bonsPaye->count() }} bons)</td>
-            <td class="number">{{ number_format($rapport->total_sorties, 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($rapport->total_sorties) }}</td>
         </tr>
         <tr class="cloture-row">
             <td>Solde fin de journée</td>
-            <td class="number">{{ number_format($rapport->solde_cloture, 0, ',', ' ') }} GNF</td>
+            <td class="number">{{ \App\Support\Format::montant($rapport->solde_cloture) }}</td>
         </tr>
     </table>
 
@@ -100,7 +100,7 @@
             <tr>
                 <td>{{ $item['label'] ?? $item['categorie'] }}</td>
                 <td style="text-align:center">{{ $item['nombre'] }}</td>
-                <td class="number">{{ number_format($item['montant'], 0, ',', ' ') }}</td>
+                <td class="number">{{ \App\Support\Format::nombre($item['montant']) }}</td>
             </tr>
             @endforeach
         </tbody>
@@ -123,7 +123,7 @@
             <tr>
                 <td>{{ $item['label'] ?? $item['mode'] }}</td>
                 <td style="text-align:center">{{ $item['nombre'] }}</td>
-                <td class="number">{{ number_format($item['montant'], 0, ',', ' ') }}</td>
+                <td class="number">{{ \App\Support\Format::nombre($item['montant']) }}</td>
             </tr>
             @endforeach
         </tbody>
@@ -152,12 +152,12 @@
                 <td>{{ $bon->beneficiaire }}</td>
                 <td>{{ \App\Models\BonCaisse::CATEGORIES_DEPENSE[$bon->categorie_depense] ?? $bon->categorie_depense }}</td>
                 <td>{{ \App\Models\BonCaisse::MODES_PAIEMENT[$bon->mode_paiement_effectif ?? $bon->mode_paiement] ?? ($bon->mode_paiement_effectif ?? $bon->mode_paiement) }}</td>
-                <td class="number">{{ number_format($bon->montant, 0, ',', ' ') }}</td>
+                <td class="number">{{ \App\Support\Format::nombre($bon->montant) }}</td>
             </tr>
             @endforeach
             <tr class="total-row">
                 <td colspan="5" style="text-align:right">TOTAL</td>
-                <td class="number">{{ number_format($bonsPaye->sum('montant'), 0, ',', ' ') }} GNF</td>
+                <td class="number">{{ \App\Support\Format::montant($bonspaye->sum('montant')) }}</td>
             </tr>
         </tbody>
     </table>

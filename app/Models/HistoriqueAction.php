@@ -150,9 +150,93 @@ class HistoriqueAction extends Model
         return self::ACTIONS_ICONES[$this->action] ?? 'Activity';
     }
 
+    /**
+     * Libellés des champs d'un bon, pour le journal « ancienne → nouvelle valeur ».
+     * Les champs absents de cette liste (statut, dates du cycle de vie, numéro, montant en lettres…)
+     * sont tracés par l'action qui les change (soumission, validation, paiement…).
+     */
+    const LIBELLES_CHAMPS = [
+        'type_bon' => 'Type de bon',
+        'site' => 'Site',
+        'service' => 'Service',
+        'code_analytique' => 'Code analytique',
+        'beneficiaire' => 'Bénéficiaire',
+        'type_beneficiaire' => 'Type de bénéficiaire',
+        'telephone_beneficiaire' => 'Téléphone du bénéficiaire',
+        'mode_paiement' => 'Mode de paiement',
+        'motif' => 'Motif',
+        'categorie_depense' => 'Catégorie de dépense',
+        'montant' => 'Montant',
+        'devise' => 'Devise',
+        'niveau_urgence' => "Niveau d'urgence",
+        'motif_urgence' => "Motif d'urgence",
+        'justification_urgence' => "Justification de l'urgence",
+        'date_demande' => 'Date de la demande',
+    ];
+
     /* ----------------------------------------------------------------
      * MÉTHODES STATIQUES — ENREGISTREMENT D'ÉVÉNEMENTS
      * ---------------------------------------------------------------- */
+
+    /**
+     * Changements d'un bon qui vient d'être enregistré, au format du journal :
+     * [['champ' => 'montant', 'libelle' => 'Montant', 'avant' => '500000.00', 'apres' => '600000.00'], ...]
+     * (à appeler dans l'événement « updated », quand getOriginal() contient encore les anciennes valeurs).
+     */
+    public static function changementsDe(BonCaisse $bonCaisse): array
+    {
+        $changements = [];
+        foreach (array_keys($bonCaisse->getChanges()) as $champ) {
+            if (!isset(self::LIBELLES_CHAMPS[$champ])) {
+                continue;
+            }
+            $changements[] = [
+                'champ' => $champ,
+                'libelle' => self::LIBELLES_CHAMPS[$champ],
+                'avant' => self::valeurJournal($bonCaisse, $champ, $bonCaisse->getRawOriginal($champ)),
+                'apres' => self::valeurJournal($bonCaisse, $champ, $bonCaisse->getAttributes()[$champ] ?? null),
+            ];
+        }
+
+        return $changements;
+    }
+
+    /**
+     * Modification d'un bon (SFD §1.2 : chaque action qui modifie une donnée écrit une ligne
+     * avec ancienne → nouvelle valeur). Rien n'est écrit si aucun champ suivi n'a changé.
+     */
+    public static function enregistrerChangements(BonCaisse $bonCaisse, string $action = self::ACTION_MODIFICATION, ?string $commentaire = null): ?self
+    {
+        $changements = self::changementsDe($bonCaisse);
+        if (empty($changements)) {
+            return null;
+        }
+
+        return self::enregistrer(
+            $bonCaisse,
+            $action,
+            $bonCaisse->statut,
+            $bonCaisse->statut,
+            auth()->id(),
+            $commentaire,
+            ['changements' => $changements],
+        );
+    }
+
+    /** Valeur brute en texte ; décimaux normalisés selon leur cast (500000 et « 500000.00 » → « 500000.00 ») */
+    private static function valeurJournal(BonCaisse $bonCaisse, string $champ, mixed $valeur): ?string
+    {
+        if ($valeur === null) {
+            return null;
+        }
+
+        $cast = $bonCaisse->getCasts()[$champ] ?? null;
+        if (is_string($cast) && str_starts_with($cast, 'decimal:') && is_numeric($valeur)) {
+            return number_format((float) $valeur, (int) substr($cast, 8), '.', '');
+        }
+
+        return (string) $valeur;
+    }
 
     /**
      * Enregistrer un événement dans l'historique d'un bon de caisse

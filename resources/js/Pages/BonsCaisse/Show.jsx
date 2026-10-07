@@ -74,41 +74,22 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/Components/ui/dialog';
-import { nombreEnLettres, formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
+import { nombreEnLettres, formaterMontant as formatMontant, formaterNombre } from '@/utils/nombreEnLettres';
+import { formaterDate, formaterDateHeure } from '@/utils/format';
 import { Input } from '@/Components/ui/input';
 import { Combobox } from '@/Components/ui/combobox';
+import BadgeStatut from '@/Components/BadgeStatut';
 
-/** Formate une date/heure */
-function formatDateTime(date) {
-    if (!date) return '-';
-    return new Date(date).toLocaleString('fr-FR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-    });
-}
+/** Dates au format SFD §1.4 (JJ/MM/AAAA, JJ/MM/AAAA HH:MM, fuseau Africa/Conakry) */
+const formatDateTime = formaterDateHeure;
+const formatDate = formaterDate;
 
-/** Formate une date */
-function formatDate(date) {
-    if (!date) return '-';
-    return new Date(date).toLocaleDateString('fr-FR');
-}
-
-/** Variante de badge selon le statut */
-function badgeVariantParStatut(statut) {
-    const map = {
-        'BROUILLON': 'brouillon',
-        'EN_ATTENTE_CHEF_SERVICE': 'en_attente',
-        'EN_ATTENTE_CDG': 'en_attente',
-        'EN_ATTENTE_DAF': 'en_attente',
-        'EN_ATTENTE_DP': 'en_attente',
-        'APPROUVE': 'approuve',
-        'PAYE': 'paye',
-        'REJETE': 'rejete',
-        'EN_ATTENTE_REGULARISATION': 'en_attente',
-        'REGULARISE': 'regularise',
-        'ARCHIVE': 'brouillon',
-    };
-    return map[statut] || 'default';
+/** Valeur d'un champ dans le journal « ancienne → nouvelle valeur » */
+function valeurJournal(champ, valeur) {
+    if (valeur === null || valeur === undefined || valeur === '') return '—';
+    if (champ === 'montant') return formatMontant(valeur);
+    if (champ === 'date_demande') return formatDate(valeur);
+    return valeur;
 }
 
 /** Labels des rôles de validation */
@@ -439,12 +420,7 @@ export default function Show({
                                                 {bonCaisse.niveau_urgence === 'tres_urgente' ? '🔴 Très urgent' : '🟠 Urgent'}
                                             </Badge>
                                         )}
-                                        <Badge
-                                            variant={badgeVariantParStatut(bonCaisse.statut)}
-                                            className="text-sm px-3 py-1"
-                                        >
-                                            {statutsLabels[bonCaisse.statut] || bonCaisse.statut}
-                                        </Badge>
+                                        <BadgeStatut statut={bonCaisse.statut} className="text-sm px-3 py-1" />
                                     </div>
                                 </div>
 
@@ -721,7 +697,7 @@ export default function Show({
                                                         <div key={i} className="flex items-center justify-between p-2 rounded border bg-gray-50 text-sm">
                                                             <span className="font-mono text-xs text-gray-500">{v.code_analytique}</span>
                                                             <span className="font-medium">
-                                                                {new Intl.NumberFormat('fr-FR').format(v.montant)} GNF
+                                                                {formatMontant(v.montant)}
                                                                 {v.pourcentage && <span className="text-xs text-gray-400 ml-1">({v.pourcentage}%)</span>}
                                                             </span>
                                                         </div>
@@ -1026,7 +1002,7 @@ export default function Show({
                                                                                 <p><span className="font-medium text-gray-500">Fournisseur :</span> {piece.ocr_data.fournisseur}</p>
                                                                             )}
                                                                             {piece.ocr_data.montant && (
-                                                                                <p><span className="font-medium text-gray-500">Montant :</span> {new Intl.NumberFormat('fr-FR').format(piece.ocr_data.montant)} {piece.ocr_data.devise || 'GNF'}</p>
+                                                                                <p><span className="font-medium text-gray-500">Montant :</span> {formaterNombre(piece.ocr_data.montant)} {piece.ocr_data.devise || 'GNF'}</p>
                                                                             )}
                                                                             {piece.ocr_data.date_document && (
                                                                                 <p><span className="font-medium text-gray-500">Date :</span> {piece.ocr_data.date_document}</p>
@@ -1097,6 +1073,18 @@ export default function Show({
                                                                     <p className="text-xs text-gray-600 mt-1 bg-gray-50 rounded p-2">
                                                                         {action.commentaire}
                                                                     </p>
+                                                                )}
+                                                                {action.metadata?.changements?.length > 0 && (
+                                                                    <ul className="text-xs text-gray-600 mt-1 space-y-0.5">
+                                                                        {action.metadata.changements.map((c) => (
+                                                                            <li key={c.champ}>
+                                                                                <span className="font-medium">{c.libelle}</span>{' : '}
+                                                                                <span className="text-gray-400 line-through">{valeurJournal(c.champ, c.avant)}</span>
+                                                                                {' → '}
+                                                                                <span>{valeurJournal(c.champ, c.apres)}</span>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
                                                                 )}
                                                                 {action.statut_avant && action.statut_apres && action.statut_avant !== action.statut_apres && (
                                                                     <div className="flex items-center gap-1.5 mt-1">

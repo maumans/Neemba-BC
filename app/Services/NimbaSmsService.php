@@ -5,6 +5,7 @@ namespace App\Services;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ClientException;
 use Illuminate\Support\Facades\Log;
+use App\Support\Format;
 
 /**
  * Service NimbaSMS
@@ -42,6 +43,9 @@ class NimbaSmsService
 
             return ['success' => false, 'error' => 'Service SMS non configuré'];
         }
+
+        /* Espaces insécables des montants formatés → espaces simples (sinon SMS en Unicode, 70 caractères) */
+        $message = Format::pourSms($message);
 
         try {
             $url = "{$this->apiUrl}/messages";

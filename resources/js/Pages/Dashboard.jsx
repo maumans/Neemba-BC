@@ -41,6 +41,7 @@ import {
     PieChart, Pie, Cell,
     AreaChart, Area,
 } from 'recharts';
+import BadgeStatut from '@/Components/BadgeStatut';
 
 /* ------------------------------------------------------------------ */
 /*  Utilitaires                                                        */
@@ -56,23 +57,6 @@ function formatDateTime(d) {
     return new Date(d).toLocaleDateString('fr-FR', {
         day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
     });
-}
-
-function badgeVariantParStatut(statut) {
-    const map = {
-        BROUILLON: 'brouillon',
-        EN_ATTENTE_CHEF_SERVICE: 'en_attente',
-        EN_ATTENTE_CDG: 'en_attente',
-        EN_ATTENTE_DAF: 'en_attente',
-        EN_ATTENTE_DP: 'en_attente',
-        APPROUVE: 'approuve',
-        PAYE: 'paye',
-        REJETE: 'rejete',
-        EN_ATTENTE_REGULARISATION: 'en_attente',
-        REGULARISE: 'regularise',
-        ARCHIVE: 'brouillon',
-    };
-    return map[statut] || 'default';
 }
 
 /** Animation pour les cartes */
@@ -774,9 +758,11 @@ export default function Dashboard({
                                     <CardTitle className="text-base">Mes derniers bons</CardTitle>
                                     <CardDescription>Vos demandes récentes</CardDescription>
                                 </div>
-                                <Link href={route('bons-caisse.create')}>
-                                    <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Nouveau</Button>
-                                </Link>
+                                {user.peut_initier_bon && (
+                                    <Link href={route('bons-caisse.create')}>
+                                        <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Nouveau</Button>
+                                    </Link>
+                                )}
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -784,9 +770,11 @@ export default function Dashboard({
                                 <div className="text-center py-8 text-gray-400">
                                     <FileText className="h-10 w-10 mx-auto mb-2 opacity-50" />
                                     <p className="text-sm">Aucun bon de caisse</p>
-                                    <Link href={route('bons-caisse.create')}>
-                                        <Button variant="link" size="sm" className="mt-2">Créer votre premier bon</Button>
-                                    </Link>
+                                    {user.peut_initier_bon && (
+                                        <Link href={route('bons-caisse.create')}>
+                                            <Button variant="link" size="sm" className="mt-2">Créer votre premier bon</Button>
+                                        </Link>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="space-y-2">
@@ -799,9 +787,7 @@ export default function Dashboard({
                                             </div>
                                             <div className="text-right ml-4 flex-shrink-0">
                                                 <p className="text-sm font-semibold">{formatMontant(bon.montant)}</p>
-                                                <Badge variant={badgeVariantParStatut(bon.statut)} className="text-[10px]">
-                                                    {statutsLabels[bon.statut] || bon.statut}
-                                                </Badge>
+                                                <BadgeStatut statut={bon.statut} className="text-[10px]" />
                                             </div>
                                         </Link>
                                     ))}

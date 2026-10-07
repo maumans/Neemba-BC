@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Support\Format;
 
 /**
  * Modèle Site - Table de paramétrage
@@ -67,23 +68,23 @@ class Site extends Model
 
     public function getSoldeCaisseFormatAttribute(): string
     {
-        return number_format($this->solde_caisse, 0, ',', ' ') . ' GNF';
+        return Format::montant($this->solde_caisse);
     }
 
     public function getSoldeEspecesFormatAttribute(): string
     {
-        return number_format((float) $this->solde_especes, 0, ',', ' ') . ' GNF';
+        return Format::montant((float) $this->solde_especes);
     }
 
     public function getSoldeOmFormatAttribute(): string
     {
-        return number_format((float) $this->solde_om, 0, ',', ' ') . ' GNF';
+        return Format::montant((float) $this->solde_om);
     }
 
     public function getPlafondCaisseFormatAttribute(): string
     {
         if (!$this->plafond_caisse) return 'Non défini';
-        return number_format($this->plafond_caisse, 0, ',', ' ') . ' GNF';
+        return Format::montant($this->plafond_caisse);
     }
 
     /* ----------------------------------------------------------------

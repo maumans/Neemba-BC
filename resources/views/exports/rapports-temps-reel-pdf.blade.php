@@ -52,15 +52,15 @@
         </tr>
         <tr>
             <td>Total entrées (approvisionnements)</td>
-            <td class="number positive">{{ number_format($statsResume['total_entrees'] ?? 0, 0, ',', ' ') }} GNF</td>
+            <td class="number positive">{{ \App\Support\Format::montant($statsresume['total_entrees'] ?? 0) }}</td>
         </tr>
         <tr>
             <td>Total sorties (décaissements)</td>
-            <td class="number negative">{{ number_format($statsResume['total_sorties'] ?? 0, 0, ',', ' ') }} GNF</td>
+            <td class="number negative">{{ \App\Support\Format::montant($statsresume['total_sorties'] ?? 0) }}</td>
         </tr>
         <tr style="background: #e8f5e9;">
             <td>Solde de clôture</td>
-            <td class="number" style="font-size: 11px;">{{ number_format($statsResume['solde_actuel'] ?? 0, 0, ',', ' ') }} GNF</td>
+            <td class="number" style="font-size: 11px;">{{ \App\Support\Format::montant($statsresume['solde_actuel'] ?? 0) }}</td>
         </tr>
     </table>
 
@@ -95,21 +95,21 @@
                 </td>
                 <td class="number">
                     @if(($ligne['entrees'] ?? 0) > 0)
-                        <span class="positive">{{ number_format($ligne['entrees'], 0, ',', ' ') }}</span>
+                        <span class="positive">{{ \App\Support\Format::nombre($ligne['entrees']) }}</span>
                     @else
                         <span class="muted">-</span>
                     @endif
                 </td>
                 <td class="number">
                     @if(($ligne['sorties'] ?? 0) > 0)
-                        <span class="negative">{{ number_format($ligne['sorties'], 0, ',', ' ') }}</span>
+                        <span class="negative">{{ \App\Support\Format::nombre($ligne['sorties']) }}</span>
                     @else
                         <span class="muted">-</span>
                     @endif
                 </td>
                 <td class="number" style="font-weight: bold;">
                     <span class="{{ ($ligne['solde'] ?? 0) < 0 ? 'negative' : '' }}">
-                        {{ number_format($ligne['solde'] ?? 0, 0, ',', ' ') }}
+                        {{ \App\Support\Format::nombre($ligne['solde'] ?? 0) }}
                     </span>
                 </td>
             </tr>
@@ -117,9 +117,9 @@
             <tr class="total-row">
                 <td @if($granularite === 'jour') colspan="2" @endif style="text-align:right">TOTAL</td>
                 <td style="text-align:center">{{ $statsResume['total_bons'] ?? 0 }}</td>
-                <td class="number positive">{{ number_format($statsResume['total_entrees'] ?? 0, 0, ',', ' ') }}</td>
-                <td class="number negative">{{ number_format($statsResume['total_sorties'] ?? 0, 0, ',', ' ') }}</td>
-                <td class="number" style="font-weight:bold;">{{ number_format($statsResume['solde_actuel'] ?? 0, 0, ',', ' ') }}</td>
+                <td class="number positive">{{ \App\Support\Format::nombre($statsresume['total_entrees'] ?? 0) }}</td>
+                <td class="number negative">{{ \App\Support\Format::nombre($statsresume['total_sorties'] ?? 0) }}</td>
+                <td class="number" style="font-weight:bold;">{{ \App\Support\Format::nombre($statsresume['solde_actuel'] ?? 0) }}</td>
             </tr>
         </tbody>
     </table>

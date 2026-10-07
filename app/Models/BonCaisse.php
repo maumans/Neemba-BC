@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Support\Format;
+use App\Support\MontantEnLettres;
 
 /**
  * Modèle BonCaisse - Bon de Caisse
@@ -109,6 +111,7 @@ class BonCaisse extends Model
         'EN_ATTENTE_REGULARISATION',
         'REGULARISE',
         'ARCHIVE',
+        'ANNULE',
     ];
 
     /** Labels lisibles pour chaque statut */
@@ -124,6 +127,7 @@ class BonCaisse extends Model
         'EN_ATTENTE_REGULARISATION' => 'En attente de régularisation',
         'REGULARISE' => 'Régularisé',
         'ARCHIVE' => 'Archivé',
+        'ANNULE' => 'Annulé',
     ];
 
     /** Catégories de dépense */
@@ -337,12 +341,52 @@ class BonCaisse extends Model
         return self::STATUTS_LABELS[$this->statut] ?? $this->statut ?? 'Inconnu';
     }
 
+    protected static function booted(): void
+    {
+        /* RG-BC-08 : le montant en lettres est toujours calculé par le serveur, jamais repris de la saisie */
+        static::saving(function (BonCaisse $bon) {
+            if ($bon->montant !== null && $bon->montant !== '') {
+                $bon->montant_lettres = MontantEnLettres::convertir($bon->montant);
+            }
+        });
+
+        /* SFD §1.2 : toute modification d'un champ du bon est journalisée (ancienne → nouvelle valeur) */
+        static::updated(function (BonCaisse $bon) {
+            HistoriqueAction::enregistrerChangements(
+                $bon,
+                $bon->contexteJournal['action'] ?? HistoriqueAction::ACTION_MODIFICATION,
+                $bon->contexteJournal['commentaire'] ?? null,
+            );
+        });
+    }
+
+    /**
+     * Action et commentaire de la prochaine ligne de journal automatique (voir modifierAvecJournal).
+     * Propriété PHP, non enregistrée en base.
+     */
+    public ?array $contexteJournal = null;
+
+    /**
+     * Modifier le bon en précisant l'action inscrite au journal
+     * (ex. correction du code analytique par le CDG) au lieu de « Modification du bon ».
+     */
+    public function modifierAvecJournal(array $valeurs, string $action, ?string $commentaire = null): bool
+    {
+        $this->contexteJournal = ['action' => $action, 'commentaire' => $commentaire];
+
+        try {
+            return $this->update($valeurs);
+        } finally {
+            $this->contexteJournal = null;
+        }
+    }
+
     /**
      * Montant formaté avec séparateur de milliers (ex: 1 500 000 GNF)
      */
     public function getMontantFormatAttribute(): string
     {
-        return number_format($this->montant, 0, ',', ' ') . ' GNF';
+        return Format::montant($this->montant);
     }
 
     /**
@@ -423,7 +467,7 @@ class BonCaisse extends Model
         /* Contrôle : montant maximum */
         $montantMax = Parametre::montantMax();
         if ($this->montant > $montantMax) {
-            return ['success' => false, 'message' => 'Le montant dépasse le maximum autorisé de ' . number_format($montantMax, 0, ',', ' ') . ' GNF.'];
+            return ['success' => false, 'message' => 'Le montant dépasse le maximum autorisé de ' . Format::montant($montantMax) . '.'];
         }
 
         /* Contrôle : pièces justificatives obligatoires pour un Bon Définitif */
@@ -870,11 +914,6 @@ class BonCaisse extends Model
         if (!$this->date_soumission || !$this->date_paiement) {
             return null;
         }
-        $diff = $this->date_soumission->diff($this->date_paiement);
-        $parts = [];
-        if ($diff->d > 0) $parts[] = $diff->d . 'j';
-        if ($diff->h > 0) $parts[] = $diff->h . 'h';
-        if ($diff->i > 0) $parts[] = $diff->i . 'min';
-        return implode(' ', $parts) ?: '< 1min';
+        return Format::dureeEntre($this->date_soumission, $this->date_paiement);
     }
 }
