@@ -1182,18 +1182,18 @@ export default function Show({
                                 <CardContent className="p-4">
                                     <div className="flex items-center gap-2 mb-3">
                                         <Wallet className="h-4 w-4 text-gray-400" />
-                                        <p className="text-xs text-gray-500 font-medium">Caisse — {bonCaisse.site}</p>
+                                        <p className="text-xs text-gray-500 font-medium">Caisses payeuses — {bonCaisse.site}</p>
                                     </div>
                                     {/* Espèces */}
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className="text-[11px] text-amber-700 font-medium">Espèces</span>
+                                        <span className="text-[11px] text-amber-700 font-medium truncate mr-2">{soldeCaisseSite.caisse_especes ?? 'Espèces'}</span>
                                         <span className={`text-sm font-bold ${!soldeCaisseSite.peut_payer_especes && bonCaisse.statut === 'APPROUVE' ? 'text-red-600' : 'text-gray-800'}`}>
                                             {soldeCaisseSite.solde_especes_format}
                                         </span>
                                     </div>
                                     {/* OM */}
                                     <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[11px] text-violet-700 font-medium">OM (Mobile Money)</span>
+                                        <span className="text-[11px] text-violet-700 font-medium truncate mr-2">{soldeCaisseSite.caisse_om ?? 'Orange Money'}</span>
                                         <span className={`text-sm font-bold ${!soldeCaisseSite.peut_payer_om && bonCaisse.statut === 'APPROUVE' ? 'text-red-600' : 'text-gray-800'}`}>
                                             {soldeCaisseSite.solde_om_format}
                                         </span>
@@ -1204,10 +1204,15 @@ export default function Show({
                                             {soldeCaisseSite.solde_format}
                                         </span>
                                     </div>
+                                    {soldeCaisseSite.plafond_retrait !== null && soldeCaisseSite.plafond_retrait !== undefined && (
+                                        <p className="text-[10px] text-gray-400 mt-1.5">
+                                            Retrait en espèces max : {formatMontant(soldeCaisseSite.plafond_retrait)}
+                                        </p>
+                                    )}
                                     {soldeCaisseSite.sous_seuil && (
                                         <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1.5">
                                             <AlertTriangle className="h-3 w-3" />
-                                            Solde total sous le seuil minimum
+                                            Une caisse est sous son seuil d'alerte
                                         </p>
                                     )}
                                 </CardContent>

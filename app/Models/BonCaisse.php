@@ -52,6 +52,7 @@ class BonCaisse extends Model
         'demandeur_id',
         'caissier_id',
         'mode_paiement_effectif',
+        'caisse_id',
         'date_demande',
         'date_soumission',
         'date_paiement',
@@ -208,6 +209,12 @@ class BonCaisse extends Model
     /**
      * Étapes de validation du bon
      */
+    /** Caisse qui a payé le bon (lot 2) */
+    public function caisse(): BelongsTo
+    {
+        return $this->belongsTo(Caisse::class);
+    }
+
     public function validations(): HasMany
     {
         return $this->hasMany(Validation::class, 'bon_caisse_id')->orderBy('niveau');

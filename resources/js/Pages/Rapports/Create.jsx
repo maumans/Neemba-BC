@@ -28,6 +28,8 @@ import { formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
 export default function Create({
     soldeOuvertureEspeces = 0,
     soldeOuvertureOm = 0,
+    totalEntreesEspeces = 0,
+    totalEntreesOm = 0,
     totalSortiesEspeces = 0,
     totalSortiesOm = 0,
     nombreBons = 0,
@@ -38,15 +40,15 @@ export default function Create({
     site,
     coupures = [20000, 10000, 5000, 2000, 1000, 500, 100, 50],
 }) {
-    /* Les soldes et écarts sont recalculés par le serveur à l'enregistrement ;
-     * ici ils sont dérivés de la saisie pour l'affichage. */
+    /* Ouverture, entrées et sorties viennent du registre des caisses (lecture seule) ;
+     * le caissier saisit le comptage physique. Le serveur recalcule tout à l'enregistrement. */
     const { data, setData, post, processing, errors } = useForm({
         date_rapport: dateRapport || new Date().toISOString().split('T')[0],
         site: site || '',
         solde_ouverture_especes: soldeOuvertureEspeces,
         solde_ouverture_om: soldeOuvertureOm,
-        total_entrees_especes: 0,
-        total_entrees_om: 0,
+        total_entrees_especes: totalEntreesEspeces,
+        total_entrees_om: totalEntreesOm,
         total_sorties_especes: totalSortiesEspeces,
         total_sorties_om: totalSortiesOm,
         observations: '',
@@ -171,27 +173,23 @@ export default function Create({
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="total_entrees_especes">Entrées (GNF) *</Label>
+                                                <Label htmlFor="total_entrees_especes">Entrées (GNF)</Label>
                                                 <Input
                                                     id="total_entrees_especes"
                                                     type="number"
                                                     value={data.total_entrees_especes}
-                                                    onChange={(e) => setData('total_entrees_especes', e.target.value)}
-                                                    className="mt-1"
-                                                    min="0"
-                                                    required
+                                                    className="mt-1 bg-gray-50"
+                                                    readOnly
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="total_sorties_especes">Sorties (GNF) *</Label>
+                                                <Label htmlFor="total_sorties_especes">Sorties (GNF)</Label>
                                                 <Input
                                                     id="total_sorties_especes"
                                                     type="number"
                                                     value={data.total_sorties_especes}
-                                                    onChange={(e) => setData('total_sorties_especes', e.target.value)}
-                                                    className="mt-1"
-                                                    min="0"
-                                                    required
+                                                    className="mt-1 bg-gray-50"
+                                                    readOnly
                                                 />
                                             </div>
                                         </div>
@@ -217,27 +215,23 @@ export default function Create({
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="total_entrees_om">Entrées (GNF) *</Label>
+                                                <Label htmlFor="total_entrees_om">Entrées (GNF)</Label>
                                                 <Input
                                                     id="total_entrees_om"
                                                     type="number"
                                                     value={data.total_entrees_om}
-                                                    onChange={(e) => setData('total_entrees_om', e.target.value)}
-                                                    className="mt-1"
-                                                    min="0"
-                                                    required
+                                                    className="mt-1 bg-gray-50"
+                                                    readOnly
                                                 />
                                             </div>
                                             <div>
-                                                <Label htmlFor="total_sorties_om">Sorties (GNF) *</Label>
+                                                <Label htmlFor="total_sorties_om">Sorties (GNF)</Label>
                                                 <Input
                                                     id="total_sorties_om"
                                                     type="number"
                                                     value={data.total_sorties_om}
-                                                    onChange={(e) => setData('total_sorties_om', e.target.value)}
-                                                    className="mt-1"
-                                                    min="0"
-                                                    required
+                                                    className="mt-1 bg-gray-50"
+                                                    readOnly
                                                 />
                                             </div>
                                         </div>

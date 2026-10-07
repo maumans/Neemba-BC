@@ -30,13 +30,13 @@ class VerifierSeuilCaisse extends Command
         $resultats = NotificationService::verifierSeuilsCaisse();
 
         if (empty($resultats)) {
-            $this->info('✅ Aucun site sous le seuil minimum — rien à signaler.');
+            $this->info("✅ Aucune caisse sous son seuil d'alerte — rien à signaler.");
             return self::SUCCESS;
         }
 
         $this->table(
-            ['Site', 'Résultat'],
-            collect($resultats)->map(fn ($message, $site) => [$site, $message])->values()->toArray()
+            ['Caisse', 'Résultat'],
+            collect($resultats)->map(fn ($message, $caisse) => [$caisse, $message])->values()->toArray()
         );
 
         $alertesEnvoyees = collect($resultats)->filter(fn ($msg) => str_contains($msg, 'Alertes envoyées'))->count();

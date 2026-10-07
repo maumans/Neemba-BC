@@ -275,29 +275,27 @@ class DashboardController extends Controller
             ->selectRaw('AVG(DATEDIFF(date_paiement, date_soumission)) as delai')
             ->value('delai');
 
-        /* ====== Caisse par site (pour caissier, DAF, DP, admin) ====== */
-        $soldesSites = [];
-        if (in_array($utilisateur->role, ['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
-            $sitesQuery = Site::actifs()->orderBy('nom');
+        /* ====== Soldes par caisse (ANO-09) : caissier, DAF, DP, admin ====== */
+        $soldesCaisses = [];
+        if ($utilisateur->aLeRole(['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
+            $caissesQuery = \App\Models\Caisse::actives()->with('site')->orderBy('site_id')->orderBy('id');
 
-            /* Un caissier ne voit que son propre site */
-            if ($utilisateur->role === 'caissier') {
-                $sitesQuery->where('nom', $utilisateur->site);
+            /* Un caissier ne voit que les caisses de son propre site */
+            if (!$utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur'])) {
+                $caissesQuery->duSite((string) $utilisateur->site);
             }
 
-            $soldesSites = $sitesQuery->get()->map(fn ($site) => [
-                'nom'               => $site->nom,
-                'solde_caisse'      => $site->solde_caisse,          // total accessor
-                'solde_format'      => $site->solde_caisse_format,
-                'solde_especes'     => (float) $site->solde_especes,
-                'solde_especes_format' => $site->solde_especes_format,
-                'solde_om'          => (float) $site->solde_om,
-                'solde_om_format'   => $site->solde_om_format,
-                'plafond_caisse'    => $site->plafond_caisse ? (float) $site->plafond_caisse : null,
-                'plafond_format'    => $site->plafond_caisse_format,
-                'seuil_minimum'     => $site->seuil_minimum_caisse,
-                'sous_seuil'        => $site->soldeSousSeuil(),
-            ]);
+            $soldesCaisses = $caissesQuery->get()->map(fn (\App\Models\Caisse $caisse) => [
+                'id'              => $caisse->id,
+                'code'            => $caisse->code,
+                'libelle'         => $caisse->libelle,
+                'site'            => $caisse->site->nom,
+                'type'            => $caisse->type,
+                'solde'           => (float) $caisse->solde,
+                'seuil_alerte'    => $caisse->seuilAlerteEffectif(),
+                'plafond_retrait' => $caisse->plafond_retrait !== null ? (float) $caisse->plafond_retrait : null,
+                'sous_seuil'      => $caisse->sousSeuil(),
+            ])->values();
         }
 
         /* Mouvements de caisse en attente (pour DAF/DP) */
@@ -373,7 +371,7 @@ class DashboardController extends Controller
             'tauxRejet' => $tauxRejet,
             'delaiMoyen' => $delaiMoyen ? round($delaiMoyen, 1) : null,
             /* Caisse par site */
-            'soldesSites' => $soldesSites,
+            'soldesCaisses' => $soldesCaisses,
             'mouvementsEnAttente' => $mouvementsEnAttente,
             'delegationsActives' => $delegationsActives,
             'performancesN1' => $performancesN1,

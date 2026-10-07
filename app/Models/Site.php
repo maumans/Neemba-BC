@@ -10,8 +10,9 @@ use App\Support\Format;
 /**
  * Modèle Site - Table de paramétrage
  *
- * Chaque site possède deux caisses : Espèces et OM (Mobile Money).
- * Le solde total (solde_caisse) est la somme des deux via accesseur.
+ * Les soldes ne sont plus portés par le site mais par ses caisses (lot 2) :
+ * solde_especes, solde_om et solde_caisse sont des totaux calculés sur les caisses actives du site.
+ * La caisse Orange Money est unique et rattachée à Conakry (RG-BC-12).
  */
 class Site extends Model
 {
@@ -19,23 +20,19 @@ class Site extends Model
 
     protected $fillable = [
         'code', 'nom', 'ville', 'adresse', 'actif',
-        'solde_especes', 'solde_om', 'plafond_caisse', 'seuil_minimum_caisse',
     ];
 
     protected $casts = [
         'actif' => 'boolean',
-        'solde_especes' => 'decimal:2',
-        'solde_om' => 'decimal:2',
-        'plafond_caisse' => 'decimal:2',
-        'seuil_minimum_caisse' => 'decimal:2',
     ];
 
     protected $appends = [
+        'solde_especes',
+        'solde_om',
         'solde_caisse',
         'solde_caisse_format',
         'solde_especes_format',
         'solde_om_format',
-        'plafond_caisse_format',
     ];
 
     /* ----------------------------------------------------------------
@@ -51,19 +48,42 @@ class Site extends Model
      * RELATIONS
      * ---------------------------------------------------------------- */
 
+    public function caisses(): HasMany
+    {
+        return $this->hasMany(Caisse::class);
+    }
+
     public function mouvementsCaisse(): HasMany
     {
         return $this->hasMany(MouvementCaisse::class, 'site', 'nom');
     }
 
     /* ----------------------------------------------------------------
-     * ACCESSEURS
+     * ACCESSEURS — totaux des caisses actives du site
      * ---------------------------------------------------------------- */
 
-    /** Solde total = Espèces + OM */
+    private function totalCaisses(?string $type = null): float
+    {
+        return (float) $this->caisses
+            ->where('actif', true)
+            ->when($type, fn ($caisses) => $caisses->where('type', $type))
+            ->sum('solde');
+    }
+
+    public function getSoldeEspecesAttribute(): float
+    {
+        return $this->totalCaisses('especes');
+    }
+
+    public function getSoldeOmAttribute(): float
+    {
+        return $this->totalCaisses('orange_money');
+    }
+
+    /** Solde total = toutes les caisses actives du site */
     public function getSoldeCaisseAttribute(): float
     {
-        return (float) $this->solde_especes + (float) $this->solde_om;
+        return $this->totalCaisses();
     }
 
     public function getSoldeCaisseFormatAttribute(): string
@@ -73,18 +93,12 @@ class Site extends Model
 
     public function getSoldeEspecesFormatAttribute(): string
     {
-        return Format::montant((float) $this->solde_especes);
+        return Format::montant($this->solde_especes);
     }
 
     public function getSoldeOmFormatAttribute(): string
     {
-        return Format::montant((float) $this->solde_om);
-    }
-
-    public function getPlafondCaisseFormatAttribute(): string
-    {
-        if (!$this->plafond_caisse) return 'Non défini';
-        return Format::montant($this->plafond_caisse);
+        return Format::montant($this->solde_om);
     }
 
     /* ----------------------------------------------------------------
@@ -92,43 +106,10 @@ class Site extends Model
      * ---------------------------------------------------------------- */
 
     /**
-     * Vérifie si la caisse (du type donné) permet un paiement.
-     * type : 'especes' | 'om' | 'total' (défaut : 'especes')
-     */
-    public function peutPayer(float $montant, string $type = 'especes'): bool
-    {
-        $solde = match ($type) {
-            'om'    => (float) $this->solde_om,
-            'total' => $this->solde_caisse,
-            default => (float) $this->solde_especes,
-        };
-        return $solde >= $montant;
-    }
-
-    /**
-     * Vérifie si le solde total est sous le seuil minimum d'alerte.
+     * Une caisse active du site est-elle sous son seuil d'alerte ?
      */
     public function soldeSousSeuil(): bool
     {
-        $seuil = (float) ($this->seuil_minimum_caisse ?? Parametre::valeur('seuil_minimum_caisse', 500000));
-        return $this->solde_caisse <= $seuil;
-    }
-
-    /**
-     * Débiter la caisse du type spécifié.
-     */
-    public function debiter(float $montant, string $type = 'especes'): void
-    {
-        $col = $type === 'om' ? 'solde_om' : 'solde_especes';
-        $this->decrement($col, $montant);
-    }
-
-    /**
-     * Créditer la caisse du type spécifié.
-     */
-    public function crediter(float $montant, string $type = 'especes'): void
-    {
-        $col = $type === 'om' ? 'solde_om' : 'solde_especes';
-        $this->increment($col, $montant);
+        return $this->caisses->where('actif', true)->contains(fn (Caisse $caisse) => $caisse->sousSeuil());
     }
 }

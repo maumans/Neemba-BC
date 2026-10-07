@@ -18,9 +18,6 @@ class SiteFactory extends Factory
             'nom' => $ville,
             'ville' => $ville,
             'actif' => true,
-            'solde_especes' => 0,
-            'solde_om' => 0,
-            'seuil_minimum_caisse' => 0,
         ];
     }
 

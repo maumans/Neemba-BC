@@ -10,7 +10,7 @@ import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, ToggleLeft, ToggleRight, Settings2, MapPin, Building2, Hash, FileText, SlidersHorizontal, Save, Check, Wallet, Briefcase, AlertTriangle } from 'lucide-react';
-import { formaterNombre } from '@/utils/nombreEnLettres';
+import { formaterNombre, formaterMontant } from '@/utils/nombreEnLettres';
 import { Switch } from '@/Components/ui/switch';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -291,17 +291,17 @@ const LIBELLES_GROUPES_PARAMETRES = {
     bons_caisse: 'Bons de caisse',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [] }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], caisses = [], typesCaisse = {}, modesCaisse = {} }) {
     /* ─── SITES ─── */
     const [siteDialog, setSiteDialog] = useState({ open: false, item: null });
-    const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '', solde_especes: '', solde_om: '', plafond_caisse: '', seuil_minimum_caisse: '' });
+    const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '' });
 
     const openSiteAdd = () => {
         siteForm.reset();
         setSiteDialog({ open: true, item: null });
     };
     const openSiteEdit = (item) => {
-        siteForm.setData({ code: item.code || '', nom: item.nom, ville: item.ville || '', adresse: item.adresse || '', solde_especes: item.solde_especes ?? '', solde_om: item.solde_om ?? '', plafond_caisse: item.plafond_caisse ?? '', seuil_minimum_caisse: item.seuil_minimum_caisse ?? '' });
+        siteForm.setData({ code: item.code || '', nom: item.nom, ville: item.ville || '', adresse: item.adresse || '' });
         setSiteDialog({ open: true, item });
     };
     const submitSite = (e) => {
@@ -317,6 +317,54 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
         }
     };
     const toggleSite = (item) => router.post(route('parametrage.sites.toggle', item.id));
+
+    /* ─── CAISSES (lot 2) ─── */
+    const [caisseDialog, setCaisseDialog] = useState({ open: false, item: null });
+    const caisseForm = useForm({
+        code: '', libelle: '', site_id: '', type: 'especes', mode: 'standard',
+        montant_avance: '', plafond_retrait: '', seuil_alerte: '', solde: '',
+    });
+
+    const caissesFormat = caisses.map((c) => ({
+        ...c,
+        site_nom: c.site?.nom ?? '',
+        type_affiche: (typesCaisse[c.type] ?? c.type) + (c.mode === 'avance_fixe' ? ' · avance fixe' : ''),
+        solde_affiche: formaterMontant(c.solde),
+        plafond_affiche: c.plafond_retrait !== null ? formaterMontant(c.plafond_retrait) : 'Aucun',
+        seuil_affiche: c.seuil_alerte !== null ? formaterMontant(c.seuil_alerte) : 'Paramètre général',
+    }));
+
+    const openCaisseAdd = () => {
+        caisseForm.reset();
+        caisseForm.clearErrors();
+        setCaisseDialog({ open: true, item: null });
+    };
+    const openCaisseEdit = (item) => {
+        caisseForm.clearErrors();
+        caisseForm.setData({
+            code: item.code, libelle: item.libelle, site_id: item.site_id, type: item.type, mode: item.mode,
+            montant_avance: item.montant_avance ?? '', plafond_retrait: item.plafond_retrait ?? '',
+            seuil_alerte: item.seuil_alerte ?? '', solde: item.solde ?? '',
+        });
+        setCaisseDialog({ open: true, item });
+    };
+    const submitCaisse = (e) => {
+        e.preventDefault();
+        const options = { onSuccess: () => setCaisseDialog({ open: false, item: null }) };
+        caisseForm.transform((d) => ({
+            ...d,
+            montant_avance: d.montant_avance === '' ? null : d.montant_avance,
+            plafond_retrait: d.plafond_retrait === '' ? null : d.plafond_retrait,
+            seuil_alerte: d.seuil_alerte === '' ? null : d.seuil_alerte,
+            solde: d.solde === '' ? null : d.solde,
+        }));
+        if (caisseDialog.item) {
+            caisseForm.put(route('parametrage.caisses.update', caisseDialog.item.id), options);
+        } else {
+            caisseForm.post(route('parametrage.caisses.store'), options);
+        }
+    };
+    const toggleCaisse = (item) => router.post(route('parametrage.caisses.toggle', item.id));
 
     /* ─── SERVICES ─── */
     const [serviceDialog, setServiceDialog] = useState({ open: false, item: null });
@@ -449,6 +497,9 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                 <TabsTrigger value="sites" className="gap-1 px-2 text-xs sm:text-sm">
                                     <MapPin className="h-3.5 w-3.5" /> Sites
                                 </TabsTrigger>
+                                <TabsTrigger value="caisses" className="gap-1 px-2 text-xs sm:text-sm">
+                                    <Wallet className="h-3.5 w-3.5" /> Caisses
+                                </TabsTrigger>
                                 <TabsTrigger value="services" className="gap-1 px-2 text-xs sm:text-sm">
                                     <Building2 className="h-3.5 w-3.5" /> Services
                                 </TabsTrigger>
@@ -474,14 +525,36 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                         { key: 'code', label: 'Code Site' },
                                         { key: 'nom', label: 'Nom du site' },
                                         { key: 'ville', label: 'Ville' },
-                                        { key: 'solde_especes_format', label: 'Espèces' },
-                                        { key: 'solde_om_format', label: 'OM' },
-                                        { key: 'plafond_caisse_format', label: 'Plafond' },
+                                        { key: 'solde_caisse_format', label: 'Solde (caisses)' },
                                     ]}
                                     onAdd={openSiteAdd}
                                     onEdit={openSiteEdit}
                                     onToggle={toggleSite}
                                     addLabel="Ajouter un site"
+                                />
+                            </TabsContent>
+
+                            {/* Caisses */}
+                            <TabsContent value="caisses" className="mt-4">
+                                <p className="text-xs text-gray-500 mb-3">
+                                    Le solde d'une caisse ne se saisit pas : il évolue par les paiements et les mouvements de caisse validés.
+                                    Plafond de retrait, seuil d'alerte, avance et correction de solde passent par la double validation.
+                                </p>
+                                <ParametrageTable
+                                    items={caissesFormat}
+                                    columns={[
+                                        { key: 'code', label: 'Code' },
+                                        { key: 'libelle', label: 'Caisse' },
+                                        { key: 'site_nom', label: 'Site' },
+                                        { key: 'type_affiche', label: 'Type' },
+                                        { key: 'solde_affiche', label: 'Solde' },
+                                        { key: 'plafond_affiche', label: 'Retrait espèces max' },
+                                        { key: 'seuil_affiche', label: "Seuil d'alerte" },
+                                    ]}
+                                    onAdd={openCaisseAdd}
+                                    onEdit={openCaisseEdit}
+                                    onToggle={toggleCaisse}
+                                    addLabel="Ajouter une caisse"
                                 />
                             </TabsContent>
 
@@ -620,32 +693,96 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <Label>Adresse</Label>
                     <Input value={siteForm.data.adresse} onChange={(e) => siteForm.setData('adresse', e.target.value)} className="mt-1" />
                 </div>
-                <div className="pt-2 border-t">
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1">
-                        <Wallet className="h-3.5 w-3.5" /> Paramètres de caisse
+                <p className="text-xs text-gray-500 flex items-start gap-1.5 pt-2 border-t">
+                    <Wallet className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    Un nouveau site reçoit sa caisse principale (solde 0). Plafond de retrait, seuil d'alerte et argent
+                    se gèrent dans l'onglet Caisses.
+                </p>
+            </FormDialog>
+
+            {/* Caisse */}
+            <FormDialog
+                open={caisseDialog.open}
+                onClose={() => setCaisseDialog({ open: false, item: null })}
+                title={caisseDialog.item ? 'Modifier la caisse' : 'Ajouter une caisse'}
+                onSubmit={submitCaisse}
+                processing={caisseForm.processing}
+            >
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <Label>Code *</Label>
+                        <Input value={caisseForm.data.code} onChange={(e) => caisseForm.setData('code', e.target.value)} placeholder="Ex : CKY-ESP" className="mt-1" required />
+                        {caisseForm.errors.code && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.code}</p>}
+                    </div>
+                    <div>
+                        <Label>Libellé *</Label>
+                        <Input value={caisseForm.data.libelle} onChange={(e) => caisseForm.setData('libelle', e.target.value)} placeholder="Ex : Caisse principale Conakry" className="mt-1" required />
+                        {caisseForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.libelle}</p>}
+                    </div>
+                </div>
+                {caisseDialog.item ? (
+                    <p className="text-xs text-gray-500">
+                        {caisseDialog.item.site?.nom} · {typesCaisse[caisseDialog.item.type] ?? caisseDialog.item.type}
+                        {caisseDialog.item.mode === 'avance_fixe' ? ' · avance fixe' : ''}
                     </p>
-                    <div className="space-y-3">
+                ) : (
+                    <div className="grid grid-cols-3 gap-4">
                         <div>
-                            <Label>Solde Espèces (GNF)</Label>
-                            <Input type="number" value={siteForm.data.solde_especes} onChange={(e) => siteForm.setData('solde_especes', e.target.value)} className="mt-1" placeholder="0" />
-                            {siteForm.errors.solde_especes && <p className="text-sm text-red-500 mt-1">{siteForm.errors.solde_especes}</p>}
+                            <Label>Site *</Label>
+                            <select className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={caisseForm.data.site_id} onChange={(e) => caisseForm.setData('site_id', e.target.value)} required>
+                                <option value="" disabled>Choisir…</option>
+                                {sites.map((site) => <option key={site.id} value={site.id}>{site.nom}</option>)}
+                            </select>
+                            {caisseForm.errors.site_id && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.site_id}</p>}
                         </div>
                         <div>
-                            <Label>Solde OM / Mobile Money (GNF)</Label>
-                            <Input type="number" value={siteForm.data.solde_om} onChange={(e) => siteForm.setData('solde_om', e.target.value)} className="mt-1" placeholder="0" />
-                            {siteForm.errors.solde_om && <p className="text-sm text-red-500 mt-1">{siteForm.errors.solde_om}</p>}
+                            <Label>Type *</Label>
+                            <select className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={caisseForm.data.type} onChange={(e) => caisseForm.setData('type', e.target.value)}>
+                                {Object.entries(typesCaisse).map(([cle, libelle]) => <option key={cle} value={cle}>{libelle}</option>)}
+                            </select>
                         </div>
                         <div>
-                            <Label>Plafond de caisse (GNF)</Label>
-                            <Input type="number" value={siteForm.data.plafond_caisse} onChange={(e) => siteForm.setData('plafond_caisse', e.target.value)} className="mt-1" placeholder="Ex: 50000000" />
-                            {siteForm.errors.plafond_caisse && <p className="text-sm text-red-500 mt-1">{siteForm.errors.plafond_caisse}</p>}
-                        </div>
-                        <div>
-                            <Label>Seuil minimum d'alerte (GNF)</Label>
-                            <Input type="number" value={siteForm.data.seuil_minimum_caisse} onChange={(e) => siteForm.setData('seuil_minimum_caisse', e.target.value)} className="mt-1" placeholder="Ex: 5000000" />
-                            {siteForm.errors.seuil_minimum_caisse && <p className="text-sm text-red-500 mt-1">{siteForm.errors.seuil_minimum_caisse}</p>}
+                            <Label>Mode *</Label>
+                            <select className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={caisseForm.data.mode} onChange={(e) => caisseForm.setData('mode', e.target.value)}>
+                                {Object.entries(modesCaisse).map(([cle, libelle]) => <option key={cle} value={cle}>{libelle}</option>)}
+                            </select>
                         </div>
                     </div>
+                )}
+                <div className="pt-2 border-t space-y-3">
+                    {caisseDialog.item && (
+                        <p className="text-xs text-amber-700 bg-amber-50 rounded p-2">
+                            Les champs ci-dessous sont soumis à double validation : un autre administrateur doit approuver la modification
+                            (Administration › Modifications en attente).
+                        </p>
+                    )}
+                    {caisseForm.data.mode === 'avance_fixe' && (
+                        <div>
+                            <Label>Montant de l'avance fixe (GNF){caisseDialog.item ? '' : ' *'}</Label>
+                            <Input type="number" min="0" value={caisseForm.data.montant_avance} onChange={(e) => caisseForm.setData('montant_avance', e.target.value)} className="mt-1" placeholder="Ex : 15000000" />
+                            {caisseForm.errors.montant_avance && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.montant_avance}</p>}
+                        </div>
+                    )}
+                    <div>
+                        <Label>Plafond de retrait en espèces (GNF)</Label>
+                        <Input type="number" min="0" value={caisseForm.data.plafond_retrait} onChange={(e) => caisseForm.setData('plafond_retrait', e.target.value)} className="mt-1" placeholder="Vide = aucun plafond" />
+                        {caisseForm.errors.plafond_retrait && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.plafond_retrait}</p>}
+                    </div>
+                    <div>
+                        <Label>Seuil d'alerte (GNF)</Label>
+                        <Input type="number" min="0" value={caisseForm.data.seuil_alerte} onChange={(e) => caisseForm.setData('seuil_alerte', e.target.value)} className="mt-1" placeholder="Vide = paramètre général" />
+                        {caisseForm.errors.seuil_alerte && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.seuil_alerte}</p>}
+                    </div>
+                    {caisseDialog.item && (
+                        <div>
+                            <Label>Correction du solde (GNF)</Label>
+                            <Input type="number" value={caisseForm.data.solde} onChange={(e) => caisseForm.setData('solde', e.target.value)} className="mt-1" />
+                            <p className="text-[11px] text-gray-400 mt-1">
+                                Solde réel constaté. Après approbation, l'écart avec le solde du moment est inscrit au registre de la caisse.
+                            </p>
+                            {caisseForm.errors.solde && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.solde}</p>}
+                        </div>
+                    )}
                 </div>
             </FormDialog>
 

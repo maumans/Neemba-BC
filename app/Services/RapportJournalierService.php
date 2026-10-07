@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\BonCaisse;
+use App\Models\Caisse;
+use App\Models\EcritureCaisse;
 use App\Models\MouvementCaisse;
 use App\Models\RapportCaisse;
 use App\Models\User;
@@ -17,6 +19,9 @@ use Illuminate\Support\Collection;
  * les entrées et ne retenait que les bons au statut PAYE, ce qui excluait les BP payés
  * (passés en attente de régularisation dès le paiement).
  *
+ * Depuis le lot 2, les jours qui suivent l'ouverture du registre des caisses sont lus dans le registre
+ * (ouverture exacte, décision Q13) ; les jours antérieurs restent calculés sur les documents :
+ *
  * Soldes ventilés Espèces / Orange Money :
  * - sorties : bons payés en espèces ou en Orange Money (virement / autre = hors caisse, RG-BC-12)
  *   + retraits de caisse validés ;
@@ -28,6 +33,68 @@ class RapportJournalierService
      * @return array{rapport: RapportCaisse, bonsPaye: Collection}
      */
     public static function construire(Carbon $date, ?string $site = null): array
+    {
+        $caisses = Caisse::query()->when($site, fn ($q) => $q->duSite($site))->get();
+
+        /* Registre des caisses (lot 2) pour les jours qui suivent son ouverture ; avant, calcul sur les documents */
+        $debutRegistre = $caisses->isEmpty()
+            ? null
+            : EcritureCaisse::whereIn('caisse_id', $caisses->pluck('id'))->min('date_ecriture');
+
+        if ($debutRegistre && $date->copy()->startOfDay()->gt(Carbon::parse($debutRegistre)->startOfDay())) {
+            return self::depuisRegistre($date, $site, $caisses);
+        }
+
+        return self::depuisDocuments($date, $site);
+    }
+
+    /**
+     * Rapport lu dans le registre : ouverture = solde de chaque caisse en début de journée,
+     * entrées / sorties = écritures du jour, ventilées par type de caisse (espèces / Orange Money).
+     */
+    private static function depuisRegistre(Carbon $date, ?string $site, Collection $caisses): array
+    {
+        $debut = $date->copy()->startOfDay();
+        $fin = $date->copy()->endOfDay();
+        $totaux = [
+            'especes' => ['ouverture' => 0.0, 'entrees' => 0.0, 'sorties' => 0.0],
+            'orange_money' => ['ouverture' => 0.0, 'entrees' => 0.0, 'sorties' => 0.0],
+        ];
+
+        foreach ($caisses as $caisse) {
+            $type = $caisse->type;
+            $totaux[$type]['ouverture'] += $caisse->soldeAu($debut) ?? 0.0;
+
+            foreach ($caisse->ecritures()->whereBetween('date_ecriture', [$debut, $fin])->get() as $ecriture) {
+                if ($ecriture->nature === 'solde_initial') {
+                    /* Reprise d'un solde existant : fait partie de l'ouverture, pas des flux du jour */
+                    $totaux[$type]['ouverture'] += $ecriture->sens === 'entree' ? (float) $ecriture->montant : -(float) $ecriture->montant;
+                    continue;
+                }
+                $totaux[$type][$ecriture->sens === 'entree' ? 'entrees' : 'sorties'] += (float) $ecriture->montant;
+            }
+        }
+
+        $bonsPaye = BonCaisse::with('demandeur')
+            ->payesLe($date)
+            ->whereIn('caisse_id', $caisses->pluck('id'))
+            ->orderBy('date_paiement')
+            ->get();
+
+        $especes = $totaux['especes'];
+        $om = $totaux['orange_money'];
+
+        return self::assembler($date, $site, $bonsPaye, [
+            'ouverture_especes' => $especes['ouverture'], 'ouverture_om' => $om['ouverture'],
+            'entrees_especes' => $especes['entrees'], 'entrees_om' => $om['entrees'],
+            'sorties_especes' => $especes['sorties'], 'sorties_om' => $om['sorties'],
+        ]);
+    }
+
+    /**
+     * Rapport calculé sur les documents (bons payés, mouvements validés), pour les jours antérieurs au registre.
+     */
+    private static function depuisDocuments(Carbon $date, ?string $site): array
     {
         /* Bons payés ce jour (date de paiement), quel que soit leur statut actuel */
         $bonsPaye = BonCaisse::with('demandeur')
@@ -55,8 +122,25 @@ class RapportJournalierService
 
         /* Solde d'ouverture : clôture du dernier rapport enregistré pour le site */
         $ouverture = $site ? RapportCaisse::soldePrecedent($site, $date) : ['total' => 0, 'especes' => 0, 'om' => 0];
-        $ouvertureEspeces = (float) $ouverture['especes'];
-        $ouvertureOm = (float) $ouverture['om'];
+
+        return self::assembler($date, $site, $bonsPaye, [
+            'ouverture_especes' => (float) $ouverture['especes'], 'ouverture_om' => (float) $ouverture['om'],
+            'entrees_especes' => $entreesEspeces, 'entrees_om' => $entreesOm,
+            'sorties_especes' => $sortiesEspeces, 'sorties_om' => $sortiesOm,
+        ]);
+    }
+
+    /**
+     * RapportCaisse en mémoire à partir des montants ventilés espèces / Orange Money.
+     */
+    private static function assembler(Carbon $date, ?string $site, Collection $bonsPaye, array $m): array
+    {
+        $ouvertureEspeces = $m['ouverture_especes'];
+        $ouvertureOm = $m['ouverture_om'];
+        $entreesEspeces = $m['entrees_especes'];
+        $entreesOm = $m['entrees_om'];
+        $sortiesEspeces = $m['sorties_especes'];
+        $sortiesOm = $m['sorties_om'];
 
         $caissier = $site
             ? User::where('actif', true)->where('role', 'caissier')->where('site', $site)->first()

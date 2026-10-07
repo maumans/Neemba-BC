@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Caisse;
 use App\Models\MouvementCaisse;
 use App\Models\Site;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 /**
@@ -25,7 +27,7 @@ class MouvementCaisseController extends Controller
         /** @var \App\Models\User $utilisateur */
         $utilisateur = Auth::user();
 
-        $query = MouvementCaisse::with(['effectuePar', 'validePar'])
+        $query = MouvementCaisse::with(['effectuePar', 'validePar', 'caisse'])
             ->latest('date_mouvement');
 
         /* Filtrage par site */
@@ -48,46 +50,26 @@ class MouvementCaisseController extends Controller
 
         $mouvements = $query->paginate(15)->withQueryString();
 
-        /* Soldes par site — get() sans restriction de colonnes pour préserver le type Eloquent (Site) */
-        /* Le caissier ne voit que son propre site ; le DAF/DP/Admin voient tous les sites */
-        $soldesSitesQuery = Site::actifs()->orderBy('nom');
-        if ($utilisateur->peutPayer() && !in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur'])) {
-            // Caissier réel : filtrer par son site
-            // Caissier délégué : filtrer par le site du délégant (ou du délégué s'il en a un)
-            $siteUtilisateur = $utilisateur->site;
-            if (!$siteUtilisateur) {
-                // Le délégué n'a pas forcément de site propre → récupérer celui du délégant caissier
-                $delegant = \App\Models\Delegation::actives()
-                    ->where('delegue_id', $utilisateur->id)
-                    ->with('delegant')
-                    ->whereHas('delegant', fn($q) => $q->where('role', 'caissier'))
-                    ->first();
-                $siteUtilisateur = $delegant?->delegant?->site;
-            }
-            if ($siteUtilisateur) {
-                $soldesSitesQuery->where('nom', $siteUtilisateur);
-            }
-        }
-        $soldesSites = $soldesSitesQuery->get();
-
         /* Droits d'action basés sur le rôle effectif */
-        $peutCreer = $utilisateur->peutPayer() || in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur']);
-        $peutValider = in_array($utilisateur->role, ['daf', 'directeur_pays']);
+        $peutCreer = $utilisateur->peutPayer() || $utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur']);
+        $peutValider = $utilisateur->aLeRole(['daf', 'directeur_pays']);
 
-        /* Enrichir les soldes sites avec les deux balances */
-        $soldesSitesEnrichis = $soldesSites->map(fn ($site) => [
-            'nom'                  => $site->nom,
-            'solde_caisse'         => $site->solde_caisse,       // total (accessor)
-            'solde_especes'        => (float) $site->solde_especes,
-            'solde_om'             => (float) $site->solde_om,
-            'plafond_caisse'       => $site->plafond_caisse,
-            'seuil_minimum_caisse' => $site->seuil_minimum_caisse,
-            'sous_seuil'           => $site->soldeSousSeuil(),
-        ]);
+        /* Soldes par caisse (ANO-09) : le caissier voit les caisses de son site, DAF / DP / admin toutes */
+        $soldesCaisses = $this->caissesAccessibles($utilisateur)->map(fn (Caisse $caisse) => [
+            'id'              => $caisse->id,
+            'code'            => $caisse->code,
+            'libelle'         => $caisse->libelle,
+            'site'            => $caisse->site->nom,
+            'type'            => $caisse->type,
+            'solde'           => (float) $caisse->solde,
+            'plafond_retrait' => $caisse->plafond_retrait !== null ? (float) $caisse->plafond_retrait : null,
+            'seuil_alerte'    => $caisse->seuilAlerteEffectif(),
+            'sous_seuil'      => $caisse->sousSeuil(),
+        ])->values();
 
         return Inertia::render('MouvementsCaisse/Index', [
             'mouvements' => $mouvements,
-            'soldesSites' => $soldesSitesEnrichis,
+            'soldesCaisses' => $soldesCaisses,
             'filtres' => $request->only(['site', 'statut', 'type']),
             'types' => MouvementCaisse::TYPES,
             'statuts' => MouvementCaisse::STATUTS,
@@ -105,19 +87,16 @@ class MouvementCaisseController extends Controller
         /** @var \App\Models\User $utilisateur */
         $utilisateur = Auth::user();
 
-        $sitesQuery = Site::actifs()->orderBy('nom');
-
-        /* Un caissier ne peut créer un mouvement que pour son propre site */
-        if ($utilisateur->peutPayer() && !in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur'])) {
-            if ($utilisateur->site) {
-                $sitesQuery->where('nom', $utilisateur->site);
-            }
-        }
-
+        /* Un caissier ne peut créer un mouvement que sur les caisses de son propre site */
         return Inertia::render('MouvementsCaisse/Create', [
-            'sites' => $sitesQuery->get(['id', 'nom', 'solde_especes', 'solde_om', 'plafond_caisse']),
+            'caisses' => $this->caissesAccessibles($utilisateur)->map(fn (Caisse $caisse) => [
+                'id'      => $caisse->id,
+                'libelle' => $caisse->libelle,
+                'site'    => $caisse->site->nom,
+                'type'    => $caisse->type,
+                'solde'   => (float) $caisse->solde,
+            ])->values(),
             'types' => MouvementCaisse::TYPES,
-            'siteUtilisateur' => $utilisateur->site,
         ]);
     }
 
@@ -131,18 +110,16 @@ class MouvementCaisseController extends Controller
 
         $validated = $request->validate([
             'type'               => ['required', 'in:approvisionnement,retrait,ajustement'],
-            'type_caisse'        => ['required', 'in:especes,om'],
+            'caisse_id'          => ['required', 'integer', 'exists:caisses,id'],
             'montant'            => ['required', 'numeric', 'min:1'],
             'motif'              => ['required', 'string', 'min:5', 'max:1000'],
-            'site'               => ['required', 'string', 'exists:sites,nom'],
             'piece_justificative'=> ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
         ]);
 
-        /* Restriction : un caissier ne peut créer un mouvement que pour son propre site */
-        if ($utilisateur->peutPayer() && !in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur'])) {
-            if ($utilisateur->site && $validated['site'] !== $utilisateur->site) {
-                abort(403, 'Vous ne pouvez créer des mouvements que pour votre propre site.');
-            }
+        /* Restriction : un caissier ne peut créer un mouvement que sur les caisses de son propre site */
+        $caisse = $this->caissesAccessibles($utilisateur)->firstWhere('id', (int) $validated['caisse_id']);
+        if (!$caisse) {
+            abort(403, 'Vous ne pouvez créer des mouvements que sur les caisses de votre site.');
         }
 
         $cheminPiece = null;
@@ -153,10 +130,11 @@ class MouvementCaisseController extends Controller
         $mouvement = MouvementCaisse::create([
             'reference'           => MouvementCaisse::genererReference(),
             'type'                => $validated['type'],
-            'type_caisse'         => $validated['type_caisse'],
+            'caisse_id'           => $caisse->id,
+            'type_caisse'         => $caisse->type === 'orange_money' ? 'om' : 'especes',
             'montant'             => $validated['montant'],
             'motif'               => $validated['motif'],
-            'site'                => $validated['site'],
+            'site'                => $caisse->site->nom,
             'statut'              => 'en_attente',
             'effectue_par'        => $utilisateur->id,
             'date_mouvement'      => now(),
@@ -177,7 +155,7 @@ class MouvementCaisseController extends Controller
     {
         $utilisateur = Auth::user();
 
-        if (!in_array($utilisateur->role, ['daf', 'directeur_pays'])) {
+        if (!$utilisateur->aLeRole(['daf', 'directeur_pays'])) {
             abort(403, 'Seuls le DAF et le Directeur Pays peuvent valider les mouvements de caisse.');
         }
 
@@ -189,29 +167,26 @@ class MouvementCaisseController extends Controller
             'commentaire' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        /* Vérifications métier pour les retraits */
-        if ($mouvement->type === 'retrait') {
-            $site = Site::where('nom', $mouvement->site)->first();
-            $typeCaisse = $mouvement->type_caisse ?? 'especes';
-            if ($site && !$site->peutPayer((float) $mouvement->montant, $typeCaisse)) {
-                $label = $typeCaisse === 'om' ? 'OM' : 'Espèces';
-                return back()->with('error', "Solde {$label} insuffisant sur le site {$mouvement->site} pour ce retrait.");
-            }
+        $caisse = $mouvement->caisse;
+        if (!$caisse) {
+            return back()->with('error', "Le mouvement {$mouvement->reference} n'est rattaché à aucune caisse.");
         }
 
-        $mouvement->valider($utilisateur, $request->commentaire);
+        /* Vérifications métier pour les retraits */
+        if ($mouvement->type === 'retrait' && !$caisse->peutPayer((float) $mouvement->montant)) {
+            return back()->with('error', "Solde insuffisant sur la {$caisse->libelle} pour ce retrait.");
+        }
+
+        DB::transaction(fn () => $mouvement->valider($utilisateur, $request->commentaire));
 
         \App\Services\NotificationService::notifierMouvementCaisseValidee($mouvement, $utilisateur);
 
-        /* Alerte si solde sous le seuil minimum après un retrait */
-        if ($mouvement->type === 'retrait') {
-            $siteModel = Site::where('nom', $mouvement->site)->first();
-            if ($siteModel && $siteModel->soldeSousSeuil()) {
-                \App\Services\NotificationService::notifierAlerteSolde($siteModel, $utilisateur);
-            }
+        /* Alerte si la caisse passe sous son seuil après un retrait */
+        if ($mouvement->type === 'retrait' && $caisse->fresh()->sousSeuil()) {
+            \App\Services\NotificationService::notifierAlerteSolde($caisse->fresh(), $utilisateur);
         }
 
-        return back()->with('success', "Mouvement {$mouvement->reference} validé. Solde du site mis à jour.");
+        return back()->with('success', "Mouvement {$mouvement->reference} validé. Solde de la {$caisse->libelle} mis à jour.");
     }
 
     /**
@@ -221,7 +196,7 @@ class MouvementCaisseController extends Controller
     {
         $utilisateur = Auth::user();
 
-        if (!in_array($utilisateur->role, ['daf', 'directeur_pays'])) {
+        if (!$utilisateur->aLeRole(['daf', 'directeur_pays'])) {
             abort(403);
         }
 
@@ -238,5 +213,29 @@ class MouvementCaisseController extends Controller
         \App\Services\NotificationService::notifierMouvementCaisseRejetee($mouvement, $utilisateur, $request->commentaire);
 
         return back()->with('success', "Mouvement {$mouvement->reference} rejeté.");
+    }
+
+    /**
+     * Caisses actives sur lesquelles l'utilisateur peut agir : DAF, DP et administrateur toutes ;
+     * caissier (ou délégué d'un caissier) celles de son site, ou du site du caissier délégant.
+     */
+    private function caissesAccessibles(\App\Models\User $utilisateur)
+    {
+        $requete = Caisse::actives()->with('site')->orderBy('site_id')->orderBy('id');
+
+        if (!$utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur'])) {
+            $site = $utilisateur->site;
+            if (!$site) {
+                $delegation = \App\Models\Delegation::actives()
+                    ->where('delegue_id', $utilisateur->id)
+                    ->whereHas('delegant', fn ($q) => $q->where('role', 'caissier'))
+                    ->with('delegant')
+                    ->first();
+                $site = $delegation?->delegant?->site;
+            }
+            $site ? $requete->duSite($site) : $requete->whereRaw('1 = 0');
+        }
+
+        return $requete->get();
     }
 }

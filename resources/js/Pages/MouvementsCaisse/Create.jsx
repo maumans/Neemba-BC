@@ -2,8 +2,8 @@
  * Page Création d'un Mouvement de Caisse - NEEMBA
  *
  * Formulaire pour créer un approvisionnement, retrait ou ajustement de caisse.
- * Le caissier choisit le type de caisse concerné : Espèces ou OM.
- * Le site est pré-sélectionné et verrouillé pour les caissiers.
+ * On choisit la caisse concernée (espèces d'un site, Orange Money, Atelier) ;
+ * un caissier ne voit que les caisses de son site.
  */
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -43,18 +43,13 @@ const TYPES = [
     { value: 'ajustement', label: 'Ajustement', description: 'Corriger le solde', icone: Settings2, couleur: 'text-blue-600 border-blue-200 bg-blue-50' },
 ];
 
-const TYPES_CAISSE = [
-    { value: 'especes', label: 'Espèces', icone: Banknote, couleur: 'text-amber-700 border-amber-300 bg-amber-50' },
-    { value: 'om', label: 'OM (Mobile Money)', icone: Smartphone, couleur: 'text-violet-600 border-violet-200 bg-violet-50' },
-];
-
-export default function Create({ sites = [], siteUtilisateur = null }) {
-    const caissierSiteUnique = sites.length === 1;
+export default function Create({ caisses = [] }) {
+    /* Un caissier n'a souvent qu'une caisse : elle est présélectionnée */
+    const caisseUnique = caisses.length === 1;
 
     const { data, setData, post, processing, errors } = useForm({
         type: 'approvisionnement',
-        type_caisse: 'especes',
-        site: caissierSiteUnique ? sites[0]?.nom : '',
+        caisse_id: caisseUnique ? caisses[0].id : '',
         montant: '',
         motif: '',
         piece_justificative: null,
@@ -73,10 +68,8 @@ export default function Create({ sites = [], siteUtilisateur = null }) {
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
-    const siteObj   = data.site ? sites.find((s) => s.nom === data.site) : null;
-    const soldeAffiche = siteObj
-        ? (data.type_caisse === 'om' ? (siteObj.solde_om ?? 0) : (siteObj.solde_especes ?? 0))
-        : null;
+    const caisseChoisie = caisses.find((c) => String(c.id) === String(data.caisse_id)) ?? null;
+    const soldeAffiche = caisseChoisie ? caisseChoisie.solde : null;
 
     return (
         <AuthenticatedLayout header="Nouveau mouvement de caisse">
@@ -135,74 +128,40 @@ export default function Create({ sites = [], siteUtilisateur = null }) {
                                     {errors.type && <p className="text-sm text-red-500 mt-1">{errors.type}</p>}
                                 </div>
 
-                                {/* Type de caisse (Espèces / OM) */}
+                                {/* Caisse — un caissier ne voit que les caisses de son site */}
                                 <div>
-                                    <Label>Type de caisse *</Label>
-                                    <div className="grid grid-cols-2 gap-3 mt-2">
-                                        {TYPES_CAISSE.map((tc) => {
-                                            const Icon = tc.icone;
-                                            const isSelected = data.type_caisse === tc.value;
+                                    <Label>Caisse *</Label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                                        {caisses.map((caisse) => {
+                                            const Icon = caisse.type === 'orange_money' ? Smartphone : Banknote;
+                                            const isSelected = String(data.caisse_id) === String(caisse.id);
+                                            const couleur = caisse.type === 'orange_money'
+                                                ? 'text-violet-600 border-violet-200 bg-violet-50'
+                                                : 'text-amber-700 border-amber-300 bg-amber-50';
                                             return (
                                                 <button
-                                                    key={tc.value}
+                                                    key={caisse.id}
                                                     type="button"
-                                                    onClick={() => setData('type_caisse', tc.value)}
-                                                    className={`flex items-center gap-2.5 p-3 rounded-lg border text-sm font-medium transition-all ${
-                                                        isSelected
-                                                            ? `${tc.couleur} ring-1 ring-current`
-                                                            : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                                                    onClick={() => setData('caisse_id', caisse.id)}
+                                                    className={`flex items-start gap-2.5 p-3 rounded-lg border text-left text-sm transition-all ${
+                                                        isSelected ? `${couleur} ring-1 ring-current` : 'border-gray-200 text-gray-600 hover:border-gray-300'
                                                     }`}
                                                 >
-                                                    <Icon className="h-5 w-5 flex-shrink-0" />
-                                                    <span>{tc.label}</span>
+                                                    <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                                                    <span className="min-w-0">
+                                                        <span className="block font-medium truncate">{caisse.libelle}</span>
+                                                        <span className="block text-xs opacity-70">
+                                                            {caisse.site} · Solde : {formaterNombre(caisse.solde)} GNF
+                                                        </span>
+                                                    </span>
                                                 </button>
                                             );
                                         })}
                                     </div>
-                                    {errors.type_caisse && <p className="text-sm text-red-500 mt-1">{errors.type_caisse}</p>}
-                                </div>
-
-                                {/* Site — verrouillé pour le caissier */}
-                                <div>
-                                    <Label htmlFor="site">Site *</Label>
-                                    {caissierSiteUnique ? (
-                                        <div className="mt-1 flex items-center gap-2 p-2.5 rounded-lg border bg-gray-50 text-sm text-gray-700">
-                                            <Wallet className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                                            <span className="font-medium">{sites[0]?.nom}</span>
-                                            <span className="text-xs text-gray-400 ml-auto">Site affecté</span>
-                                        </div>
-                                    ) : (
-                                        <Select
-                                            value={data.site}
-                                            onValueChange={(val) => setData('site', val)}
-                                        >
-                                            <SelectTrigger className="mt-1">
-                                                <SelectValue placeholder="Sélectionner un site" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {sites.map((s) => (
-                                                    <SelectItem key={s.id ?? s.nom} value={s.nom}>
-                                                        {s.nom}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                    {caisses.length === 0 && (
+                                        <p className="text-sm text-gray-500 mt-2">Aucune caisse active pour votre site.</p>
                                     )}
-                                    {errors.site && <p className="text-sm text-red-500 mt-1">{errors.site}</p>}
-
-                                    {/* Solde de la balance sélectionnée */}
-                                    {soldeAffiche !== null && (
-                                        <div className="mt-2 flex gap-3 text-xs">
-                                            <span className={`px-2 py-1 rounded-full font-medium ${data.type_caisse === 'om' ? 'bg-violet-100 text-violet-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                {data.type_caisse === 'om' ? 'Solde OM' : 'Solde Espèces'} : {formaterNombre(soldeAffiche)} GNF
-                                            </span>
-                                            {siteObj && (
-                                                <span className="px-2 py-1 rounded-full bg-gray-100 text-gray-500">
-                                                    Total caisse : {formaterNombre((siteObj.solde_especes ?? 0) + (siteObj.solde_om ?? 0))} GNF
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
+                                    {errors.caisse_id && <p className="text-sm text-red-500 mt-1">{errors.caisse_id}</p>}
                                 </div>
 
                                 {/* Montant */}
@@ -219,7 +178,7 @@ export default function Create({ sites = [], siteUtilisateur = null }) {
                                     {data.montant && data.type === 'retrait' && soldeAffiche !== null && parseFloat(data.montant) > soldeAffiche && (
                                         <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 text-red-700 text-xs mt-2 border border-red-200">
                                             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                                            Le montant dépasse le solde {data.type_caisse === 'om' ? 'OM' : 'Espèces'} disponible
+                                            Le montant dépasse le solde disponible de la caisse
                                         </div>
                                     )}
                                 </div>
@@ -270,23 +229,23 @@ export default function Create({ sites = [], siteUtilisateur = null }) {
                                 </div>
 
                                 {/* Résumé */}
-                                {data.montant && data.site && (
+                                {data.montant && caisseChoisie && (
                                     <div className="p-3 rounded-lg bg-gray-50 border text-sm">
                                         <p className="font-medium mb-1">Résumé du mouvement</p>
                                         <div className="grid grid-cols-2 gap-1 text-xs">
                                             <span className="text-gray-500">Type</span>
                                             <span className="text-right font-medium">{TYPES.find(t => t.value === data.type)?.label}</span>
                                             <span className="text-gray-500">Caisse</span>
-                                            <span className="text-right font-medium">{data.type_caisse === 'om' ? 'OM (Mobile Money)' : 'Espèces'}</span>
+                                            <span className="text-right font-medium">{caisseChoisie.libelle}</span>
                                             <span className="text-gray-500">Site</span>
-                                            <span className="text-right">{data.site}</span>
+                                            <span className="text-right">{caisseChoisie.site}</span>
                                             <span className="text-gray-500">Montant</span>
                                             <span className="text-right font-bold text-neemba-600">
                                                 {formaterNombre(data.montant)} GNF
                                             </span>
                                             {soldeAffiche !== null && (
                                                 <>
-                                                    <span className="text-gray-500">Solde {data.type_caisse === 'om' ? 'OM' : 'Espèces'} après</span>
+                                                    <span className="text-gray-500">Solde après validation</span>
                                                     <span className="text-right font-medium">
                                                         {formaterNombre(
                                                             data.type === 'retrait'

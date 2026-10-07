@@ -53,6 +53,7 @@ class ModificationEnAttente extends Model
         'parametre' => 'Paramètre système',
         'utilisateur_role' => 'Changement de rôle utilisateur',
         'site_caisse' => 'Modification caisse site',
+        'caisse' => 'Caisse : plafond, seuil, avance ou solde',
         'code_analytique' => 'Code analytique',
     ];
 
@@ -98,6 +99,23 @@ class ModificationEnAttente extends Model
                     $champ = $this->champ;
                     $site->$champ = $this->nouvelle_valeur;
                     $site->save();
+                }
+            } elseif ($this->type_entite === 'caisse') {
+                $caisse = Caisse::find($this->entite_id);
+                if ($caisse && $this->champ === 'solde') {
+                    /* Le solde n'est jamais écrasé : l'écart avec le solde actuel est inscrit au registre */
+                    $ecart = (float) $this->nouvelle_valeur - (float) $caisse->solde;
+                    $contexte = [
+                        'utilisateur_id' => $valideur->id,
+                        'libelle' => "Correction du solde approuvée par {$valideur->nom_complet} (demande #{$this->id})",
+                    ];
+                    if ($ecart > 0) {
+                        $caisse->crediter($ecart, 'correction_solde', $contexte);
+                    } elseif ($ecart < 0) {
+                        $caisse->debiter(-$ecart, 'correction_solde', $contexte);
+                    }
+                } elseif ($caisse && in_array($this->champ, ['montant_avance', 'plafond_retrait', 'seuil_alerte'], true)) {
+                    $caisse->update([$this->champ => $this->nouvelle_valeur === '' ? null : $this->nouvelle_valeur]);
                 }
             } elseif ($this->type_entite === 'utilisateur_role') {
                 $user = User::find($this->entite_id);

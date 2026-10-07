@@ -217,9 +217,9 @@ class NimbaSmsService
      * @param string $seuilMinimum Seuil minimum formaté
      * @return array Résultat de l'envoi
      */
-    public function envoyerAlerteSeuil(string $telephone, string $site, string $soldeActuel, string $seuilMinimum): array
+    public function envoyerAlerteSeuil(string $telephone, string $caisse, string $soldeActuel, string $seuilMinimum): array
     {
-        $message = "NEEMBA - ALERTE CAISSE : Le solde du site {$site} ({$soldeActuel}) est passé sous le seuil minimum ({$seuilMinimum}). Un réapprovisionnement est nécessaire.";
+        $message = "NEEMBA - ALERTE CAISSE : Le solde de la {$caisse} ({$soldeActuel}) est passé sous le seuil d'alerte ({$seuilMinimum}). Un réapprovisionnement est nécessaire.";
 
         return $this->envoyerSms($telephone, $message);
     }

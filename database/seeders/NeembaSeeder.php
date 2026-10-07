@@ -6,6 +6,7 @@ use App\Models\BonCaisse;
 use App\Models\CodeAnalytique;
 use App\Models\HistoriqueAction;
 use App\Models\Service;
+use App\Models\Caisse;
 use App\Models\Site;
 use App\Models\TypeDocument;
 use App\Models\User;
@@ -48,9 +49,31 @@ class NeembaSeeder extends Seeder
             ['code' => '49', 'nom' => 'Kouroussa',  'ville' => 'Kouroussa', 'solde_especes' => 4000000, 'solde_om' => 0,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
             ['code' => '39', 'nom' => 'Mandiana',   'ville' => 'Mandiana',  'solde_especes' => 3500000, 'solde_om' => 0,  'plafond_caisse' => 15000000, 'seuil_minimum_caisse' => 500000],
         ];
+        /* Lot 2 : l'argent est porté par les caisses ; plafonds de retrait de la SFD v1.3 (décision Q2) */
+        $plafondsRetrait = ['Conakry' => 20000000, 'Boke' => 1000000];
         foreach ($sitesData as $s) {
-            Site::create($s);
+            $site = Site::create(['code' => $s['code'], 'nom' => $s['nom'], 'ville' => $s['ville']]);
+            $caisse = Caisse::creerCaissePrincipale($site);
+            $caisse->update([
+                'code' => $s['nom'] === 'Conakry' ? 'CKY-ESP' : $caisse->code,
+                'plafond_retrait' => $plafondsRetrait[$s['nom']] ?? null,
+                'seuil_alerte' => $s['seuil_minimum_caisse'],
+            ]);
+            if ($s['solde_especes'] > 0) {
+                $caisse->crediter($s['solde_especes'], 'solde_initial', ['libelle' => 'Solde initial (jeu de données pilote)']);
+            }
         }
+
+        /* Caisse Orange Money unique, rattachée à Conakry (RG-BC-12), et caisse Atelier en avance fixe (D10) */
+        $conakry = Site::where('nom', 'Conakry')->first();
+        Caisse::create([
+            'code' => 'CKY-OM', 'libelle' => 'Caisse Orange Money Conakry', 'site_id' => $conakry->id,
+            'type' => 'orange_money', 'mode' => 'standard', 'solde' => 0, 'actif' => true,
+        ]);
+        Caisse::create([
+            'code' => 'CKY-ATL', 'libelle' => 'Caisse Atelier', 'site_id' => $conakry->id,
+            'type' => 'especes', 'mode' => 'avance_fixe', 'montant_avance' => 15000000, 'solde' => 0, 'actif' => false,
+        ]);
 
         /* ================================================================
          * 2. SERVICES NEEMBA

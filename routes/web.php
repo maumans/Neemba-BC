@@ -177,6 +177,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/parametrage/sites/{site}', [ParametrageController::class, 'updateSite'])->name('parametrage.sites.update');
         Route::post('/parametrage/sites/{site}/toggle', [ParametrageController::class, 'toggleSite'])->name('parametrage.sites.toggle');
 
+        /* Caisses (lot 2) */
+        Route::post('/parametrage/caisses', [ParametrageController::class, 'storeCaisse'])->name('parametrage.caisses.store');
+        Route::put('/parametrage/caisses/{caisse}', [ParametrageController::class, 'updateCaisse'])->name('parametrage.caisses.update');
+        Route::post('/parametrage/caisses/{caisse}/toggle', [ParametrageController::class, 'toggleCaisse'])->name('parametrage.caisses.toggle');
+
         /* Services */
         Route::post('/parametrage/services', [ParametrageController::class, 'storeService'])->name('parametrage.services.store');
         Route::put('/parametrage/services/{service}', [ParametrageController::class, 'updateService'])->name('parametrage.services.update');

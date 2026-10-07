@@ -27,6 +27,7 @@ class MouvementCaisse extends Model
         'piece_justificative',
         'type_caisse',
         'site',
+        'caisse_id',
         'statut',
         'effectue_par',
         'valide_par',
@@ -69,6 +70,11 @@ class MouvementCaisse extends Model
     public function effectuePar(): BelongsTo
     {
         return $this->belongsTo(User::class, 'effectue_par');
+    }
+
+    public function caisse(): BelongsTo
+    {
+        return $this->belongsTo(Caisse::class);
     }
 
     public function validePar(): BelongsTo
@@ -151,12 +157,16 @@ class MouvementCaisse extends Model
             'commentaire_validation' => $commentaire,
         ]);
 
-        // Mettre à jour le bon solde (espèces ou OM) du site
-        $site = Site::where('nom', $this->site)->first();
-        if ($site) {
-            $col   = ($this->type_caisse ?? 'especes') === 'om' ? 'solde_om' : 'solde_especes';
-            $delta = $this->type === 'retrait' ? -$this->montant : $this->montant;
-            $site->increment($col, $delta);
+        /* Inscription au registre de la caisse : retrait = sortie, approvisionnement et ajustement = entrée */
+        if ($this->caisse) {
+            $contexte = [
+                'mouvement_caisse_id' => $this->id,
+                'utilisateur_id' => $valideur->id,
+                'libelle' => "{$this->type_label} {$this->reference} — {$this->motif}",
+            ];
+            $this->type === 'retrait'
+                ? $this->caisse->debiter((float) $this->montant, 'retrait', $contexte)
+                : $this->caisse->crediter((float) $this->montant, $this->type, $contexte);
         }
 
         return true;

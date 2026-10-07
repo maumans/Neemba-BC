@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessPieceJointeOcrJob;
 use App\Models\BonCaisse;
+use App\Models\Caisse;
 use App\Models\CodeAnalytique;
 use App\Models\Delegation;
 use App\Models\HistoriqueAction;
@@ -477,24 +478,29 @@ class BonCaisseController extends Controller
             $delaisValidation[$validation->id] = $delai;
         }
 
-        /* Solde de la caisse du site (les deux balances) */
+        /* Soldes des caisses qui paieraient ce bon (RG-BC-12) : caisse espèces du site et caisse OM */
         $soldeCaisseSite = null;
-        if (in_array($utilisateur->role, ['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
-            $siteModel = Site::where('nom', $bonCaisse->site)->first();
-            $soldeCaisseSite = $siteModel ? [
-                'solde'            => $siteModel->solde_caisse,
-                'solde_format'     => $siteModel->solde_caisse_format,
-                'solde_especes'    => (float) $siteModel->solde_especes,
-                'solde_especes_format' => $siteModel->solde_especes_format,
-                'solde_om'         => (float) $siteModel->solde_om,
-                'solde_om_format'  => $siteModel->solde_om_format,
-                'plafond'          => $siteModel->plafond_caisse,
-                'seuil_minimum'    => $siteModel->seuil_minimum_caisse,
-                'sous_seuil'       => $siteModel->soldeSousSeuil(),
-                // peut_payer dépend du mode de paiement choisi → calculé côté frontend
-                'peut_payer_especes' => $siteModel->peutPayer($bonCaisse->montant, 'especes'),
-                'peut_payer_om'      => $siteModel->peutPayer($bonCaisse->montant, 'om'),
-            ] : null;
+        if ($utilisateur->aLeRole(['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
+            $caisseEspeces = Caisse::payeusePour($bonCaisse->site, 'especes');
+            $caisseOm = Caisse::payeusePour($bonCaisse->site, 'orange_money');
+            $montant = (float) $bonCaisse->montant;
+            $total = (float) ($caisseEspeces?->solde ?? 0) + (float) ($caisseOm?->solde ?? 0);
+
+            $soldeCaisseSite = [
+                'solde'                => $total,
+                'solde_format'         => Format::montant($total),
+                'caisse_especes'       => $caisseEspeces?->libelle,
+                'solde_especes'        => (float) ($caisseEspeces?->solde ?? 0),
+                'solde_especes_format' => Format::montant($caisseEspeces?->solde ?? 0),
+                'plafond_retrait'      => $caisseEspeces?->plafond_retrait !== null ? (float) $caisseEspeces->plafond_retrait : null,
+                'caisse_om'            => $caisseOm?->libelle,
+                'solde_om'             => (float) ($caisseOm?->solde ?? 0),
+                'solde_om_format'      => Format::montant($caisseOm?->solde ?? 0),
+                'sous_seuil'           => (bool) ($caisseEspeces?->sousSeuil() || $caisseOm?->sousSeuil()),
+                // peut_payer dépend du mode de paiement choisi → choisi côté écran
+                'peut_payer_especes'   => $caisseEspeces && $caisseEspeces->peutPayer($montant) && !$caisseEspeces->depassePlafondRetrait($montant),
+                'peut_payer_om'        => $caisseOm && $caisseOm->peutPayer($montant),
+            ];
         }
 
         /* Trouver le rôle de validation actif pour l'utilisateur sur ce bon */
@@ -831,32 +837,33 @@ class BonCaisseController extends Controller
             return back()->with('error', 'Vous devez d\'abord générer et valider un code OTP avant d\'effectuer le paiement.');
         }
 
-        /* Balance débitée selon le mode de paiement (RG-BC-12) : espèces → solde espèces,
-         * Orange Money → solde OM ; virement et autre → paiement hors caisse, rien n'est débité. */
-        $typeBalance = match ($request->mode_paiement_effectif) {
-            'especes' => 'especes',
-            'orange_money' => 'om',
-            default => null,
-        };
-        $labelBalance = $typeBalance === 'om' ? 'Orange Money' : 'Espèces';
+        /* Caisse payeuse (RG-BC-12) : espèces → caisse espèces du site (à défaut caisse principale de Conakry),
+         * Orange Money → caisse OM de Conakry ; virement et autre → paiement hors caisse, rien n'est débité. */
+        $caisse = Caisse::payeusePour($bonCaisse->site, $request->mode_paiement_effectif);
+        $montant = (float) $bonCaisse->montant;
 
-        /* Phase 2.1 : Blocage si solde insuffisant sur la balance concernée.
-         * Contrôlé avant de consommer l'OTP, pour que le caissier n'ait pas à en régénérer un. */
-        $siteModel = $typeBalance ? Site::where('nom', $bonCaisse->site)->first() : null;
-        if ($siteModel && !$siteModel->peutPayer($bonCaisse->montant, $typeBalance)) {
-            $soldeDisponible = $typeBalance === 'om'
-                ? $siteModel->solde_om_format
-                : $siteModel->solde_especes_format;
+        /* Contrôles faits avant de consommer l'OTP, pour que le caissier n'ait pas à en régénérer un. */
+        if (in_array($request->mode_paiement_effectif, BonCaisse::MODES_PAIEMENT_CAISSE, true) && !$caisse) {
+            return back()->with('error', 'Aucune caisse active pour ce mode de paiement. Vérifiez le paramétrage des caisses.');
+        }
+        if ($caisse && $caisse->type === 'especes' && $caisse->depassePlafondRetrait($montant)) {
+            /* RG-BC-11 */
+            return back()->with('error', \App\Exceptions\ErreurMetier::texte('MSG-BC-012', [
+                'plafond' => (float) $caisse->plafond_retrait,
+                'caisse' => mb_strtolower(mb_substr($caisse->libelle, 0, 1)) . mb_substr($caisse->libelle, 1),
+            ]));
+        }
+        if ($caisse && !$caisse->peutPayer($montant)) {
             return back()->with('error',
-                "Solde {$labelBalance} insuffisant pour le site {$bonCaisse->site}."
-                . " Disponible : {$soldeDisponible},"
+                "Solde insuffisant sur la {$caisse->libelle}."
+                . " Disponible : {$caisse->solde_format},"
                 . " Montant demandé : {$bonCaisse->montant_format}."
             );
         }
 
-        /* Paiement, consommation de l'OTP et débit dans une seule transaction ;
+        /* Paiement, consommation de l'OTP et débit au registre dans une seule transaction ;
          * le verrou sur le bon empêche un double paiement (double clic, deux caissiers). */
-        $paye = DB::transaction(function () use ($bonCaisse, $caissier, $request, $otpVerifie, $siteModel, $typeBalance) {
+        $paye = DB::transaction(function () use ($bonCaisse, $caissier, $request, $otpVerifie, $caisse) {
             $bon = BonCaisse::whereKey($bonCaisse->id)->lockForUpdate()->first();
 
             if (!$bon || !$bon->marquerCommePaye($caissier, $request->mode_paiement_effectif)) {
@@ -864,15 +871,23 @@ class BonCaisseController extends Controller
             }
 
             $otpVerifie->marquerCommeUtilise();
-            $siteModel?->debiter($bon->montant, $typeBalance);
+
+            if ($caisse) {
+                $bon->update(['caisse_id' => $caisse->id]);
+                $caisse->debiter((float) $bon->montant, 'paiement_bon', [
+                    'bon_caisse_id' => $bon->id,
+                    'utilisateur_id' => $caissier->id,
+                    'libelle' => "Paiement du bon {$bon->numero} — {$bon->beneficiaire}",
+                ]);
+            }
 
             return true;
         });
 
         if ($paye) {
-            /* Alerte si solde sous le seuil minimum après paiement */
-            if ($siteModel && $siteModel->fresh()->soldeSousSeuil()) {
-                NotificationService::notifierAlerteSolde($siteModel->fresh(), $caissier);
+            /* Alerte si la caisse passe sous son seuil après paiement */
+            if ($caisse && $caisse->sousSeuil()) {
+                NotificationService::notifierAlerteSolde($caisse, $caissier);
             }
 
             NotificationService::notifierPaiement($bonCaisse->fresh(['demandeur']), $caissier);

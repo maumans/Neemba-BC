@@ -128,7 +128,7 @@ export default function Dashboard({
     tauxApprobation = 0,
     tauxRejet = 0,
     delaiMoyen = null,
-    soldesSites = [],
+    soldesCaisses = [],
     mouvementsEnAttente = [],
     delegationsActives = [],
     performancesN1 = [],
@@ -292,63 +292,43 @@ export default function Dashboard({
             </div>
 
             {/* ============================================================ */}
-            {/*  Soldes caisse par site (Phase 2.1)                          */}
+            {/*  Soldes par caisse (ANO-09)                                  */}
             {/* ============================================================ */}
-            {soldesSites.length > 0 && (
+            {soldesCaisses.length > 0 && (
                 <div className="mb-5">
                     <motion.div {...fadeUp(0.6)}>
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base flex items-center gap-2">
                                     <MapPin className="h-4 w-4 text-neemba-500" />
-                                    Soldes de caisse par site
+                                    Soldes par caisse
                                 </CardTitle>
                                 <CardDescription>Vue en temps réel des soldes disponibles</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                                    {soldesSites.map((site) => (
+                                    {soldesCaisses.map((caisse) => (
                                         <div
-                                            key={site.nom}
-                                            className={`p-3 rounded-lg border ${site.sous_seuil ? 'border-red-200 bg-red-50/50' : 'bg-gray-50'}`}
+                                            key={caisse.id}
+                                            className={`p-3 rounded-lg border ${caisse.sous_seuil ? 'border-red-200 bg-red-50/50' : 'bg-gray-50'}`}
                                         >
-                                            <p className="text-xs text-gray-500 truncate font-medium mb-1.5">{site.nom}</p>
-                                            {/* Ventilation Espèces / OM */}
-                                            <div className="flex items-center justify-between mb-0.5">
-                                                <span className="flex items-center gap-1 text-[10px] text-amber-700">
-                                                    <BanknoteIcon className="h-2.5 w-2.5" /> Espèces
-                                                </span>
-                                                <span className="text-xs font-semibold text-gray-800">
-                                                    {formaterNombre(site.solde_especes ?? 0)} <span className="text-[9px] font-normal">GNF</span>
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between mb-1.5">
-                                                <span className="flex items-center gap-1 text-[10px] text-violet-700">
-                                                    <Smartphone className="h-2.5 w-2.5" /> OM
-                                                </span>
-                                                <span className="text-xs font-semibold text-gray-800">
-                                                    {formaterNombre(site.solde_om ?? 0)} <span className="text-[9px] font-normal">GNF</span>
-                                                </span>
-                                            </div>
-                                            <div className="border-t pt-1 flex items-center justify-between">
-                                                <span className="text-[10px] text-gray-400">Total</span>
-                                                <span className={`text-sm font-bold ${site.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
-                                                    {formaterNombre(site.solde_caisse)} <span className="text-[9px] font-normal">GNF</span>
-                                                </span>
-                                            </div>
-                                            {site.plafond_caisse && (
-                                                <div className="mt-1.5">
-                                                    <div className="h-1 bg-gray-200 rounded-full">
-                                                        <div
-                                                            className={`h-1 rounded-full ${site.sous_seuil ? 'bg-red-400' : 'bg-neemba-400'}`}
-                                                            style={{ width: `${Math.min((site.solde_caisse / site.plafond_caisse) * 100, 100)}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {site.sous_seuil && (
+                                            <p className="text-xs text-gray-700 truncate font-medium">{caisse.libelle}</p>
+                                            <p className={`flex items-center gap-1 text-[10px] mb-1.5 ${caisse.type === 'orange_money' ? 'text-violet-700' : 'text-amber-700'}`}>
+                                                {caisse.type === 'orange_money'
+                                                    ? <><Smartphone className="h-2.5 w-2.5" /> Orange Money</>
+                                                    : <><BanknoteIcon className="h-2.5 w-2.5" /> Espèces</>}
+                                                <span className="text-gray-400">· {caisse.site}</span>
+                                            </p>
+                                            <p className={`text-sm font-bold ${caisse.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
+                                                {formaterNombre(caisse.solde)} <span className="text-[9px] font-normal">GNF</span>
+                                            </p>
+                                            <p className="text-[10px] text-gray-400 mt-0.5">
+                                                Seuil : {formaterNombre(caisse.seuil_alerte)} GNF
+                                                {caisse.plafond_retrait !== null && <> · Retrait max : {formaterNombre(caisse.plafond_retrait)} GNF</>}
+                                            </p>
+                                            {caisse.sous_seuil && (
                                                 <p className="text-[10px] text-red-500 mt-1 flex items-center gap-0.5">
-                                                    <AlertTriangle className="h-2.5 w-2.5" /> Sous seuil
+                                                    <AlertTriangle className="h-2.5 w-2.5" /> Sous le seuil d'alerte
                                                 </p>
                                             )}
                                         </div>

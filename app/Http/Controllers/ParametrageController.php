@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MotifUrgence;
+use App\Models\Caisse;
 use App\Models\CodeAnalytique;
 use App\Models\Parametre;
 use App\Models\Service;
@@ -26,7 +27,11 @@ class ParametrageController extends Controller
     public function index()
     {
         return Inertia::render('Parametrage/Index', [
-            'sites' => Site::orderBy('nom')->get(),
+            'sites' => Site::with('caisses')->orderBy('nom')->get(),
+            'caisses' => Caisse::with('site')->orderBy('site_id')->orderBy('id')->get()
+                ->map(fn (Caisse $caisse) => $caisse->append(['solde_format', 'type_label'])),
+            'typesCaisse' => Caisse::TYPES,
+            'modesCaisse' => Caisse::MODES,
             'services' => Service::orderBy('nom')->get(),
             'codesAnalytiques' => CodeAnalytique::with('service')->orderBy('code')->get(),
             'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
@@ -44,15 +49,14 @@ class ParametrageController extends Controller
             'nom'                 => ['required', 'string', 'max:255', 'unique:sites'],
             'ville'               => ['nullable', 'string', 'max:255'],
             'adresse'             => ['nullable', 'string', 'max:500'],
-            'solde_especes'       => ['nullable', 'numeric', 'min:0'],
-            'solde_om'            => ['nullable', 'numeric', 'min:0'],
-            'plafond_caisse'      => ['nullable', 'numeric', 'min:0'],
-            'seuil_minimum_caisse'=> ['nullable', 'numeric', 'min:0'],
         ]);
 
-        Site::create($validated);
+        $site = Site::create($validated);
 
-        return back()->with('success', 'Site ajouté avec succès.');
+        /* Chaque site a sa caisse espèces (RG-BC-12) ; plafond, seuil et argent se règlent ensuite sur la caisse */
+        Caisse::creerCaissePrincipale($site);
+
+        return back()->with('success', "Site ajouté avec sa caisse principale (solde 0). Réglez plafond et seuil dans l'onglet Caisses.");
     }
 
     public function updateSite(Request $request, Site $site)
@@ -63,40 +67,87 @@ class ParametrageController extends Controller
             'ville'               => ['nullable', 'string', 'max:255'],
             'adresse'             => ['nullable', 'string', 'max:500'],
             'actif'               => ['boolean'],
-            'solde_especes'       => ['nullable', 'numeric', 'min:0'],
-            'solde_om'            => ['nullable', 'numeric', 'min:0'],
-            'plafond_caisse'      => ['nullable', 'numeric', 'min:0'],
-            'seuil_minimum_caisse'=> ['nullable', 'numeric', 'min:0'],
         ]);
-
-        $pendingCreated = false;
-        $champsSensibles = ['solde_especes', 'solde_om', 'plafond_caisse', 'seuil_minimum_caisse'];
-
-        foreach ($champsSensibles as $champ) {
-            if (array_key_exists($champ, $validated) && $validated[$champ] != $site->$champ) {
-                // Créer modification en attente
-                \App\Models\ModificationEnAttente::create([
-                    'type_entite' => 'site_caisse',
-                    'entite_id' => $site->id,
-                    'champ' => $champ,
-                    'ancienne_valeur' => $site->$champ,
-                    'nouvelle_valeur' => $validated[$champ],
-                    'demandeur_id' => \Illuminate\Support\Facades\Auth::id(),
-                    'statut' => 'en_attente',
-                ]);
-                $pendingCreated = true;
-                // Retirer du tableau des modifications immédiates
-                unset($validated[$champ]);
-            }
-        }
 
         $site->update($validated);
 
-        if ($pendingCreated) {
-            return back()->with('success', 'Site mis à jour. Les seuils de caisse modifiés ont été mis en attente de double validation.');
+        return back()->with('success', 'Site mis à jour.');
+    }
+
+    /* ─── CAISSES (lot 2) ───────────────────────────────── */
+
+    /**
+     * Nouvelle caisse, créée avec un solde de 0 : l'argent arrive par un mouvement de caisse validé
+     * (approvisionnement) ou par une correction de solde en double validation.
+     */
+    public function storeCaisse(Request $request)
+    {
+        $validated = $request->validate([
+            'code'            => ['required', 'string', 'max:20', 'unique:caisses,code'],
+            'libelle'         => ['required', 'string', 'max:255'],
+            'site_id'         => ['required', 'integer', 'exists:sites,id'],
+            'type'            => ['required', \Illuminate\Validation\Rule::in(array_keys(Caisse::TYPES))],
+            'mode'            => ['required', \Illuminate\Validation\Rule::in(array_keys(Caisse::MODES))],
+            'montant_avance'  => ['nullable', 'numeric', 'min:0', 'required_if:mode,avance_fixe'],
+            'plafond_retrait' => ['nullable', 'numeric', 'min:0'],
+            'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        Caisse::create($validated + ['solde' => 0, 'actif' => true]);
+
+        return back()->with('success', 'Caisse créée (solde 0).');
+    }
+
+    /**
+     * Code et libellé : modifiés tout de suite. Plafond de retrait, seuil d'alerte, avance et solde :
+     * double validation (ModificationEnAttente) ; un solde approuvé est inscrit au registre.
+     */
+    public function updateCaisse(Request $request, Caisse $caisse)
+    {
+        $validated = $request->validate([
+            'code'            => ['required', 'string', 'max:20', 'unique:caisses,code,' . $caisse->id],
+            'libelle'         => ['required', 'string', 'max:255'],
+            'montant_avance'  => ['nullable', 'numeric', 'min:0'],
+            'plafond_retrait' => ['nullable', 'numeric', 'min:0'],
+            'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
+            'solde'           => ['nullable', 'numeric'],
+        ]);
+
+        $enAttente = 0;
+        foreach (['montant_avance', 'plafond_retrait', 'seuil_alerte', 'solde'] as $champ) {
+            if (!array_key_exists($champ, $validated)) {
+                continue;
+            }
+            $nouvelle = $validated[$champ];
+            $ancienne = $caisse->$champ;
+            $identique = ($nouvelle === null && $ancienne === null)
+                || ($nouvelle !== null && $ancienne !== null && (float) $nouvelle === (float) $ancienne);
+            if (!$identique && !($champ === 'solde' && $nouvelle === null)) {
+                \App\Models\ModificationEnAttente::create([
+                    'type_entite' => 'caisse',
+                    'entite_id' => $caisse->id,
+                    'champ' => $champ,
+                    'ancienne_valeur' => $ancienne,
+                    'nouvelle_valeur' => $nouvelle,
+                    'demandeur_id' => \Illuminate\Support\Facades\Auth::id(),
+                    'statut' => 'en_attente',
+                ]);
+                $enAttente++;
+            }
         }
 
-        return back()->with('success', 'Site mis à jour.');
+        $caisse->update(['code' => $validated['code'], 'libelle' => $validated['libelle']]);
+
+        return back()->with('success', $enAttente
+            ? "Caisse mise à jour. {$enAttente} modification(s) sensible(s) en attente de double validation."
+            : 'Caisse mise à jour.');
+    }
+
+    public function toggleCaisse(Caisse $caisse)
+    {
+        $caisse->update(['actif' => !$caisse->actif]);
+
+        return back()->with('success', $caisse->actif ? 'Caisse activée.' : 'Caisse désactivée.');
     }
 
     public function toggleSite(Site $site)

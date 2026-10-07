@@ -3,6 +3,7 @@
 namespace Tests\Feature\Lot0;
 
 use App\Models\BonCaisse;
+use App\Models\Caisse;
 use App\Models\MouvementCaisse;
 use App\Models\OtpValidation;
 use App\Models\RapportCaisse;
@@ -196,7 +197,7 @@ class StabilisationTest extends TestCase
     {
         $this->seed(NeembaSeeder::class);
 
-        $this->assertEquals(15000000, (float) Site::where('nom', 'Conakry')->value('solde_especes'));
+        $this->assertEquals(15000000, Site::where('nom', 'Conakry')->first()->solde_especes);   // caisse CKY-ESP
     }
 
     /* ------------------------------------------------------------------
@@ -216,17 +217,20 @@ class StabilisationTest extends TestCase
         ]);
     }
 
-    private function site(array $attributs = []): Site
+    /** Site de Conakry avec sa caisse espèces et la caisse Orange Money (lot 2 : l'argent est porté par les caisses) */
+    private function site(array $soldes = []): Site
     {
-        return Site::create($attributs + [
-            'code' => '01',
-            'nom' => 'Conakry',
-            'ville' => 'Conakry',
-            'actif' => true,
-            'solde_especes' => 0,
-            'solde_om' => 0,
-            'seuil_minimum_caisse' => 0,
+        $site = Site::create(['code' => '01', 'nom' => 'Conakry', 'ville' => 'Conakry', 'actif' => true]);
+        Caisse::create([
+            'code' => 'CKY-ESP', 'libelle' => 'Caisse principale Conakry', 'site_id' => $site->id,
+            'type' => 'especes', 'solde' => $soldes['solde_especes'] ?? 0, 'seuil_alerte' => 0,
         ]);
+        Caisse::create([
+            'code' => 'CKY-OM', 'libelle' => 'Caisse Orange Money Conakry', 'site_id' => $site->id,
+            'type' => 'orange_money', 'solde' => $soldes['solde_om'] ?? 0, 'seuil_alerte' => 0,
+        ]);
+
+        return $site;
     }
 
     private function bon(array $attributs = []): BonCaisse

@@ -140,18 +140,15 @@ class RapportCaisseController extends Controller
                     'solde_especes_format' => $siteModel->solde_especes_format,
                     'solde_om' => (float) $siteModel->solde_om,
                     'solde_om_format' => $siteModel->solde_om_format,
-                    'plafond_caisse' => $siteModel->plafond_caisse ? (float) $siteModel->plafond_caisse : null,
-                    'plafond_format' => $siteModel->plafond_caisse_format,
                     'sous_seuil' => $siteModel->soldeSousSeuil(),
                 ];
             }
         } else {
             /* Consolidation multi-sites */
-            $sitesActifs = Site::actifs()->get();
+            $sitesActifs = Site::actifs()->with('caisses')->get();
             $totalSolde = $sitesActifs->sum('solde_caisse');
             $totalEspeces = $sitesActifs->sum('solde_especes');
             $totalOm = $sitesActifs->sum('solde_om');
-            $totalPlafond = $sitesActifs->sum('plafond_caisse');
             
             $soldeCaisseSite = [
                 'nom' => 'Tous les sites (Consolidé)',
@@ -161,8 +158,6 @@ class RapportCaisseController extends Controller
                 'solde_especes_format' => Format::montant($totalEspeces),
                 'solde_om' => (float) $totalOm,
                 'solde_om_format' => Format::montant($totalOm),
-                'plafond_caisse' => $totalPlafond > 0 ? (float) $totalPlafond : null,
-                'plafond_format' => Format::montant($totalPlafond),
                 'sous_seuil' => $sitesActifs->contains(fn($site) => $site->soldeSousSeuil()),
             ];
         }
@@ -524,8 +519,8 @@ class RapportCaisseController extends Controller
         $utilisateur = Auth::user();
         $site = $utilisateur->site ?? '';
 
-        /* Récupérer le solde de clôture précédent comme solde d'ouverture */
-        $soldeOuvertureData = RapportCaisse::soldePrecedent($site, today());
+        /* Ouverture, entrées et sorties du jour : registre des caisses du site (RapportJournalierService) */
+        $journee = RapportJournalierService::construire(today(), $site ?: null)['rapport'];
 
         /* Récupérer les bons payés du jour pour ce site */
         $bonsPayeDuJour = BonCaisse::with('demandeur')
@@ -533,10 +528,6 @@ class RapportCaisseController extends Controller
             ->payesLe(today())
             ->when($site, fn($q) => $q->parSite($site))
             ->get();
-
-        $totalSorties = $bonsPayeDuJour->sum('montant');
-        $totalSortiesEspeces = $bonsPayeDuJour->where('mode_paiement_effectif', 'especes')->sum('montant');
-        $totalSortiesOm = $bonsPayeDuJour->where('mode_paiement_effectif', 'orange_money')->sum('montant');
 
         /* Ventilation par catégorie */
         $detailParCategorie = $bonsPayeDuJour
@@ -565,12 +556,12 @@ class RapportCaisseController extends Controller
             ->values();
 
         return Inertia::render('Rapports/Create', [
-            'soldeOuverture' => $soldeOuvertureData['total'],
-            'soldeOuvertureEspeces' => $soldeOuvertureData['especes'],
-            'soldeOuvertureOm' => $soldeOuvertureData['om'],
-            'totalSorties' => $totalSorties,
-            'totalSortiesEspeces' => $totalSortiesEspeces,
-            'totalSortiesOm' => $totalSortiesOm,
+            'soldeOuvertureEspeces' => (float) $journee->solde_ouverture_especes,
+            'soldeOuvertureOm' => (float) $journee->solde_ouverture_om,
+            'totalEntreesEspeces' => (float) $journee->total_entrees_especes,
+            'totalEntreesOm' => (float) $journee->total_entrees_om,
+            'totalSortiesEspeces' => (float) $journee->total_sorties_especes,
+            'totalSortiesOm' => (float) $journee->total_sorties_om,
             'nombreBons' => $bonsPayeDuJour->count(),
             'bonsPayeDuJour' => $bonsPayeDuJour,
             'detailParCategorie' => $detailParCategorie,
@@ -589,10 +580,6 @@ class RapportCaisseController extends Controller
         $validated = $request->validate([
             'date_rapport' => ['required', 'date'],
             'site' => ['required', 'string', 'max:255'],
-            'total_entrees_especes' => ['required', 'numeric', 'min:0'],
-            'total_entrees_om' => ['required', 'numeric', 'min:0'],
-            'total_sorties_especes' => ['required', 'numeric', 'min:0'],
-            'total_sorties_om' => ['required', 'numeric', 'min:0'],
             'observations' => ['nullable', 'string', 'max:2000'],
             'billetage' => ['nullable', 'array'],
             'billetage.*' => ['nullable', 'integer', 'min:0'],
@@ -601,12 +588,17 @@ class RapportCaisseController extends Controller
             'motif_ecart' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        /* Les soldes, totaux et écarts sont recalculés ici : on ne reprend pas ceux envoyés par l'écran. */
-        $ouverture = RapportCaisse::soldePrecedent($validated['site'], $validated['date_rapport']);
-        $ouvertureEspeces = (float) $ouverture['especes'];
-        $ouvertureOm = (float) $ouverture['om'];
-        $soldeClotureEspeces = $ouvertureEspeces + $validated['total_entrees_especes'] - $validated['total_sorties_especes'];
-        $soldeClotureOm = $ouvertureOm + $validated['total_entrees_om'] - $validated['total_sorties_om'];
+        /* Soldes et totaux : registre des caisses (RapportJournalierService), jamais ceux envoyés par l'écran.
+         * Le caissier ne saisit que le comptage physique (billetage, solde OM lu) et ses observations. */
+        $journee = RapportJournalierService::construire(Carbon::parse($validated['date_rapport']), $validated['site'])['rapport'];
+        $ouvertureEspeces = (float) $journee->solde_ouverture_especes;
+        $ouvertureOm = (float) $journee->solde_ouverture_om;
+        $entreesEspeces = (float) $journee->total_entrees_especes;
+        $entreesOm = (float) $journee->total_entrees_om;
+        $sortiesEspeces = (float) $journee->total_sorties_especes;
+        $sortiesOm = (float) $journee->total_sorties_om;
+        $soldeClotureEspeces = $ouvertureEspeces + $entreesEspeces - $sortiesEspeces;
+        $soldeClotureOm = $ouvertureOm + $entreesOm - $sortiesOm;
 
         /* Billetage : seules les coupures en circulation sont retenues ; le comptage espèces en est la somme */
         $billetage = null;
@@ -644,12 +636,12 @@ class RapportCaisseController extends Controller
             'solde_ouverture' => $ouvertureEspeces + $ouvertureOm,
             'solde_ouverture_especes' => $ouvertureEspeces,
             'solde_ouverture_om' => $ouvertureOm,
-            'total_entrees' => $validated['total_entrees_especes'] + $validated['total_entrees_om'],
-            'total_entrees_especes' => $validated['total_entrees_especes'],
-            'total_entrees_om' => $validated['total_entrees_om'],
-            'total_sorties' => $validated['total_sorties_especes'] + $validated['total_sorties_om'],
-            'total_sorties_especes' => $validated['total_sorties_especes'],
-            'total_sorties_om' => $validated['total_sorties_om'],
+            'total_entrees' => $entreesEspeces + $entreesOm,
+            'total_entrees_especes' => $entreesEspeces,
+            'total_entrees_om' => $entreesOm,
+            'total_sorties' => $sortiesEspeces + $sortiesOm,
+            'total_sorties_especes' => $sortiesEspeces,
+            'total_sorties_om' => $sortiesOm,
             'solde_cloture' => $soldeClotureEspeces + $soldeClotureOm,
             'solde_cloture_especes' => $soldeClotureEspeces,
             'solde_cloture_om' => $soldeClotureOm,

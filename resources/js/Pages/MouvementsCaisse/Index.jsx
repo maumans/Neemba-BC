@@ -64,7 +64,7 @@ const STATUTS_CONFIG = {
 
 export default function Index({
     mouvements = { data: [] },
-    soldesSites = [],
+    soldesCaisses = [],
     filtres = {},
     sites = [],
     peutCreer = false,
@@ -95,60 +95,40 @@ export default function Index({
         <AuthenticatedLayout header="Mouvements de caisse">
             <Head title="Mouvements de caisse" />
 
-            {/* KPIs — Solde par site */}
-            {soldesSites.length > 0 && (
+            {/* Soldes par caisse (ANO-09) */}
+            {soldesCaisses.length > 0 && (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-                    {soldesSites.map((site) => (
+                    {soldesCaisses.map((caisse) => (
                         <motion.div
-                            key={site.nom}
+                            key={caisse.id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                         >
-                            <Card className={site.sous_seuil ? 'border-red-200 bg-red-50/50' : ''}>
+                            <Card className={caisse.sous_seuil ? 'border-red-200 bg-red-50/50' : ''}>
                                 <CardContent className="p-4">
-                                    <p className="text-xs text-gray-500 font-medium truncate mb-2">{site.nom}</p>
-                                    {/* Solde Espèces */}
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="flex items-center gap-1 text-[11px] text-amber-700">
-                                            <Banknote className="h-3 w-3" /> Espèces
-                                        </span>
-                                        <span className="text-sm font-bold text-gray-800">
-                                            {formaterMontant(site.solde_especes ?? 0)}
-                                        </span>
-                                    </div>
-                                    {/* Solde OM */}
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="flex items-center gap-1 text-[11px] text-violet-700">
-                                            <Smartphone className="h-3 w-3" /> OM
-                                        </span>
-                                        <span className="text-sm font-bold text-gray-800">
-                                            {formaterMontant(site.solde_om ?? 0)}
-                                        </span>
-                                    </div>
-                                    <div className="border-t pt-1.5 flex items-center justify-between">
-                                        <span className="text-[11px] text-gray-400">Total</span>
-                                        <span className={`text-sm font-bold ${site.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
-                                            {formaterMontant(site.solde_caisse ?? 0)}
-                                        </span>
-                                    </div>
-                                    {site.sous_seuil && (
-                                        <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
-                                            <AlertTriangle className="h-3 w-3" />
-                                            Sous le seuil minimum
+                                    <p className="text-xs text-gray-700 font-medium truncate">{caisse.libelle}</p>
+                                    <p className={`flex items-center gap-1 text-[11px] mb-2 ${caisse.type === 'orange_money' ? 'text-violet-700' : 'text-amber-700'}`}>
+                                        {caisse.type === 'orange_money'
+                                            ? <><Smartphone className="h-3 w-3" /> Orange Money</>
+                                            : <><Banknote className="h-3 w-3" /> Espèces</>}
+                                        <span className="text-gray-400">· {caisse.site}</span>
+                                    </p>
+                                    <p className={`text-lg font-bold ${caisse.sous_seuil ? 'text-red-600' : 'text-gray-900'}`}>
+                                        {formaterMontant(caisse.solde)}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">
+                                        Seuil d'alerte : {formaterMontant(caisse.seuil_alerte)}
+                                    </p>
+                                    {caisse.plafond_retrait !== null && (
+                                        <p className="text-[10px] text-gray-400">
+                                            Retrait en espèces max : {formaterMontant(caisse.plafond_retrait)}
                                         </p>
                                     )}
-                                    {site.plafond_caisse && (
-                                        <div className="mt-1.5">
-                                            <div className="h-1.5 bg-gray-200 rounded-full">
-                                                <div
-                                                    className={`h-1.5 rounded-full ${site.sous_seuil ? 'bg-red-400' : 'bg-neemba-400'}`}
-                                                    style={{ width: `${Math.min(((site.solde_caisse ?? 0) / site.plafond_caisse) * 100, 100)}%` }}
-                                                />
-                                            </div>
-                                            <p className="text-[10px] text-gray-400 mt-0.5">
-                                                Plafond : {formaterMontant(site.plafond_caisse)}
-                                            </p>
-                                        </div>
+                                    {caisse.sous_seuil && (
+                                        <p className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
+                                            <AlertTriangle className="h-3 w-3" />
+                                            Sous le seuil d'alerte
+                                        </p>
                                     )}
                                 </CardContent>
                             </Card>
@@ -239,7 +219,7 @@ export default function Index({
                                                             {caisseConfig.label}
                                                         </span>
                                                     </div>
-                                                    <p className="text-sm font-medium">{typeConfig.label} — {mvt.site}</p>
+                                                    <p className="text-sm font-medium">{typeConfig.label} — {mvt.caisse?.libelle ?? mvt.site}</p>
                                                     <p className="text-sm text-gray-600 truncate">{mvt.motif}</p>
                                                     <div className="flex items-center gap-3 text-xs text-gray-400 mt-1 flex-wrap">
                                                         <span>Par : {mvt.effectue_par_nom}</span>

@@ -360,23 +360,25 @@ class NotificationService
     }
 
     /**
-     * Notifier l'alerte de solde minimum de caisse
-     * → Destinataires : DAF + Directeur Pays + caissiers du site
-     * → SMS envoyé aux caissiers du site pour action rapide (réapprovisionnement)
+     * Alerte de seuil d'une caisse (ANO-10, RG-C4-02) : la caisse est passée sous son seuil d'alerte.
+     * Destinataires : DAF, Directeur Pays (notification) et caissiers du site de la caisse (notification + SMS).
      */
-    public static function notifierAlerteSolde(\App\Models\Site $site, ?User $declencheur = null): void
+    public static function notifierAlerteSolde(\App\Models\Caisse $caisse, ?User $declencheur = null): void
     {
+        $caisse->loadMissing('site');
+        $nomSite = $caisse->site?->nom;
+
         $destinataires = User::actifs()
-            ->where(function ($q) use ($site) {
+            ->where(function ($q) use ($nomSite) {
                 $q->whereIn('role', ['daf', 'directeur_pays'])
-                    ->orWhere(function ($q2) use ($site) {
+                    ->orWhere(function ($q2) use ($nomSite) {
                         $q2->where('role', 'caissier')
-                            ->where('site', $site->nom);
+                            ->where('site', $nomSite);
                     });
             })
             ->get();
 
-        $seuilFormat = Format::montant($site->seuil_minimum_caisse);
+        $seuilFormat = Format::montant($caisse->seuilAlerteEffectif());
 
         foreach ($destinataires as $destinataire) {
             if ($declencheur && $destinataire->id === $declencheur->id) continue;
@@ -387,14 +389,16 @@ class NotificationService
                 'expediteur_id' => $declencheur?->id,
                 'type' => 'alerte_solde',
                 'titre' => '⚠ Alerte : solde de caisse bas',
-                'message' => "Le solde de la caisse du site {$site->nom} est passé sous le seuil minimum. "
-                    . "Solde actuel : {$site->solde_caisse_format}. "
-                    . "Seuil minimum : {$seuilFormat}. "
+                'message' => "Le solde de la {$caisse->libelle} est passé sous le seuil d'alerte. "
+                    . "Solde actuel : {$caisse->solde_format}. "
+                    . "Seuil : {$seuilFormat}. "
                     . "Un réapprovisionnement est recommandé.",
                 'metadata' => [
-                    'site' => $site->nom,
-                    'solde' => $site->solde_caisse,
-                    'seuil' => $site->seuil_minimum_caisse,
+                    'caisse_id' => $caisse->id,
+                    'caisse' => $caisse->libelle,
+                    'site' => $nomSite,
+                    'solde' => (float) $caisse->solde,
+                    'seuil' => $caisse->seuilAlerteEffectif(),
                 ],
             ]);
 
@@ -404,14 +408,14 @@ class NotificationService
                 \Illuminate\Support\Facades\Log::warning('Broadcast alerte solde échoué : ' . $e->getMessage());
             }
 
-            /* Envoyer un SMS aux caissiers du site pour action rapide */
+            /* SMS aux caissiers du site pour action rapide */
             if ($destinataire->role === 'caissier' && $destinataire->telephone) {
                 try {
                     $smsService = new NimbaSmsService();
                     $smsService->envoyerAlerteSeuil(
                         $destinataire->telephone,
-                        $site->nom,
-                        $site->solde_caisse_format,
+                        $caisse->libelle,
+                        $caisse->solde_format,
                         $seuilFormat
                     );
                 } catch (\Throwable $e) {
@@ -422,39 +426,32 @@ class NotificationService
     }
 
     /**
-     * Vérification proactive des seuils de caisse pour tous les sites
-     * Appelée par la commande Artisan caisse:verifier-seuils
-     * 
-     * → Dédoublonnage : max 1 alerte par jour par site (via cache)
-     * → Envoie push + SMS aux caissiers du site
-     * 
-     * @return array Résumé des alertes envoyées ['site' => 'message']
+     * Vérification proactive des seuils de toutes les caisses actives
+     * (commande caisse:verifier-seuils). Au plus une alerte par jour et par caisse.
+     *
+     * @return array Résumé ['libellé de la caisse' => 'message']
      */
     public static function verifierSeuilsCaisse(): array
     {
         $resultats = [];
-        $sites = \App\Models\Site::actifs()->get();
 
-        foreach ($sites as $site) {
-            if (!$site->soldeSousSeuil()) {
+        foreach (\App\Models\Caisse::actives()->with('site')->orderBy('id')->get() as $caisse) {
+            if (!$caisse->sousSeuil()) {
                 continue;
             }
 
-            /* Dédoublonnage : max 1 alerte par jour par site */
-            $cacheKey = "alerte_seuil_caisse_{$site->id}_" . now()->format('Y-m-d');
+            /* Dédoublonnage : au plus une alerte par jour et par caisse */
+            $cacheKey = "alerte_seuil_caisse_{$caisse->id}_" . now()->format('Y-m-d');
             if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
-                $resultats[$site->nom] = 'Alerte déjà envoyée aujourd\'hui — ignorée';
+                $resultats[$caisse->libelle] = 'Alerte déjà envoyée aujourd\'hui — ignorée';
                 continue;
             }
 
-            /* Envoyer les alertes */
-            self::notifierAlerteSolde($site);
-
-            /* Marquer l'alerte comme envoyée pour aujourd'hui */
+            self::notifierAlerteSolde($caisse);
             \Illuminate\Support\Facades\Cache::put($cacheKey, true, now()->endOfDay());
 
-            $resultats[$site->nom] = "Solde : {$site->solde_caisse_format} — Seuil : "
-                . Format::montant($site->seuil_minimum_caisse) . ' — Alertes envoyées';
+            $resultats[$caisse->libelle] = "Solde : {$caisse->solde_format} — Seuil : "
+                . Format::montant($caisse->seuilAlerteEffectif()) . ' — Alertes envoyées';
         }
 
         return $resultats;
