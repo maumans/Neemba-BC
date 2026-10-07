@@ -1,7 +1,7 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 7 Octobre 2026 (v22 — Lot 3 : assistant de saisie du bon de caisse, M03-A)
+> Dernière mise à jour : 7 Octobre 2026 (v23 — Lot 4 : pièces justificatives et lecture des tickets carburant, M03-B)
 
 ---
 
@@ -2525,6 +2525,128 @@ Le planificateur (`schedule:run`) doit tourner pour l'annulation des brouillons 
   - fiche E-03.8 : bandeau de rejet, historique ancienne → nouvelle valeur ;
   - le chef de service est notifié.
 - **M12** : choix de l'ordre de mission dans l'étape 3. Pour l'instant, seule la date de retour est demandée.
+
+---
+
+## 23. Version v23 — Lot 4 : pièces et lecture des tickets carburant, M03-B (7 Octobre 2026)
+
+L'étape 4 de l'assistant contrôle maintenant la **qualité réelle** des pièces et les **pièces déjà utilisées**. Elle lit aussi les **tickets carburant**, avec validation par l'utilisateur. Branche `lot4-pieces`, partie de `lot3-assistant`.
+
+US couvertes : US-BC-08 et US-BC-09 (RG-BC-15 à RG-BC-23, TC-BC-015 à TC-BC-023).
+
+### 23.1 Qualité d'une pièce (RG-BC-16) — `App\Services\BonCaisse\QualitePiece`
+
+| Pièce | Règle |
+|-------|-------|
+| PDF produit par un logiciel (police déclarée, ou texte extrait par `pdftotext`) | **Conforme**, sans contrôle de résolution (TC-BC-017) |
+| Image, ou PDF scanné (plus grande image, mesurée par `pdfimages -list` ou lue dans le fichier) | Résolution effective = grand côté en pixels ÷ 11,69 pouces (A4). **Moins de 150 dpi : illisible** (bloquant, MSG-BC-018) ; 150 à 299 : qualité moyenne (avertissement) ; 300 et plus : conforme. TC-BC-016 : 1 100 px → 94 dpi ; 3 000 px → 257 dpi ; 4 000 px → 342 dpi |
+| Résolution impossible à mesurer | Qualité non renseignée : aucun blocage (décision Q17) |
+
+- La qualité est calculée **dès le dépôt** et enregistrée dans `pieces_jointes.qualite` et `dpi_detecte`. `qualite_ok` reste utilisé par l'archivage : il vaut faux seulement pour une pièce illisible.
+- **Une pièce illisible ne compte pas comme justificatif d'un BD** (US-BC-08).
+
+### 23.2 Pièce déjà utilisée (RG-BC-19)
+
+- L'empreinte SHA-256 est calculée au dépôt, puis comparée aux pièces des **autres bons non annulés**, brouillons compris. La pièce garde le lien vers la première pièce identique (`doublon_de_id`).
+- Sur la ligne, MSG-BC-019 avec le numéro et la date de l'autre bon. Le demandeur doit cocher « Je confirme que cette pièce concerne une autre dépense » (sinon MSG-APP-009) et justifier en 10 caractères au moins (MSG-BC-005).
+- **Contrôle 6** : rouge tant que la pièce n'est pas confirmée ; orange une fois confirmée et justifiée.
+- **Bandeau** « Pièce(s) déjà présentée(s) sur un autre bon », avec la justification du demandeur. Il est visible sur la fiche du bon et sur l'écran de validation (contrôle de gestion), via le composant `BandeauPiecesDejaUtilisees`.
+- La migration repère les doublons déjà présents en base.
+
+### 23.3 Lecture des tickets carburant (US-BC-09, RG-BC-20 à RG-BC-23)
+
+| Élément | Comportement |
+|---------|--------------|
+| Démarrage | Dès qu'une pièce est de type « Ticket carburant » (au dépôt ou au changement de type). C'est le type proposé pour la catégorie Carburant |
+| Lecteur | Interface `LecteurTicket`, choisie par `LECTEUR_TICKETS`. **`manuel` par défaut (décision Q8)** : aucune image ne quitte le serveur, et le panneau s'ouvre avec des champs vides et la mention « Lecture automatique indisponible ». **`local`** : Tesseract sur le serveur, puis repérage des champs (`LecteurLocal::analyser`) ; rien ne sort du serveur. Un lecteur « vision » viendra après OP-BC-5 |
+| Asynchrone | `LireTicketJob` (file d'attente). L'écran interroge le serveur toutes les 2 secondes. Après **60 secondes**, la lecture est abandonnée au profit de la saisie manuelle |
+| Panneau | Ticket agrandissable. Pour chaque champ : la valeur, la pastille de confiance (vert ≥ 85 %, orange 60–84 %, rouge < 60 %) et une case « Vérifié ». Corriger un champ coche sa case. « Valider la lecture » n'est actif qu'une fois les 6 cases cochées. Le prix au litre est calculé pendant la saisie |
+| Enregistrement (RG-BC-21) | Table `lectures_tickets` : valeurs lues, confiances, valeurs validées, **champs corrigés** (pour mesurer la qualité de lecture, TC-BC-019), auteur et date de validation |
+| Badges | « Lecture en cours… », « À vérifier », « Lecture validée » |
+
+Règles du panneau :
+
+- station : 2 à 80 caractères ;
+- date : obligatoire et pas dans le futur (MSG-APP-006) ;
+- litres : supérieurs à 0 et au plus 500 (MSG-APP-007) ;
+- montant : entier supérieur à 0 ;
+- montant en lettres : lu, en lecture seule.
+
+**Contrôles d'un ticket validé (RG-BC-22, en avertissement)** :
+
+| Contrôle | Message |
+|----------|---------|
+| Prix au litre à plus de 10 % du paramètre `prix_litre_reference` (12 000 GNF/L, groupe « Carburant » du paramétrage) | MSG-BC-022 (TC-BC-020 : 597 000 / 49,75 L = 12 000, rien ; TC-BC-021 : 600 000 / 40 L = 15 000, avertissement) |
+| Montant en lettres relu (`MontantEnLettres::lire`) différent du montant en chiffres | MSG-BC-023 |
+| Immatriculation lue différente du véhicule du bon | MSG-BC-026 |
+| Date du ticket plus d'un jour après le retour de mission (le départ viendra avec M12) | MSG-BC-025 |
+
+**Contrôle 7 de l'étape 5** :
+
+- **rouge** si une lecture n'est pas validée (MSG-APP-005, TC-BC-023 : Soumettre grisé) ;
+- **orange** si le total des tickets s'écarte de plus de 2 % du montant du bon (MSG-BC-024, TC-BC-022 : 2 376 000 pour 2 500 000, écart 124 000), ou si un ticket porte un avertissement ;
+- vert sinon.
+
+### 23.4 Nouvelle version d'une pièce (E-03.6)
+
+- Une pièce **jamais soumise** se supprime : bon en brouillon, ou pièce ajoutée à un bon rejeté depuis sa dernière soumission.
+- Une pièce **déjà soumise** ne se supprime pas (MSG-APP-004) : on la **remplace**.
+  - La nouvelle pièce reprend le type et passe à `version` + 1.
+  - L'ancienne reste dans l'historique (`remplacee_par_id`).
+  - Seules les pièces en vigueur (`BonCaisse::piecesActives()`) comptent pour les règles, les contrôles et les limites (20 fichiers, 50 Mo).
+
+### 23.5 API (`/api/v1/bons/{id}/pieces/...`)
+
+| Route | Rôle |
+|-------|------|
+| `POST /pieces` | Dépôt. La réponse donne qualité, dpi, doublon, lecture, `supprimable` et une adresse **relative** (indépendante d'`APP_URL`) |
+| `POST /pieces/{piece}/remplacer` | Nouvelle version |
+| `PATCH /pieces/{piece}` | Type de la pièce. « Ticket carburant » lance la lecture |
+| `PATCH /pieces/{piece}/doublon` | Confirmation et justification |
+| `GET` et `POST /pieces/{piece}/lecture` | Suivi de la lecture ; « Valider la lecture » |
+| `DELETE /pieces/{piece}` | Pièce jamais soumise seulement |
+
+### 23.6 Messages ajoutés au catalogue (hors SFD)
+
+La SFD ne prévoit pas de texte pour ces cas : MSG-APP-005 (lecture à vérifier), 006 (date future), 007 (litres), 008 (cases à cocher), 009 (confirmation d'un doublon), 010 (station). Ils sont à faire valider avec le catalogue.
+
+### 23.7 Tests
+
+- **`tests/Feature/M03/PiecesEtTicketsTest.php`** (15 tests) :
+  - TC-BC-016 à 018 et TC-BC-020 à 023 ;
+  - RG-BC-20 (abandon au-delà de 60 s) et RG-BC-21 (corrections conservées, avec un lecteur d'essai) ;
+  - remplacement ;
+  - relecture des montants en lettres sur tous les cas de `tests/fixtures/montants_lettres.json` ;
+  - lecteur local.
+- **`tests/js/assistant.test.js`** : confiance, prix au litre, validation possible.
+- **Total** : **148 tests PHP** et 59 tests JavaScript passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base, avec SMS et IA coupés : 18 vérifications. On y passe successivement par :
+  - une photo illisible, supprimée ensuite ;
+  - un ticket saisi puis validé ;
+  - une facture déjà présente sur BC-2026-0003, confirmée et justifiée ;
+  - les contrôles 6 et 7.
+- **Défaut trouvé et corrigé** pendant ce parcours : les aperçus d'images ne s'affichaient pas quand `APP_URL` ne correspondait pas à l'adresse du serveur. Les adresses des pièces sont désormais relatives.
+- **Migration vérifiée sur une copie de la base**, aller et retour, et sur des pièces fabriquées : copie liée à l'original ; bon annulé ignoré ; pièce de faible qualité marquée illisible.
+
+### 23.8 Déploiement
+
+```bash
+php artisan migrate        # qualité, doublons, versions, lectures_tickets, prix_litre_reference
+php artisan optimize:clear
+npm run build
+```
+
+- Pour une lecture locale : `LECTEUR_TICKETS=local`, avec `apt install tesseract-ocr tesseract-ocr-fra poppler-utils` et un worker de file (`queue:work` sous supervisor).
+- Sans worker, une lecture locale tombe en saisie manuelle au bout de 60 secondes. Le lecteur `manuel` n'a pas besoin de worker.
+- `poppler-utils` (`pdftotext`, `pdfimages`) améliore la mesure des PDF ; sans lui, la lecture du fichier sert de repli.
+
+### 23.9 Reste à faire
+
+- **Lot 5** :
+  - délégation d'initiation (US-BC-13) ;
+  - liste E-03.1 et fiche E-03.8 : onglet Pièces avec miniatures, qualité, lecture et versions.
+- **OP-BC-5** : choisir le lecteur « vision » des tickets manuscrits, avec l'accord écrit de l'IT Neemba. Puis mesurer le taux de champs corrigés sur les 5 tickets de septembre 2026 (TC-BC-019).
+- **M12** : dates de départ et de retour de la mission pour MSG-BC-025.
 
 ---
 
