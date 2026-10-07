@@ -1,7 +1,7 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 7 Octobre 2026 (v20 — Lot 1 : socle transverse — formatage, montant en lettres, messages, statuts, journal d'audit, multi-rôles)
+> Dernière mise à jour : 7 Octobre 2026 (v21 — Lot 2 : caisses et registre des écritures de caisse)
 
 ---
 
@@ -2095,7 +2095,7 @@ La SFD v1.3 (livraison 1, 05/10/2026) détaille le module M03 « Saisie du bon d
 |-----|---------|--------|
 | 0 | Sécurité, stabilisation du travail non commité (juin/août), bugs de production | ✅ Fait (branche `lot0-stabilisation`) |
 | 1 | Socle transverse : messages MSG-xx (`lang/fr.json`), formatage §1.4, statuts, montant en lettres, audit, multi-rôles | ✅ Fait (branche `lot1-socle`, §20) |
-| 2 | Table `caisses` (caisse payeuse, plafond de retrait, OM Conakry, Atelier) | ⏳ À faire |
+| 2 | Table `caisses` (caisse payeuse, plafond de retrait, OM Conakry, Atelier) | ✅ Fait (branche `lot2-caisses`, §21) |
 | 3 | M03-A : assistant, brouillon, soumission (US-BC-01 à 07, 10, 11, 12, 15) | ⏳ À faire |
 | 4 | M03-B : pièces justificatives, lecture des tickets carburant (US-BC-08, 09) | ⏳ À faire |
 | 5 | M03-C : délégation d'initiation, resoumission, liste et fiche (US-BC-13, 14, 16) | ⏳ À faire |
@@ -2282,6 +2282,89 @@ Les arbitrages ont été délégués au développeur. Le registre, avec la possi
 
 - **Q14** : il n'y a plus d'archivage automatique. Un BD payé reste « Payé » et un BP régularisé reste « Régularisé », comme dans la SFD. L'archivage est une action manuelle (DAF, DP, caissier, administrateur). Les bons déjà archivés le restent.
 - **Q11** : la demandeuse pilote s'appelle « Souadou BARRY ». Le seeder est corrigé ; en production, il faut corriger le prénom dans Utilisateurs.
+
+---
+
+## 21. Version v21 — Lot 2 : caisses et registre de caisse (7 Octobre 2026)
+
+L'argent n'est plus porté par les sites mais par des **caisses**, et chaque mouvement d'argent est inscrit à un **registre**. Branche `lot2-caisses`, partie de `lot1-socle`.
+
+### 21.1 Modèle
+
+| Table | Rôle |
+|-------|------|
+| `caisses` | `code`, `libelle`, `site_id`, `type` (`especes` / `orange_money`), `mode` (`standard` / `avance_fixe`), `montant_avance`, `solde`, `plafond_retrait`, `seuil_alerte`, `actif` |
+| `ecritures_caisse` | Registre : `caisse_id`, `date_ecriture`, `sens` (entrée / sortie), `nature` (solde initial, paiement d'un bon, approvisionnement, retrait, ajustement, correction de solde), `montant`, `solde_avant`, `solde_apres`, liens vers le bon, le mouvement et l'utilisateur |
+| `bons_caisse.caisse_id` | Caisse qui a payé le bon |
+| `mouvements_caisse.caisse_id` | Caisse concernée par le mouvement |
+
+- **Écritures** : le solde ne se modifie jamais directement. `Caisse::crediter()` et `Caisse::debiter()` verrouillent la caisse, mettent le solde à jour et écrivent la ligne du registre, le tout dans une transaction.
+- **Solde à une date** : `Caisse::soldeAu($instant)` le lit dans le registre.
+- **Site** : `solde_especes`, `solde_om` et `solde_caisse` restent disponibles, mais calculés sur les caisses actives du site. Les colonnes correspondantes de `sites` sont supprimées.
+
+### 21.2 Reprise des données (migration `2026_10_07_000004`)
+
+- **Une caisse espèces par site** (`CKY-ESP` pour Conakry, sinon les 3 premières lettres du site), libellée « Caisse principale <site> » :
+  - solde : l'ancien solde espèces du site ;
+  - seuil : l'ancien seuil d'alerte ;
+  - plafond de retrait : Conakry 20 000 000, Boké 1 000 000 (Q2), aucun pour les autres sites.
+- **`CKY-OM` « Caisse Orange Money Conakry »** : la somme des anciens soldes OM. C'est la caisse OM unique (RG-BC-12).
+- **`CKY-ATL` « Caisse Atelier »** : avance fixe de 15 000 000, inactive et à 0 jusqu'à sa mise en service (Q3, M07).
+- Une écriture « solde initial » par caisse non vide.
+- Les bons payés et les mouvements existants sont rattachés à leur caisse.
+- Les modifications de site en attente de double validation sont annulées, car elles portaient sur des champs supprimés.
+- **Vérifié sur une copie de la base de développement** : 38 500 000 GNF avant et après, 4 bons payés rattachés. Le retour arrière remet les soldes exacts sur les sites.
+
+### 21.3 Flux d'argent
+
+| Flux | Avant | Après |
+|------|-------|-------|
+| Paiement d'un bon | Débit du solde du site | **Caisse payeuse** (RG-BC-12) : espèces → caisse espèces du site, ou à défaut la caisse principale de Conakry ; Orange Money → caisse OM ; virement / autre → hors caisse. **Plafond de retrait contrôlé** (RG-BC-11, message MSG-BC-012). Débit inscrit au registre, `bons_caisse.caisse_id` renseigné |
+| Mouvement de caisse | Choix d'un site + Espèces / OM, puis incrément du site | Choix d'une **caisse** (un caissier ne voit que celles de son site). À la validation (DAF / DP), écriture au registre |
+| Alerte de seuil | Par site, sur le total | **Par caisse** (ANO-10). Notification aux DAF / DP, SMS aux caissiers du site. Commande `caisse:verifier-seuils` : au plus une alerte par jour et par caisse |
+| Rapport journalier | Ouverture = dernier rapport enregistré | **Lu dans le registre** (Q13) : ouverture exacte, entrées / sorties du jour, ventilation espèces / OM. Les jours antérieurs à l'ouverture du registre gardent l'ancien calcul |
+| Rapport manuel (arrêté) | Entrées / sorties saisies | Totaux **repris du registre** (lecture seule). Le caissier saisit le comptage : billetage et solde OM lu |
+
+### 21.4 Écrans
+
+- **Tableau de bord** et **Mouvements de caisse** : soldes **par caisse** (ANO-09), avec seuil d'alerte et plafond de retrait.
+- **Fiche du bon** : panneau « Caisses payeuses » (caisse espèces et caisse OM, retrait espèces maximal).
+- **Paramétrage** :
+  - **Sites** : sans soldes. Un nouveau site reçoit sa caisse principale.
+  - **Caisses** (nouvel onglet) : une caisse est créée avec un solde de 0. Code et libellé se modifient tout de suite.
+  - **Double validation** (`ModificationEnAttente` de type `caisse`) : plafond de retrait, seuil, avance et correction de solde. Une correction approuvée inscrit l'écart au registre (`correction_solde`) ; le solde n'est jamais écrasé.
+
+### 21.5 Tests
+
+`tests/Feature/Lot2/CaissesTest.php` couvre :
+- le registre et le solde à une date ;
+- la caisse payeuse et son repli sur Conakry ;
+- le paiement en espèces et le plafond de retrait ;
+- les mouvements et la restriction par site ;
+- les alertes ;
+- le rapport lu dans le registre ;
+- la création d'un site, la double validation et la correction de solde ;
+- les soldes du tableau de bord et l'ouverture des écrans.
+
+Au total : **100 tests PHP** et 43 tests JavaScript passent.
+
+### 21.6 Déploiement
+
+```bash
+php artisan migrate        # crée caisses + registre, reprend les soldes, supprime les soldes de sites
+php artisan optimize:clear
+```
+
+Après la mise en production, le DAF doit vérifier dans Paramétrage › Caisses les soldes repris et les plafonds de retrait des sites autres que Conakry et Boké.
+
+### 21.7 Reste à faire (lots suivants)
+
+- **M03 (lot 3)** : afficher la caisse payeuse et son plafond pendant la saisie du bon (`Caisse::payeusePour`, `depassePlafondRetrait`).
+- **M07** :
+  - mettre la caisse Atelier en service, avec son réapprovisionnement à avance fixe ;
+  - transferts entre caisses.
+- **M08** : arrêté **par caisse** (aujourd'hui, le rapport manuel agrège les caisses du site).
+- **M10** : afficher la ventilation espèces / OM dans l'e-mail, le PDF et l'Excel.
 
 ---
 
