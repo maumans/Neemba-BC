@@ -33,5 +33,11 @@
     "MSG-APP-001": "Ce bon a déjà été soumis : il ne peut plus être modifié ni soumis à nouveau.",
     "MSG-APP-002": "Vous ne pouvez pas modifier ce bon.",
     "MSG-APP-003": "Un bon accepte au plus 20 pièces et 50 Mo au total.",
-    "MSG-APP-004": "Une pièce d'un bon déjà soumis ne se supprime pas : ajoutez la nouvelle version."
+    "MSG-APP-004": "Une pièce d'un bon déjà soumis ne se supprime pas : ajoutez la nouvelle version.",
+    "MSG-APP-005": "Lecture du ticket à vérifier : ouvrez le panneau de lecture, contrôlez chaque valeur puis validez.",
+    "MSG-APP-006": "La date du ticket ne peut pas être postérieure à aujourd'hui.",
+    "MSG-APP-007": "Les litres doivent être supérieurs à 0 et au plus 500.",
+    "MSG-APP-008": "Confirmez chaque valeur (case cochée) avant de valider la lecture.",
+    "MSG-APP-009": "Cochez la case pour confirmer que cette pièce concerne une autre dépense.",
+    "MSG-APP-010": "Le nom de la station doit comporter entre 2 et 80 caractères."
 }

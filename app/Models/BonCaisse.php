@@ -244,6 +244,12 @@ class BonCaisse extends Model
     /**
      * Pièces justificatives attachées au bon
      */
+    /** Pièces en vigueur : une pièce remplacée par une nouvelle version reste dans l'historique (E-03.6) */
+    public function piecesActives(): HasMany
+    {
+        return $this->hasMany(PieceJointe::class)->whereNull('remplacee_par_id');
+    }
+
     public function piecesJointes(): HasMany
     {
         return $this->hasMany(PieceJointe::class, 'bon_caisse_id');

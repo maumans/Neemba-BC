@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\ErreurMetier;
-use App\Jobs\ProcessPieceJointeOcrJob;
 use App\Models\BonCaisse;
 use App\Models\Caisse;
 use App\Models\PieceJointe;
@@ -12,8 +11,10 @@ use App\Services\BonCaisse\AnnulerBon;
 use App\Services\BonCaisse\CircuitPrevisionnel;
 use App\Services\BonCaisse\ControlesBon;
 use App\Services\BonCaisse\EnregistrementBon;
+use App\Services\BonCaisse\PiecesBon;
 use App\Services\BonCaisse\ReglesSaisie;
 use App\Services\BonCaisse\SoumettreBon;
+use App\Services\LectureTicket\LectureTickets;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -29,10 +30,8 @@ use Illuminate\Validation\ValidationException;
  */
 class AssistantBonController extends Controller
 {
-    /** Taille maximale d'un fichier (Ko), nombre et poids total des pièces d'un bon (RG-BC-17) */
+    /** Taille maximale d'un fichier, en Ko (RG-BC-17) */
     private const TAILLE_MAX_FICHIER_KO = 10240;
-    private const NOMBRE_MAX_PIECES = 20;
-    private const POIDS_MAX_BON = 50 * 1024 * 1024;
 
     /**
      * POST /api/v1/bons — premier « Suivant » ou « Brouillon » : le brouillon est créé (RG-BC-01).
@@ -117,68 +116,108 @@ class AssistantBonController extends Controller
      * Pièces (étape 4)
      * ------------------------------------------------------------------ */
 
-    /** POST /api/v1/bons/{bon}/pieces — un fichier, envoyé dès son dépôt */
+    /** POST /api/v1/bons/{bon}/pieces — un fichier, envoyé dès son dépôt (RG-BC-17) */
     public function ajouterPiece(Request $request, BonCaisse $bonCaisse): JsonResponse
     {
         Gate::authorize('modifier', $bonCaisse);
+        $this->validerFichier($request, ['type_document' => ['nullable', Rule::in(PieceJointe::TYPES_PIECE_ASSISTANT)]]);
 
-        $request->validate([
-            'fichier' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'mimetypes:application/pdf,image/jpeg,image/png', 'max:' . self::TAILLE_MAX_FICHIER_KO],
-            'type_document' => ['nullable', Rule::in(PieceJointe::TYPES_PIECE_ASSISTANT)],
-        ], [
-            'fichier.*' => __('MSG-BC-021'),
-        ]);
+        $piece = PiecesBon::ajouter($bonCaisse, $request->file('fichier'), $request->input('type_document'), $request->user());
 
-        $fichier = $request->file('fichier');
-        $pieces = $bonCaisse->piecesJointes()->get();
-        if ($pieces->count() >= self::NOMBRE_MAX_PIECES || $pieces->sum('taille') + $fichier->getSize() > self::POIDS_MAX_BON) {
-            throw new ErreurMetier('LIMITE_PIECES', 'MSG-APP-003', [], 'RG-BC-17', 'fichier');
-        }
+        return response()->json(['piece' => self::piece($piece->fresh(), $bonCaisse)], 201);
+    }
 
-        $piece = PieceJointe::create([
-            'bon_caisse_id' => $bonCaisse->id,
-            'type_document' => $request->input('type_document'),
-            'nom_fichier' => $fichier->getClientOriginalName(),
-            'chemin_fichier' => $fichier->store('pieces_jointes/' . $bonCaisse->id, 'public'),
-            'taille' => $fichier->getSize(),
-            'mime_type' => $fichier->getMimeType(),
-            /* RG-BC-19 : empreinte du fichier, pour repérer une pièce déjà jointe à un autre bon */
-            'checksum' => hash_file('sha256', $fichier->getRealPath()),
-        ]);
+    /** POST /api/v1/bons/{bon}/pieces/{piece}/remplacer — nouvelle version d'une pièce déjà soumise (E-03.6) */
+    public function remplacerPiece(Request $request, BonCaisse $bonCaisse, PieceJointe $piece): JsonResponse
+    {
+        Gate::authorize('modifier', $bonCaisse);
+        $this->verifierPiece($bonCaisse, $piece);
+        $this->validerFichier($request);
 
-        ProcessPieceJointeOcrJob::dispatch($piece->id);
-        $bonCaisse->enregistrerAjoutPieceJointe($piece->nom_fichier, $request->user()->id);
+        $nouvelle = PiecesBon::remplacer($bonCaisse, $piece, $request->file('fichier'), $request->user());
 
-        return response()->json(['piece' => $this->piece($piece)], 201);
+        return response()->json(['piece' => self::piece($nouvelle->fresh(), $bonCaisse), 'remplacee' => $piece->id], 201);
     }
 
     /** PATCH /api/v1/bons/{bon}/pieces/{piece} — type de la pièce (RG-BC-18) */
     public function typerPiece(Request $request, BonCaisse $bonCaisse, PieceJointe $piece): JsonResponse
     {
         Gate::authorize('modifier', $bonCaisse);
-        abort_unless($piece->bon_caisse_id === $bonCaisse->id, 404);
+        $this->verifierPiece($bonCaisse, $piece);
 
         $request->validate(['type_document' => ['required', Rule::in(PieceJointe::TYPES_PIECE_ASSISTANT)]], [
             'type_document.*' => __('MSG-BC-016'),
         ]);
-        $piece->update(['type_document' => $request->input('type_document')]);
+        PiecesBon::typer($piece, $request->input('type_document'));
 
-        return response()->json(['piece' => $this->piece($piece)]);
+        return response()->json(['piece' => self::piece($piece->fresh(), $bonCaisse)]);
     }
 
-    /** DELETE /api/v1/bons/{bon}/pieces/{piece} — avant soumission, suppression réelle (E-03.6) */
+    /** DELETE /api/v1/bons/{bon}/pieces/{piece} — pièce jamais soumise seulement (E-03.6) */
     public function supprimerPiece(BonCaisse $bonCaisse, PieceJointe $piece): JsonResponse
     {
         Gate::authorize('modifier', $bonCaisse);
-        abort_unless($piece->bon_caisse_id === $bonCaisse->id, 404);
-        if ($bonCaisse->statut !== 'BROUILLON') {
-            throw new ErreurMetier('PIECE_NON_SUPPRIMABLE', 'MSG-APP-004', [], null, 'pieces', 409);
-        }
+        $this->verifierPiece($bonCaisse, $piece);
 
-        Storage::disk('public')->delete($piece->chemin_fichier);
-        $piece->delete();
+        PiecesBon::supprimer($bonCaisse, $piece);
 
         return response()->json(['supprimee' => true]);
+    }
+
+    /** PATCH /api/v1/bons/{bon}/pieces/{piece}/doublon — RG-BC-19 : confirmation et justification (TC-BC-018) */
+    public function confirmerDoublon(Request $request, BonCaisse $bonCaisse, PieceJointe $piece): JsonResponse
+    {
+        Gate::authorize('modifier', $bonCaisse);
+        $this->verifierPiece($bonCaisse, $piece);
+        abort_if($piece->doublon_de_id === null, 404);
+
+        $request->validate([
+            'confirme' => ['accepted'],
+            'justification' => ['required', 'string', 'min:10', 'max:500'],
+        ], [
+            'confirme.accepted' => __('MSG-APP-009'),
+            'justification.required' => __('MSG-BC-001'),
+            'justification.min' => __('MSG-BC-005'),
+        ]);
+        PiecesBon::confirmerDoublon($piece, $request->input('justification'));
+
+        return response()->json(['piece' => self::piece($piece->fresh(), $bonCaisse)]);
+    }
+
+    /** GET /api/v1/bons/{bon}/pieces/{piece}/lecture — suivi de la lecture d'un ticket (interrogé par l'écran) */
+    public function lecture(BonCaisse $bonCaisse, PieceJointe $piece): JsonResponse
+    {
+        Gate::authorize('modifier', $bonCaisse);
+        $this->verifierPiece($bonCaisse, $piece);
+
+        return response()->json(['piece' => self::piece($piece, $bonCaisse)]);
+    }
+
+    /** POST /api/v1/bons/{bon}/pieces/{piece}/lecture — « Valider la lecture » (RG-BC-21) */
+    public function validerLecture(Request $request, BonCaisse $bonCaisse, PieceJointe $piece): JsonResponse
+    {
+        Gate::authorize('modifier', $bonCaisse);
+        $this->verifierPiece($bonCaisse, $piece);
+        $lecture = $piece->lectureTicket ?? abort(404);
+
+        LectureTickets::valider($lecture, (array) $request->input('valeurs', []), (array) $request->input('confirmes', []), $request->user());
+
+        return response()->json(['piece' => self::piece($piece->fresh(), $bonCaisse)]);
+    }
+
+    private function verifierPiece(BonCaisse $bon, PieceJointe $piece): void
+    {
+        abort_unless($piece->bon_caisse_id === $bon->id, 404);
+    }
+
+    /** PDF, JPG ou PNG vérifiés sur le contenu réel du fichier, 10 Mo au plus (RG-BC-17, MSG-BC-021) */
+    private function validerFichier(Request $request, array $autres = []): void
+    {
+        $request->validate([
+            'fichier' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png', 'mimetypes:application/pdf,image/jpeg,image/png', 'max:' . self::TAILLE_MAX_FICHIER_KO],
+        ] + $autres, [
+            'fichier.*' => __('MSG-BC-021'),
+        ]);
     }
 
     /* ------------------------------------------------------------------
@@ -269,12 +308,14 @@ class AssistantBonController extends Controller
 
     private function reponse(BonCaisse $bon, array $erreurs = []): array
     {
-        return ['bon' => self::bon($bon->fresh(['piecesJointes', 'caisse'])), 'erreurs' => (object) $erreurs];
+        return ['bon' => self::bon($bon->fresh(['caisse'])), 'erreurs' => (object) $erreurs];
     }
 
     /** Bon au format de l'assistant */
     public static function bon(BonCaisse $bon): array
     {
+        $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse', 'caisse', 'beneficiaireUtilisateur']);
+
         return ReglesSaisie::donneesDu($bon) + [
             'id' => $bon->id,
             'numero' => $bon->numero,
@@ -284,20 +325,50 @@ class AssistantBonController extends Controller
             'caisse' => $bon->caisse ? ['libelle' => $bon->caisse->libelle, 'plafond_retrait' => $bon->caisse->plafond_retrait !== null ? (float) $bon->caisse->plafond_retrait : null] : null,
             'beneficiaire_libelle' => $bon->beneficiaireUtilisateur ? self::beneficiaire($bon->beneficiaireUtilisateur)['libelle'] : null,
             'commentaire_rejet' => $bon->commentaire_rejet,
-            'pieces' => $bon->piecesJointes->map(fn (PieceJointe $p) => (new self())->piece($p))->values()->all(),
+            'pieces' => $bon->piecesActives->map(fn (PieceJointe $p) => self::piece($p, $bon))->values()->all(),
         ];
     }
 
-    private function piece(PieceJointe $piece): array
+    /** Pièce au format de l'assistant : qualité, doublon, lecture du ticket */
+    public static function piece(PieceJointe $piece, BonCaisse $bon): array
     {
+        $doublon = null;
+        if ($piece->doublon_de_id !== null) {
+            $valeurs = ControlesBon::valeursDoublon($piece);
+            $doublon = $valeurs + [
+                'message' => ErreurMetier::texte('MSG-BC-019', $valeurs),
+                'confirme' => $piece->doublon_confirme,
+                'justification' => $piece->justification_doublon,
+            ];
+        }
+
+        $lecture = $piece->type_document === 'recu_carburant' ? $piece->lectureTicket : null;
+        if ($lecture) {
+            LectureTickets::actualiser($lecture);
+        }
+
         return [
             'id' => $piece->id,
             'nom_fichier' => $piece->nom_fichier,
             'taille' => (int) $piece->taille,
             'mime_type' => $piece->mime_type,
             'type_document' => $piece->type_document,
-            'qualite_ok' => $piece->qualite_ok,
-            'url' => Storage::disk('public')->url($piece->chemin_fichier),
+            'version' => (int) $piece->version,
+            'qualite' => $piece->qualite,
+            'dpi' => $piece->dpi_detecte,
+            'supprimable' => PiecesBon::supprimable($bon, $piece),
+            'doublon' => $doublon,
+            'lecture' => $lecture ? [
+                'statut' => $lecture->statut,
+                'lecteur' => $lecture->lecteur,
+                'valeurs_lues' => $lecture->valeurs_lues,
+                'confiances' => $lecture->confiances,
+                'valeurs' => $lecture->valeurs_validees ?? $lecture->valeurs_lues,
+                'champs_corriges' => $lecture->champs_corriges,
+                'avertissements' => LectureTickets::avertissements($lecture, $bon),
+            ] : null,
+            /* Adresse relative, comme la fiche du bon : indépendante d'APP_URL */
+            'url' => parse_url(Storage::disk('public')->url($piece->chemin_fichier), PHP_URL_PATH),
         ];
     }
 }

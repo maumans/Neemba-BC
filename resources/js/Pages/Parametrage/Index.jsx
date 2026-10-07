@@ -289,6 +289,7 @@ const LIBELLES_GROUPES_PARAMETRES = {
     caisse: 'Caisse',
     securite: 'Sécurité',
     bons_caisse: 'Bons de caisse',
+    carburant: 'Carburant',
 };
 
 export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], caisses = [], typesCaisse = {}, modesCaisse = {} }) {

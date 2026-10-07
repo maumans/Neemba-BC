@@ -44,6 +44,7 @@ import {
 } from '@/Components/ui/dialog';
 import { nombreEnLettres, formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
 import BadgeStatut from '@/Components/BadgeStatut';
+import BandeauPiecesDejaUtilisees from '@/Components/BandeauPiecesDejaUtilisees';
 
 export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [], motifsRejet = {} }) {
     const { auth } = usePage().props;
@@ -110,6 +111,8 @@ export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques =
                     Retour aux validations
                 </Link>
             </div>
+
+            <BandeauPiecesDejaUtilisees pieces={bonCaisse.pieces_jointes} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Colonne principale - Détails du bon */}

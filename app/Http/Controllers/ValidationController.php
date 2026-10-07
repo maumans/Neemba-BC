@@ -124,6 +124,7 @@ class ValidationController extends Controller
             'demandeur',
             'validations.validateur',
             'piecesJointes',
+            'piecesJointes.doublonDe.bonCaisse:id,numero',   // RG-BC-19 : bandeau des pièces déjà utilisées
             'ordreMission',
             'historiqueActions.utilisateur',
         ]);

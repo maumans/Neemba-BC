@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+    CHAMPS_LECTURE,
     ajouterOr,
+    couleurConfiance,
+    lectureConfirmable,
+    prixAtypique,
+    prixAuLitre,
     champsDeLaCategorie,
     codesDuService,
     compteurMotif,
@@ -106,5 +111,29 @@ describe('assistant — pièces', () => {
 
         const lourdes = Array.from({ length: 5 }, () => ({ taille: 9.5 * Mo }));
         expect(erreurFichier({ name: 'recu.png', type: 'image/png', size: 3 * Mo }, lourdes)).toBe('MSG-APP-003');
+    });
+});
+
+describe('assistant — lecture des tickets', () => {
+    it('colore la confiance : vert ≥ 85 %, orange 60–84 %, rouge < 60 %', () => {
+        expect(couleurConfiance(92)).toBe('vert');
+        expect(couleurConfiance(85)).toBe('vert');
+        expect(couleurConfiance(84)).toBe('orange');
+        expect(couleurConfiance(60)).toBe('orange');
+        expect(couleurConfiance(59)).toBe('rouge');
+        expect(couleurConfiance(undefined)).toBeNull();
+    });
+
+    it('TC-BC-020, TC-BC-021 : prix au litre et prix atypique (± 10 % de 12 000 GNF/L)', () => {
+        expect(prixAuLitre(597000, '49,75')).toBe(12000);
+        expect(prixAtypique(prixAuLitre(597000, 49.75), 12000)).toBe(false);
+        expect(prixAuLitre(600000, 40)).toBe(15000);
+        expect(prixAtypique(15000, 12000)).toBe(true);
+        expect(prixAuLitre(600000, '')).toBeNull();
+    });
+
+    it('RG-BC-21 : la lecture se valide quand chaque champ est confirmé', () => {
+        expect(lectureConfirmable(['station', 'date', 'litres', 'montant', 'montant_lettres'])).toBe(false);
+        expect(lectureConfirmable(CHAMPS_LECTURE)).toBe(true);
     });
 });

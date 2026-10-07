@@ -60,6 +60,57 @@ class MontantEnLettres
         return implode(' ', $mots);
     }
 
+    /** Mots d'un nombre écrit en lettres, sans accent (lecture d'un ticket) */
+    private const VALEURS_LUES = [
+        'zero' => 0, 'un' => 1, 'une' => 1, 'deux' => 2, 'trois' => 3, 'quatre' => 4, 'cinq' => 5, 'six' => 6,
+        'sept' => 7, 'huit' => 8, 'neuf' => 9, 'dix' => 10, 'onze' => 11, 'douze' => 12, 'treize' => 13,
+        'quatorze' => 14, 'quinze' => 15, 'seize' => 16, 'trente' => 30, 'quarante' => 40, 'cinquante' => 50,
+        'soixante' => 60,
+    ];
+
+    /**
+     * Montant écrit en lettres → nombre (RG-BC-22 : comparer les montants en chiffres et en lettres d'un ticket).
+     * Tolère majuscules, accents absents, traits d'union ou espaces, mots de devise ; null si aucun nombre n'est reconnu.
+     * Ex. « CINQ CENT QUATRE VINGT DIX SEPT MILLE FRANCS GUINEENS » → 597 000.
+     */
+    public static function lire(?string $texte): ?int
+    {
+        $texte = strtr(mb_strtolower((string) $texte), ['é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'à' => 'a', 'ç' => 'c']);
+        $mots = preg_split('/[^a-z]+/', $texte, -1, PREG_SPLIT_NO_EMPTY);
+
+        $total = 0;
+        $groupe = 0;
+        $reconnu = false;
+        $precedent = null;
+
+        foreach ($mots as $mot) {
+            if (array_key_exists($mot, self::VALEURS_LUES)) {
+                $groupe += self::VALEURS_LUES[$mot];
+            } elseif (in_array($mot, ['vingt', 'vingts'], true)) {
+                /* « quatre-vingt » : le 4 déjà compté devient 80 */
+                $groupe += $precedent === 'quatre' ? 76 : 20;
+            } elseif (in_array($mot, ['cent', 'cents'], true)) {
+                $groupe = max($groupe, 1) * 100;
+            } elseif (in_array($mot, ['mille', 'mil'], true)) {
+                $total += max($groupe, 1) * 1_000;
+                $groupe = 0;
+            } elseif (in_array($mot, ['million', 'millions'], true)) {
+                $total += max($groupe, 1) * 1_000_000;
+                $groupe = 0;
+            } elseif (in_array($mot, ['milliard', 'milliards'], true)) {
+                $total += max($groupe, 1) * 1_000_000_000;
+                $groupe = 0;
+            } else {
+                $precedent = $mot;
+                continue;   // « et », « de », « francs », « guinéens »…
+            }
+            $reconnu = true;
+            $precedent = $mot;
+        }
+
+        return $reconnu ? $total + $groupe : null;
+    }
+
     /** Nombre de 1 à 999 ; $pluriel = false devant « mille » (cent et vingt invariables) */
     private static function centaine(int $n, bool $pluriel): string
     {

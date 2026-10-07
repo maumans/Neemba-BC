@@ -240,7 +240,7 @@ class BonCaisseController extends Controller
         $demandeur = $bon?->demandeur ?? $utilisateur;
 
         return [
-            'bon' => $bon ? AssistantBonController::bon($bon->load(['piecesJointes', 'caisse', 'beneficiaireUtilisateur'])) : null,
+            'bon' => $bon ? AssistantBonController::bon($bon) : null,
             'etapeInitiale' => $bon ? ReglesSaisie::premiereEtapeIncomplete($bon) : 1,
             'demandeur' => AssistantBonController::beneficiaire($demandeur) + [
                 'site' => $demandeur->site,
@@ -257,6 +257,7 @@ class BonCaisseController extends Controller
             'modesPaiement' => collect(BonCaisse::MODES_PAIEMENT)->only(BonCaisse::MODES_PAIEMENT_ASSISTANT),
             'typesPiece' => collect(PieceJointe::TYPES_DOCUMENTS)->only(PieceJointe::TYPES_PIECE_ASSISTANT),
             'seuilDP' => Parametre::seuilDP(),
+            'prixLitreReference' => Parametre::prixLitreReference(),
         ];
     }
 
@@ -350,6 +351,7 @@ class BonCaisseController extends Controller
             'caissier',
             'validations.validateur',
             'piecesJointes',
+            'piecesJointes.doublonDe.bonCaisse:id,numero',   // RG-BC-19 : bandeau des pièces déjà utilisées
             'ordreMission',
             'historiqueActions.utilisateur',
             'ventilations',

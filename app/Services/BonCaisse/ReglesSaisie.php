@@ -203,15 +203,17 @@ class ReglesSaisie
 
     /**
      * Erreur bloquante des pièces : type manquant (RG-BC-18, MSG-BC-016) ou BD sans justificatif (RG-BC-15, MSG-BC-017).
+     * Une pièce illisible ne compte pas comme justificatif (US-BC-08) ; une pièce remplacée non plus.
      */
     public static function erreurPieces(BonCaisse $bon): ?string
     {
-        $pieces = $bon->piecesJointes()->get();
+        $pieces = $bon->piecesActives()->get();
 
         if ($pieces->contains(fn (PieceJointe $piece) => $piece->type_document === null)) {
             return 'MSG-BC-016';
         }
-        if ($bon->type_bon === 'BD' && !$pieces->contains(fn (PieceJointe $piece) => in_array($piece->type_document, PieceJointe::JUSTIFICATIFS_BD, true))) {
+        if ($bon->type_bon === 'BD' && !$pieces->contains(fn (PieceJointe $piece) => in_array($piece->type_document, PieceJointe::JUSTIFICATIFS_BD, true)
+            && $piece->qualite !== QualitePiece::ILLISIBLE)) {
             return 'MSG-BC-017';
         }
 

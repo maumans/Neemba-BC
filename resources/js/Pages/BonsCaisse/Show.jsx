@@ -80,6 +80,7 @@ import { formaterDate, formaterDateHeure } from '@/utils/format';
 import { Input } from '@/Components/ui/input';
 import { Combobox } from '@/Components/ui/combobox';
 import BadgeStatut from '@/Components/BadgeStatut';
+import BandeauPiecesDejaUtilisees from '@/Components/BandeauPiecesDejaUtilisees';
 import { msgErreur } from '@/utils/messages';
 
 /** Dates au format SFD §1.4 (JJ/MM/AAAA, JJ/MM/AAAA HH:MM, fuseau Africa/Conakry) */
@@ -397,6 +398,8 @@ export default function Show({
                     {flash.error}
                 </motion.div>
             )}
+
+            <BandeauPiecesDejaUtilisees pieces={bonCaisse.pieces_jointes} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Colonne principale */}

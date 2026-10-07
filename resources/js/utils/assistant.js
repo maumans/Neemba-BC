@@ -150,3 +150,38 @@ export function nouvelleCleIdempotence() {
 
     return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+
+/* ------------------------------------------------------------------
+ * Lecture des tickets carburant (US-BC-09)
+ * ------------------------------------------------------------------ */
+
+/** Champs du panneau « Lecture du ticket », dans l'ordre de l'écran (même liste que LectureTicket::CHAMPS) */
+export const CHAMPS_LECTURE = ['station', 'date', 'litres', 'montant', 'montant_lettres', 'immatriculation'];
+
+/** Pastille de confiance : vert ≥ 85 %, orange 60–84 %, rouge < 60 % ; null si la valeur n'a pas été lue */
+export function couleurConfiance(confiance) {
+    if (confiance === null || confiance === undefined) return null;
+    if (confiance >= 85) return 'vert';
+
+    return confiance >= 60 ? 'orange' : 'rouge';
+}
+
+/** Prix au litre arrondi (null sans litres) */
+export function prixAuLitre(montant, litres) {
+    const l = Number(String(litres ?? '').replace(',', '.'));
+    if (!montant || !l || l <= 0) return null;
+
+    return Math.round(Number(montant) / l);
+}
+
+/** RG-BC-22 : prix au litre à plus de 10 % du prix de référence */
+export function prixAtypique(prix, reference) {
+    if (!prix || !reference) return false;
+
+    return Math.abs(prix - reference) / reference > 0.1;
+}
+
+/** « Valider la lecture » n'est actif qu'une fois chaque champ confirmé ou corrigé (RG-BC-21) */
+export function lectureConfirmable(confirmes = []) {
+    return CHAMPS_LECTURE.every((champ) => confirmes.includes(champ));
+}

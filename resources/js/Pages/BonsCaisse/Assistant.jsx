@@ -115,6 +115,7 @@ export default function Assistant({
     modesPaiement = {},
     typesPiece = {},
     seuilDP,
+    prixLitreReference,
 }) {
     const [bon, setBon] = useState(bonInitial);
     const [donnees, setDonnees] = useState(() => valeursDe(bonInitial, demandeur));
@@ -356,12 +357,73 @@ export default function Assistant({
         }
     };
 
+    /** Pièce mise à jour par le serveur (qualité, doublon, lecture) */
+    const remplacerDansLaListe = (piece, ancienneId = piece.id) =>
+        changerPieces((pieces) => pieces.map((p) => (p.id === ancienneId ? piece : p)));
+
     const typerPiece = async (piece, type) => {
         try {
             const { data } = await axios.patch(route('api.bons.pieces.typer', [bonActuel.current.id, piece.id]), { type_document: type });
-            changerPieces((pieces) => pieces.map((p) => (p.id === piece.id ? data.piece : p)));
+            remplacerDansLaListe(data.piece);
+            return data.piece;
         } catch (erreur) {
             signaler(erreur);
+            return null;
+        }
+    };
+
+    /** Nouvelle version d'une pièce déjà soumise (E-03.6) */
+    const remplacerPiece = async (ancienne, fichier, progression) => {
+        const formulaire = new FormData();
+        formulaire.append('fichier', fichier);
+        try {
+            const { data } = await axios.post(route('api.bons.pieces.remplacer', [bonActuel.current.id, ancienne.id]), formulaire, {
+                onUploadProgress: (e) => e.total && progression(Math.round((e.loaded * 100) / e.total)),
+            });
+            remplacerDansLaListe(data.piece, ancienne.id);
+            return data.piece;
+        } catch (erreur) {
+            const donneesErreur = erreur.response?.data;
+            throw new Error(donneesErreur?.errors?.fichier?.[0] ?? (msgErreur(donneesErreur) || "l'envoi a échoué."));
+        }
+    };
+
+    /** RG-BC-19 : renvoie les erreurs par champ, ou null */
+    const confirmerDoublon = async (piece, confirme, justification) => {
+        try {
+            const { data } = await axios.patch(route('api.bons.pieces.doublon', [bonActuel.current.id, piece.id]), { confirme, justification });
+            remplacerDansLaListe(data.piece);
+            return null;
+        } catch (erreur) {
+            if (erreur.response?.status === 422) return erreursParChamp(erreur.response.data.errors ?? {});
+            signaler(erreur);
+            return null;
+        }
+    };
+
+    /** RG-BC-21 : « Valider la lecture » ; renvoie les erreurs par champ, ou null */
+    const validerLecture = async (piece, valeurs, confirmes) => {
+        try {
+            const { data } = await axios.post(route('api.bons.pieces.lecture.valider', [bonActuel.current.id, piece.id]), { valeurs, confirmes });
+            remplacerDansLaListe(data.piece);
+            return null;
+        } catch (erreur) {
+            const reponse = erreur.response;
+            if (reponse?.status === 422) {
+                return reponse.data.errors ? erreursParChamp(reponse.data.errors) : { lecture: msgErreur(reponse.data) };
+            }
+            signaler(erreur);
+            return { lecture: "La validation a échoué. Réessayez." };
+        }
+    };
+
+    /** Suivi d'une lecture en cours (RG-BC-20) */
+    const actualiserPiece = async (piece) => {
+        try {
+            const { data } = await axios.get(route('api.bons.pieces.lecture', [bonActuel.current.id, piece.id]));
+            remplacerDansLaListe(data.piece);
+        } catch {
+            /* nouvel essai au prochain passage */
         }
     };
 
@@ -575,7 +637,13 @@ export default function Assistant({
                                             envoyer={envoyerPiece}
                                             typer={typerPiece}
                                             supprimer={supprimerPiece}
+                                            remplacer={remplacerPiece}
+                                            confirmerDoublon={confirmerDoublon}
+                                            validerLecture={validerLecture}
+                                            actualiser={actualiserPiece}
                                             desactive={occupe}
+                                            dateDuJour={dateDuJour}
+                                            prixReference={prixLitreReference}
                                         />
                                     )}
                                     {etape === 5 && (

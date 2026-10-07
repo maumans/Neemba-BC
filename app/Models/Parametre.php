@@ -69,6 +69,12 @@ class Parametre extends Model
         return (float) static::valeur('montant_max_bon', 20000000);
     }
 
+    /** RG-BC-23 : prix de référence du carburant (GNF/L), base du contrôle du prix au litre d'un ticket */
+    public static function prixLitreReference(): int
+    {
+        return (int) static::valeur('prix_litre_reference', 12000);
+    }
+
     /** RG-BC-26 : un brouillon non modifié depuis ce nombre de jours est annulé */
     public static function delaiAbandonBrouillon(): int
     {

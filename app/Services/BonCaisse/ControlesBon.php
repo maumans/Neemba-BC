@@ -7,6 +7,7 @@ use App\Models\BonCaisse;
 use App\Models\Caisse;
 use App\Models\Parametre;
 use App\Models\PieceJointe;
+use App\Services\LectureTicket\LectureTickets;
 use App\Support\Format;
 
 /**
@@ -33,6 +34,12 @@ class ControlesBon
         'MSG-BC-006' => 'RG-BC-07',
         'MSG-BC-042' => 'RG-BC-24',
         'MSG-BC-033' => 'RG-BC-29',
+        'MSG-APP-005' => 'RG-BC-21',
+        'MSG-BC-022' => 'RG-BC-22',
+        'MSG-BC-023' => 'RG-BC-22',
+        'MSG-BC-024' => 'RG-BC-22',
+        'MSG-BC-025' => 'RG-BC-22',
+        'MSG-BC-026' => 'RG-BC-22',
     ];
 
     /**
@@ -41,7 +48,7 @@ class ControlesBon
      */
     public static function executer(BonCaisse $bon): array
     {
-        $bon->loadMissing('piecesJointes');
+        $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse']);
         $caisse = Caisse::payeusePour((string) $bon->site, $bon->mode_paiement);
         $montant = (float) $bon->montant;
 
@@ -117,7 +124,7 @@ class ControlesBon
 
     private static function piecesJustificatives(BonCaisse $bon): array
     {
-        $pieces = $bon->piecesJointes;
+        $pieces = $bon->piecesActives;
         $erreur = ReglesSaisie::erreurPieces($bon);
 
         if ($erreur) {
@@ -136,54 +143,100 @@ class ControlesBon
             $pieces->count() . ' fichier(s) dont au moins un justificatif');
     }
 
+    /** RG-BC-16 : une pièce illisible bloque ; une pièce de qualité moyenne est signalée */
     private static function qualitePieces(BonCaisse $bon): array
     {
-        $pieces = $bon->piecesJointes;
+        $pieces = $bon->piecesActives;
         if ($pieces->isEmpty()) {
             return self::controle(5, 'QUALITE', 'Qualité des pièces', self::OK, 'Sans objet');
         }
-        $illisibles = $pieces->filter(fn (PieceJointe $piece) => $piece->qualite_ok === false)->count();
-        if ($illisibles > 0) {
+
+        $illisibles = $pieces->filter(fn (PieceJointe $piece) => $piece->qualite === QualitePiece::ILLISIBLE || $piece->qualite_ok === false);
+        if ($illisibles->isNotEmpty()) {
             return self::controle(5, 'QUALITE', 'Qualité des pièces', self::BLOQUANT,
                 __('MSG-BC-018'), 'MSG-BC-018', [], 4, 'pieces');
         }
 
-        return self::controle(5, 'QUALITE', 'Qualité des pièces', self::OK, 'Toutes conformes');
+        $moyennes = $pieces->where('qualite', QualitePiece::MOYENNE)->count();
+        if ($moyennes > 0) {
+            return self::controle(5, 'QUALITE_MOYENNE', 'Qualité des pièces', self::AVERTISSEMENT,
+                "{$moyennes} pièce(s) de qualité moyenne : lisible(s), mais une photo plus nette évite un rejet.", null, [], 4, 'pieces');
+        }
+
+        return self::controle(5, 'QUALITE', 'Qualité des pièces', self::OK,
+            $pieces->every(fn (PieceJointe $piece) => $piece->qualite === QualitePiece::CONFORME)
+                ? 'Toutes conformes'
+                : 'Aucune pièce illisible ni de qualité moyenne');
     }
 
     /**
-     * RG-BC-19 : même fichier (empreinte SHA-256) déjà joint à un autre bon non annulé.
-     * La confirmation justifiée arrive avec le lot 4 ; d'ici là, c'est un avertissement.
+     * RG-BC-19 : pièce identique à une pièce d'un autre bon non annulé.
+     * Rouge tant que le demandeur n'a pas confirmé et justifié ; orange ensuite (visible du CDG).
      */
     private static function piecesDejaUtilisees(BonCaisse $bon): array
     {
-        $empreintes = $bon->piecesJointes->pluck('checksum')->filter()->all();
-        $doublon = empty($empreintes) ? null : PieceJointe::query()
-            ->whereIn('checksum', $empreintes)
-            ->where('bon_caisse_id', '!=', $bon->id)
-            ->whereHas('bonCaisse', fn ($q) => $q->where('statut', '!=', 'ANNULE'))
-            ->with('bonCaisse:id,numero,date_soumission,created_at')
-            ->first();
+        $doublons = $bon->piecesActives->filter(fn (PieceJointe $piece) => $piece->doublon_de_id !== null);
+        $nonConfirme = $doublons->first(fn (PieceJointe $piece) => !$piece->doublon_confirme);
 
-        if ($doublon) {
-            $autre = $doublon->bonCaisse;
-            $valeurs = ['numero' => $autre->numero ?? 'en brouillon', 'date' => ($autre->date_soumission ?? $autre->created_at)?->toDateString()];
+        if ($nonConfirme) {
+            $valeurs = self::valeursDoublon($nonConfirme);
 
-            return self::controle(6, 'PIECE_DEJA_UTILISEE', 'Pièces déjà utilisées', self::AVERTISSEMENT,
+            return self::controle(6, 'PIECE_DEJA_UTILISEE', 'Pièces déjà utilisées', self::BLOQUANT,
                 ErreurMetier::texte('MSG-BC-019', $valeurs), 'MSG-BC-019', $valeurs, 4, 'pieces');
+        }
+        if ($doublons->isNotEmpty()) {
+            return self::controle(6, 'DOUBLON_JUSTIFIE', 'Pièces déjà utilisées', self::AVERTISSEMENT,
+                "{$doublons->count()} pièce(s) déjà présentée(s) sur un autre bon, confirmée(s) et justifiée(s) : le contrôle de gestion en sera informé.");
         }
 
         return self::controle(6, 'PIECES_UNIQUES', 'Pièces déjà utilisées', self::OK, 'Aucune pièce déjà présentée sur un autre bon');
     }
 
+    /** Numéro et date du bon qui porte déjà la pièce (MSG-BC-019) */
+    public static function valeursDoublon(PieceJointe $piece): array
+    {
+        $autre = $piece->doublonDe?->bonCaisse;
+
+        return [
+            'numero' => $autre?->numero ?? 'en brouillon',
+            'date' => ($autre?->date_soumission ?? $autre?->created_at)?->toDateString(),
+        ];
+    }
+
+    /**
+     * RG-BC-20 à RG-BC-22 : lecture validée de chaque ticket carburant ; cohérence des tickets (avertissements)
+     * et total des tickets comparé au montant du bon (écart au-delà de 2 %, MSG-BC-024).
+     */
     private static function lectureTickets(BonCaisse $bon): array
     {
-        $tickets = $bon->piecesJointes->where('type_document', 'recu_carburant')->count();
+        $tickets = $bon->piecesActives->where('type_document', 'recu_carburant');
+        if ($tickets->isEmpty()) {
+            return self::controle(7, 'TICKETS', 'Lecture des tickets', self::OK, 'Sans objet');
+        }
 
-        return $tickets === 0
-            ? self::controle(7, 'TICKETS', 'Lecture des tickets', self::OK, 'Sans objet')
-            : self::controle(7, 'TICKETS', 'Lecture des tickets', self::OK,
-                "{$tickets} ticket(s) carburant joint(s), vérifiés par le contrôle de gestion");
+        $lectures = $tickets->map(fn (PieceJointe $piece) => $piece->lectureTicket ? LectureTickets::actualiser($piece->lectureTicket) : null);
+        if ($lectures->contains(fn ($lecture) => !$lecture?->estValidee())) {
+            return self::controle(7, 'LECTURE_NON_VALIDEE', 'Lecture des tickets', self::BLOQUANT,
+                __('MSG-APP-005'), 'MSG-APP-005', [], 4, 'pieces');
+        }
+
+        $avertissements = $lectures->flatMap(fn ($lecture) => LectureTickets::avertissements($lecture, $bon))->values()->all();
+        $total = $lectures->sum(fn ($lecture) => (int) ($lecture->valeurs_validees['montant'] ?? 0));
+        $montant = (int) round((float) $bon->montant);
+        if ($montant > 0 && abs($total - $montant) / $montant > LectureTickets::ECART_TOTAL) {
+            $valeurs = ['total' => $total, 'montant' => $montant, 'ecart' => abs($montant - $total)];
+            array_unshift($avertissements, ['message_cle' => 'MSG-BC-024', 'valeurs' => $valeurs, 'message' => ErreurMetier::texte('MSG-BC-024', $valeurs)]);
+        }
+
+        if ($avertissements) {
+            $premier = $avertissements[0];
+
+            return self::controle(7, $premier['message_cle'] === 'MSG-BC-024' ? 'TICKETS_TOTAL' : 'TICKETS_INCOHERENTS', 'Lecture des tickets',
+                self::AVERTISSEMENT, implode(' ', array_unique(array_column($avertissements, 'message'))),
+                $premier['message_cle'], $premier['valeurs'], 4, 'pieces');
+        }
+
+        return self::controle(7, 'TICKETS', 'Lecture des tickets', self::OK, "{$tickets->count()} ticket(s) validé(s) et cohérent(s)");
     }
 
     private static function telephoneRetrait(BonCaisse $bon): array

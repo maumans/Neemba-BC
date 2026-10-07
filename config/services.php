@@ -40,6 +40,11 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
+    /* Lecture des tickets carburant (US-BC-09) : « manuel » (défaut, décision Q8) ou « local » (Tesseract) */
+    'lecture_tickets' => [
+        'lecteur' => env('LECTEUR_TICKETS', 'manuel'),
+    ],
+
     'nimba' => [
         'api_url' => env('NIMBA_API_URL', 'https://api.nimbasms.com/v1'),
         'auth_token' => env('NIMBA_AUTH_TOKEN'),

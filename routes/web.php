@@ -74,6 +74,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/bons/{bonCaisse}/pieces', [AssistantBonController::class, 'ajouterPiece'])->name('bons.pieces.ajouter');
         Route::patch('/bons/{bonCaisse}/pieces/{piece}', [AssistantBonController::class, 'typerPiece'])->name('bons.pieces.typer');
         Route::delete('/bons/{bonCaisse}/pieces/{piece}', [AssistantBonController::class, 'supprimerPiece'])->name('bons.pieces.supprimer');
+        Route::post('/bons/{bonCaisse}/pieces/{piece}/remplacer', [AssistantBonController::class, 'remplacerPiece'])->name('bons.pieces.remplacer');
+        Route::patch('/bons/{bonCaisse}/pieces/{piece}/doublon', [AssistantBonController::class, 'confirmerDoublon'])->name('bons.pieces.doublon');
+        Route::get('/bons/{bonCaisse}/pieces/{piece}/lecture', [AssistantBonController::class, 'lecture'])->name('bons.pieces.lecture');
+        Route::post('/bons/{bonCaisse}/pieces/{piece}/lecture', [AssistantBonController::class, 'validerLecture'])->name('bons.pieces.lecture.valider');
     });
 
     /* Actions spécifiques sur les bons de caisse (toutes paramétrées → pas de conflit) */

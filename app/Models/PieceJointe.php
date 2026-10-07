@@ -31,12 +31,17 @@ class PieceJointe extends Model
         'mime_type',
         'dpi_detecte',
         'qualite_ok',
+        'qualite',
         'version',
+        'remplacee_par_id',
         'identifiant_unique',
         'date_archivage',
         'date_expiration_retention',
         'archived_by',
         'checksum',
+        'doublon_de_id',
+        'doublon_confirme',
+        'justification_doublon',
         'ocr_statut',
         'ocr_data',
         'ocr_texte_brut',
@@ -48,6 +53,7 @@ class PieceJointe extends Model
         return [
             'ocr_data' => 'array',
             'qualite_ok' => 'boolean',
+            'doublon_confirme' => 'boolean',
             'date_archivage' => 'datetime',
             'date_expiration_retention' => 'date',
         ];
@@ -111,6 +117,24 @@ class PieceJointe extends Model
     /**
      * Bon de caisse auquel ce document est rattaché
      */
+    /** Lecture du ticket carburant (US-BC-09) */
+    public function lectureTicket(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(LectureTicket::class);
+    }
+
+    /** Pièce identique jointe plus tôt à un autre bon (RG-BC-19) */
+    public function doublonDe(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'doublon_de_id');
+    }
+
+    /** Nouvelle version qui remplace cette pièce (E-03.6) */
+    public function remplaceePar(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'remplacee_par_id');
+    }
+
     public function bonCaisse(): BelongsTo
     {
         return $this->belongsTo(BonCaisse::class, 'bon_caisse_id');
