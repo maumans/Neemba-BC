@@ -48,6 +48,7 @@ class OrdreMissionController extends Controller
             'statuts' => OrdreMission::STATUTS,
             'types' => OrdreMission::TYPES,
             'peutCreer' => $utilisateur->aLeRole('demandeur'),
+            'peutVoirTableauDeBord' => $utilisateur->aLeRole(\App\Services\Odm\TableauBordOdm::ROLES),
             /* ODM qui attendent le visa de l'utilisateur (titulaire ou suppléant) */
             'aViser' => \App\Services\Odm\CircuitOdm::aViserPar($utilisateur)->map(fn (OrdreMission $odm) => PresentationOdm::ligne($odm))->values(),
             /* RG-M12-16 : dérogations à décider par le DAF */
@@ -203,6 +204,39 @@ class OrdreMissionController extends Controller
         \App\Services\Odm\RegulariserTropPercu::executer($participant, Auth::user());
 
         return redirect()->route('odm.show', $odm)->with('success', "Trop-perçu de {$participant->nom} régularisé.");
+    }
+
+    /** GET /ordres-mission/{odm}/pdf — RG-M12-23 : ordre de mission (autorisation de circuler) et fiche d'indemnités, visas horodatés */
+    public function pdf(OrdreMission $odm)
+    {
+        abort_unless($odm->estVisiblePar(Auth::user()), 403);
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.odm-pdf', [
+            'odm' => PresentationOdm::detail($odm) + ['entite' => $odm->entite],
+            'etapes' => PresentationOdm::etapes($odm),
+            'edite_le' => \App\Support\Format::dateHeure(now()),
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->stream('ordre-de-mission-' . str_replace(['°', '/'], ['', '-'], $odm->numero ?? "brouillon-{$odm->id}") . '.pdf');
+    }
+
+    /** GET /ordres-mission/tableau-de-bord — US-14 : missions en cours, dérogations, ODM à refacturer */
+    public function tableauDeBord()
+    {
+        abort_unless(Auth::user()->aLeRole(\App\Services\Odm\TableauBordOdm::ROLES), 403);
+
+        return Inertia::render('Odm/TableauDeBord', \App\Services\Odm\TableauBordOdm::donnees());
+    }
+
+    /** GET /ordres-mission/tableau-de-bord/export — export Excel du tableau de bord */
+    public function exportTableauDeBord()
+    {
+        abort_unless(Auth::user()->aLeRole(\App\Services\Odm\TableauBordOdm::ROLES), 403);
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\TableauBordOdmExport(\App\Services\Odm\TableauBordOdm::donnees()),
+            'ordres-de-mission-' . now()->format('Y-m-d') . '.xlsx',
+        );
     }
 
     /** POST /ordres-mission/{odm}/rejeter — RG-M12-12 : motif obligatoire */

@@ -130,7 +130,7 @@ final class PresentationOdm
         return [
             'participants' => $participants,
             'total' => $odm->total !== null ? (float) $odm->total : null,
-            'jours' => CalculOdm::jours($odm->date_depart, $odm->date_retour_prevue),
+            'jours' => CalculOdm::jours($odm->date_depart, $odm->dateFin()),
             'libelle_indemnite_1' => $baremes['libelle_indemnite_1'],
             'libelle_indemnite_2' => $baremes['libelle_indemnite_2'],
             'indemnite_journaliere' => $baremes['indemnite_journaliere'],

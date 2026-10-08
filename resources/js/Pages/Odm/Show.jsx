@@ -564,6 +564,11 @@ export default function Show({
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                            {odm.numero && (
+                                <a href={route('odm.pdf', odm.id)} target="_blank" rel="noreferrer">
+                                    <Button size="sm" variant="outline"><FileText className="mr-1 h-4 w-4" /> Imprimer (PDF)</Button>
+                                </a>
+                            )}
                             {peutProlonger && <Prolonger odm={odm} />}
                             {peutCloturer && <Cloturer odm={odm} regularisationsPossibles={regularisationsPossibles} />}
                             {peutAnnulerDaf && <AnnulerDaf odm={odm} />}

@@ -53,7 +53,7 @@ function DecisionDerogation({ odm, onFermer }) {
     );
 }
 
-export default function Index({ odms, filtres = {}, statuts = {}, types = {}, peutCreer = false, derogations = [], aViser = [] }) {
+export default function Index({ odms, filtres = {}, statuts = {}, types = {}, peutCreer = false, peutVoirTableauDeBord = false, derogations = [], aViser = [] }) {
     const [recherche, setRecherche] = useState(filtres.recherche ?? '');
     const [derogation, setDerogation] = useState(null);
     const premier = useRef(true);
@@ -122,11 +122,18 @@ export default function Index({ odms, filtres = {}, statuts = {}, types = {}, pe
                 <Card>
                     <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
                         <CardTitle className="text-base">Ordres de mission</CardTitle>
+                        <div className="flex flex-wrap gap-2">
+                        {peutVoirTableauDeBord && (
+                            <Link href={route('odm.tableau-de-bord')}>
+                                <Button size="sm" variant="outline">Tableau de bord</Button>
+                            </Link>
+                        )}
                         {peutCreer && (
                             <Link href={route('odm.create')}>
                                 <Button size="sm"><Plus className="mr-1 h-4 w-4" /> Nouvel ordre de mission</Button>
                             </Link>
                         )}
+                        </div>
                     </CardHeader>
                     <CardContent className="space-y-3 p-0 sm:p-0">
                         <div className="flex flex-wrap gap-2 px-4">

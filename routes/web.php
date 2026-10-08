@@ -94,8 +94,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     /* --- Ordres de mission (M12) : liste, formulaire, fiche, dérogation du DAF --- */
     Route::get('/ordres-mission', [OrdreMissionController::class, 'index'])->name('odm.index');
     Route::get('/ordres-mission/create', [OrdreMissionController::class, 'create'])->name('odm.create');
+    Route::get('/ordres-mission/tableau-de-bord', [OrdreMissionController::class, 'tableauDeBord'])->name('odm.tableau-de-bord');
+    Route::get('/ordres-mission/tableau-de-bord/export', [OrdreMissionController::class, 'exportTableauDeBord'])->name('odm.tableau-de-bord.export');
     Route::get('/ordres-mission/{odm}', [OrdreMissionController::class, 'show'])->name('odm.show');
     Route::get('/ordres-mission/{odm}/edit', [OrdreMissionController::class, 'edit'])->name('odm.edit');
+    Route::get('/ordres-mission/{odm}/pdf', [OrdreMissionController::class, 'pdf'])->name('odm.pdf');
     Route::post('/ordres-mission/{odm}/derogation', [OrdreMissionController::class, 'deciderDerogation'])->name('odm.derogation');
     Route::post('/ordres-mission/{odm}/viser', [OrdreMissionController::class, 'viser'])->name('odm.viser');
     Route::post('/ordres-mission/{odm}/rejeter', [OrdreMissionController::class, 'rejeter'])->name('odm.rejeter');
