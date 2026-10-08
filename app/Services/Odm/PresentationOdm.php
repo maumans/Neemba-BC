@@ -202,6 +202,58 @@ final class PresentationOdm
             })->values()->all();
     }
 
+    /** Onglet « Bons » : bons générés depuis l'ODM, avec leur statut dans leur propre circuit */
+    public static function bons(OrdreMission $odm): array
+    {
+        return $odm->bons()->with('participantOdm')->orderBy('id')->get()->map(fn (\App\Models\BonCaisse $bon) => [
+            'id' => $bon->id,
+            'numero' => $bon->numero ?? 'Brouillon',
+            'type_bon' => $bon->type_bon,
+            'beneficiaire' => $bon->beneficiaire,
+            'montant' => (float) $bon->montant,
+            'montant_estime' => $bon->montant_estime !== null ? (float) $bon->montant_estime : null,
+            'taux_change_estime' => $bon->taux_change_estime !== null ? (float) $bon->taux_change_estime : null,
+            'taux_change_applique' => $bon->taux_change_applique !== null ? (float) $bon->taux_change_applique : null,
+            'frais_om' => $bon->frais_om !== null ? (float) $bon->frais_om : null,
+            'montant_verse' => $bon->montant_verse !== null ? (float) $bon->montant_verse : null,
+            'statut' => $bon->statut,
+            'statut_label' => \App\Models\BonCaisse::STATUTS_LABELS[$bon->statut] ?? $bon->statut,
+        ])->values()->all();
+    }
+
+    /**
+     * Génération des bons (US-08) : mode, participants sans bon actif, BP possible, ODM extérieur sans aucun taux.
+     * Null si l'utilisateur ne peut pas générer.
+     */
+    public static function generation(OrdreMission $odm, \App\Models\User $utilisateur): ?array
+    {
+        if (!in_array($odm->statut, GenererBonsOdm::STATUTS_AUTORISES, true)
+            || !in_array($utilisateur->id, [$odm->demandeur_id, $odm->initiateur_id], true)
+            || GenererBonsOdm::sansBon($odm)) {
+            return null;
+        }
+        $actifs = GenererBonsOdm::bonsActifs($odm);
+        $mode = Parametre::valeur('odm_mode_generation', 'par_participant');
+        $participants = $odm->participantsActifs()->with('bonCaisse')->get()->map(fn (ParticipantOdm $p) => [
+            'user_id' => $p->user_id,
+            'nom' => $p->nom,
+            'numero_om' => $p->numero_om,
+            'total' => $p->total !== null ? (float) $p->total : null,
+            'a_un_bon' => $p->bonCaisse !== null && !in_array($p->bonCaisse->statut, GenererBonsOdm::STATUTS_INACTIFS, true),
+        ])->values();
+
+        return [
+            'mode' => $mode,
+            'participants' => $participants->all(),
+            'reste_a_generer' => $mode === 'groupe'
+                ? ($actifs->where('type_bon', 'BD')->isEmpty() ? 1 : 0)
+                : $participants->where('a_un_bon', false)->count(),
+            'bp_autorise' => (bool) Parametre::valeur('odm_genere_bp', true) && $actifs->where('type_bon', 'BP')->isEmpty(),
+            'sans_taux' => $odm->type === 'exterieur' && !TauxChange::dernier(),
+            'total' => $odm->total !== null ? (float) $odm->total : null,
+        ];
+    }
+
     /** Référentiels du formulaire */
     public static function referentiels(): array
     {

@@ -133,7 +133,10 @@ class ReglesSaisie
 
             /* Étape 3 — RG-BC-08 à RG-BC-14 */
             'motif' => ['required', 'string', 'min:10', 'max:200'],
-            'categorie_depense' => ['required', Rule::exists('categories_depense', 'code')->where('actif', true)->where('proposee_assistant', true)],
+            /* La catégorie « mission », non proposée dans l'assistant, est celle des bons générés depuis un ODM (M12) */
+            'categorie_depense' => !empty($d['genere_par_odm'])
+                ? ['required', Rule::exists('categories_depense', 'code')->where('actif', true)]
+                : ['required', Rule::exists('categories_depense', 'code')->where('actif', true)->where('proposee_assistant', true)],
             'montant' => ['required', 'integer', 'min:1', 'max:999999999'],
             'mode_paiement' => array_filter(['required', Rule::in(BonCaisse::MODES_PAIEMENT_ASSISTANT), $avecPlafond ? self::reglePlafondRetrait($d) : null]),
             'vehicule' => $categorie?->vehicule_obligatoire ? ['required', 'string', 'min:3', 'max:20'] : ['nullable', 'string', 'min:3', 'max:20'],
@@ -213,7 +216,8 @@ class ReglesSaisie
         if ($pieces->contains(fn (PieceJointe $piece) => $piece->type_document === null)) {
             return 'MSG-BC-016';
         }
-        if ($bon->type_bon === 'BD' && !$pieces->contains(fn (PieceJointe $piece) => in_array($piece->type_document, PieceJointe::JUSTIFICATIFS_BD, true)
+        /* RG-M03-15, RG-M12-29 : un BD généré depuis un ODM est justifié par l'ODM, aucun justificatif n'est exigé */
+        if ($bon->type_bon === 'BD' && !$bon->genere_par_odm && !$pieces->contains(fn (PieceJointe $piece) => in_array($piece->type_document, PieceJointe::JUSTIFICATIFS_BD, true)
             && $piece->qualite !== QualitePiece::ILLISIBLE)) {
             return 'MSG-BC-017';
         }
@@ -234,6 +238,7 @@ class ReglesSaisie
             $donnees[$champ] = $valeur instanceof \Carbon\CarbonInterface ? $valeur->toDateString() : $valeur;
         }
         $donnees['montant'] = $bon->montant !== null ? (int) round((float) $bon->montant) : null;
+        $donnees['genere_par_odm'] = (bool) $bon->genere_par_odm;
 
         return $donnees;
     }

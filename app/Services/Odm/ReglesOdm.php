@@ -48,6 +48,12 @@ final class ReglesOdm
             $ajouter('CODE_ANALYTIQUE_OBLIGATOIRE', 'MSG-BC-001', [], 'RG-M12-05', 'code_analytique');
         } elseif (!CodeAnalytique::where('code', $odm->code_analytique)->where('actif', true)->exists()) {
             $ajouter('CODE_ANALYTIQUE_INCONNU', 'MSG-APP-021', [], 'RG-M12-05', 'code_analytique');
+        } elseif ($service = \App\Models\Service::where('nom', $odm->service)->first()) {
+            /* Même règle que pour les bons, qui reprendront ce code (RG-M03-22) */
+            $codes = CodeAnalytique::where('actif', true)->where('service_id', $service->id)->pluck('code');
+            if ($codes->isNotEmpty() && !$codes->contains($odm->code_analytique)) {
+                $ajouter('CODE_ANALYTIQUE_HORS_SERVICE', 'MSG-APP-026', ['service' => $service->nom], 'RG-M12-05', 'code_analytique');
+            }
         }
         if (empty(array_filter($odm->destinations ?? [], 'filled'))) {
             $ajouter('DESTINATION_OBLIGATOIRE', 'MSG-APP-012', [], 'RG-M12-05', 'destinations');

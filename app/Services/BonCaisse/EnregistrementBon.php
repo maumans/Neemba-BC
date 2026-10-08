@@ -73,6 +73,11 @@ class EnregistrementBon
 
     public static function appliquer(BonCaisse $bon, array $saisie, ?User $auteur = null): BonCaisse
     {
+        /* RG-M03-22 : champs d'un bon généré depuis un ODM verrouillés */
+        if ($bon->genere_par_odm) {
+            throw new ErreurMetier('BON_GENERE_PAR_ODM', 'MSG-APP-025', [], 'RG-M03-22', null, 409);
+        }
+
         /* Changement de titulaire d'un brouillon par son initiateur */
         if ($auteur && $bon->exists && array_key_exists('demandeur_id', $saisie) && $bon->initiateur_id === $auteur->id) {
             $bon->demandeur_id = self::titulaire($auteur, $saisie['demandeur_id'])->id;

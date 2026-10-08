@@ -20,7 +20,8 @@ class BonCaissePolicy
     /** Saisie dans l'assistant : demandeur ou initiateur, bon en brouillon ou rejeté (RG-BC-30) */
     public function modifier(User $utilisateur, BonCaisse $bon): bool
     {
-        return $this->estAuteur($utilisateur, $bon) && in_array($bon->statut, ['BROUILLON', 'REJETE'], true);
+        /* RG-M03-22 : un bon généré depuis un ODM reprend ses champs de l'ODM, verrouillés */
+        return $this->estAuteur($utilisateur, $bon) && in_array($bon->statut, ['BROUILLON', 'REJETE'], true) && !$bon->genere_par_odm;
     }
 
     /** Le statut est vérifié par la soumission elle-même (idempotence d'un double clic) */

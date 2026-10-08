@@ -5,7 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, Info as IconeInfo, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
@@ -15,6 +15,9 @@ import {
 } from '@/Components/ui/dialog';
 import BadgeStatutOdm from '@/Components/Odm/BadgeStatutOdm';
 import PanneauCalcul from '@/Components/Odm/PanneauCalcul';
+import MontantInput from '@/Components/MontantInput';
+import BadgeStatut from '@/Components/BadgeStatut';
+import { formaterMontant } from '@/utils/format';
 import { STATUTS_CADRE } from '@/utils/odm';
 
 function Info({ libelle, children }) {
@@ -132,7 +135,148 @@ function ActionsVisa({ odm, visa }) {
     );
 }
 
-export default function Show({ odm, etapes = [], visa = null, peutModifier = false, peutAnnuler = false, peutDeciderDerogation = false }) {
+/** Génération des bons d'un ODM validé (US-08, RG-M12-13 à RG-M12-15) */
+function GenerationBons({ odm, generation }) {
+    const premier = generation.participants[0]?.user_id ?? '';
+    const form = useForm({ beneficiaire_groupe_id: premier, bp: { montant: '', motif: '', beneficiaire_id: premier } });
+    const [avecBp, setAvecBp] = useState(false);
+    const groupe = generation.mode === 'groupe';
+    const rien = generation.reste_a_generer === 0 && !avecBp;
+
+    const generer = () => {
+        form.transform((d) => ({ ...d, bp: avecBp ? d.bp : null }));
+        form.post(route('odm.generer-bons', odm.id), { preserveScroll: true });
+    };
+
+    return (
+        <Card className="border-green-200 bg-green-50/40">
+            <CardContent className="space-y-3 p-4">
+                <p className="flex items-center gap-2 text-sm font-semibold text-green-900">
+                    <FileText className="h-4 w-4" /> Bons de caisse de l'ordre de mission
+                </p>
+                <p className="text-sm text-gray-700">
+                    {groupe
+                        ? 'Un bon groupé, du total de l\'ODM, versé au n° Orange Money du participant désigné.'
+                        : 'Un bon définitif par participant, du montant de ses indemnités.'}
+                    {' '}Chaque bon est soumis aussitôt et suit son propre circuit (chef de service, CDG, Finance, DP au-delà du seuil).
+                    L'ODM tient lieu de justificatif.
+                </p>
+                {generation.sans_taux && (
+                    <p className="flex items-start gap-2 rounded-md bg-amber-50 p-2 text-sm text-amber-800">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                        Aucun taux FCFA → GNF n'a encore été saisi : la Trésorerie doit le saisir avant la génération.
+                    </p>
+                )}
+                <ul className="space-y-1 text-sm">
+                    {generation.participants.map((p) => (
+                        <li key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
+                            <span>{p.nom}{p.numero_om && <span className="ml-1 font-mono text-xs text-gray-500">OM {p.numero_om}</span>}</span>
+                            <span className="tabular-nums">{p.total !== null ? formaterMontant(p.total) : '—'}{p.a_un_bon && <span className="ml-2 text-xs text-green-700">bon généré</span>}</span>
+                        </li>
+                    ))}
+                </ul>
+                {groupe && generation.reste_a_generer > 0 && (
+                    <div>
+                        <label htmlFor="beneficiaire-groupe" className="text-sm font-medium">Bon versé à</label>
+                        <select id="beneficiaire-groupe" className="mt-1 h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                            value={form.data.beneficiaire_groupe_id} onChange={(e) => form.setData('beneficiaire_groupe_id', Number(e.target.value))}>
+                            {generation.participants.map((p) => <option key={p.user_id} value={p.user_id}>{p.nom}</option>)}
+                        </select>
+                    </div>
+                )}
+                {generation.bp_autorise && (
+                    <div className="space-y-2 rounded-md border bg-white p-3">
+                        <label className="flex items-center gap-2 text-sm font-medium">
+                            <input type="checkbox" checked={avecBp} onChange={(e) => setAvecBp(e.target.checked)} />
+                            Générer aussi un bon provisoire (avance pour frais réels de mission)
+                        </label>
+                        {avecBp && (
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                <div>
+                                    <label htmlFor="bp-montant" className="text-xs text-gray-600">Montant de l'avance</label>
+                                    <MontantInput id="bp-montant" value={form.data.bp.montant} onChange={(v) => form.setData('bp', { ...form.data.bp, montant: v })} />
+                                    {form.errors.bp_montant && <p className="mt-1 text-xs text-red-600">{form.errors.bp_montant}</p>}
+                                </div>
+                                <div>
+                                    <label htmlFor="bp-beneficiaire" className="text-xs text-gray-600">Bénéficiaire</label>
+                                    <select id="bp-beneficiaire" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                                        value={form.data.bp.beneficiaire_id} onChange={(e) => form.setData('bp', { ...form.data.bp, beneficiaire_id: Number(e.target.value) })}>
+                                        {generation.participants.map((p) => <option key={p.user_id} value={p.user_id}>{p.nom}</option>)}
+                                    </select>
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <label htmlFor="bp-motif" className="text-xs text-gray-600">Motif (frais réels prévus)</label>
+                                    <Textarea id="bp-motif" rows={2} value={form.data.bp.motif} onChange={(e) => form.setData('bp', { ...form.data.bp, motif: e.target.value })} />
+                                    {form.errors.bp_motif && <p className="mt-1 text-xs text-red-600">{form.errors.bp_motif}</p>}
+                                </div>
+                                <p className="text-xs text-gray-500 sm:col-span-2">À régulariser 3 jours ouvrés après le retour de mission.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {(form.errors.general || form.errors.bp) && <p className="text-sm text-red-600">{form.errors.general ?? form.errors.bp}</p>}
+                <Button size="sm" onClick={generer} disabled={form.processing || rien || generation.sans_taux}>
+                    <FileText className="mr-1 h-4 w-4" />
+                    {generation.reste_a_generer > 0 ? 'Générer les bons de caisse' : 'Générer le bon provisoire'}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+/** Onglet « Bons » : bons générés depuis l'ODM et leur statut */
+function Bons({ bons }) {
+    if (bons.length === 0) {
+        return <p className="text-sm text-gray-500">Aucun bon de caisse généré pour l'instant.</p>;
+    }
+
+    return (
+        <Card>
+            <CardContent className="overflow-x-auto p-4">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="border-b text-left text-xs text-gray-500">
+                            <th className="py-2 pr-3 font-medium">Bon</th>
+                            <th className="py-2 pr-3 font-medium">Bénéficiaire</th>
+                            <th className="py-2 pr-3 text-right font-medium">Montant</th>
+                            <th className="py-2 pr-3 font-medium">Statut</th>
+                            <th className="py-2 font-medium">Paiement</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {bons.map((b) => (
+                            <tr key={b.id} className="border-b last:border-b-0" data-testid={`bon-${b.numero}`}>
+                                <td className="py-2 pr-3">
+                                    <Link href={route('bons-caisse.show', b.id)} className="font-medium text-neemba-700 hover:underline">{b.numero}</Link>
+                                    <span className="ml-1 text-xs text-gray-500">{b.type_bon}</span>
+                                </td>
+                                <td className="py-2 pr-3">{b.beneficiaire}</td>
+                                <td className="py-2 pr-3 text-right tabular-nums">
+                                    {formaterMontant(b.montant)}
+                                    {b.taux_change_estime !== null && (
+                                        <p className="text-xs text-gray-500">
+                                            estimé au taux {String(b.taux_change_estime).replace('.', ',')}
+                                            {b.taux_change_applique !== null && ` · payé au taux ${String(b.taux_change_applique).replace('.', ',')}`}
+                                        </p>
+                                    )}
+                                </td>
+                                <td className="py-2 pr-3"><BadgeStatut statut={b.statut} /></td>
+                                <td className="py-2 text-xs text-gray-600">
+                                    {b.montant_verse !== null ? `versé ${formaterMontant(b.montant_verse)}${b.frais_om !== null ? ` (frais OM ${formaterMontant(b.frais_om)})` : ''}` : '—'}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </CardContent>
+        </Card>
+    );
+}
+
+export default function Show({
+    odm, etapes = [], visa = null, bons = [], generation = null, sansBon = false,
+    peutModifier = false, peutAnnuler = false, peutDeciderDerogation = false,
+}) {
     const [annulation, setAnnulation] = useState(false);
     const [motifAnnulation, setMotifAnnulation] = useState('');
     const [derogation, setDerogation] = useState(false);
@@ -208,14 +352,26 @@ export default function Show({ odm, etapes = [], visa = null, peutModifier = fal
                 )}
 
                 {visa && <ActionsVisa odm={odm} visa={visa} />}
+                {generation && <GenerationBons odm={odm} generation={generation} />}
+                {sansBon && ['VALIDE', 'BONS_GENERES'].includes(odm.statut) && (
+                    <p className="flex items-start gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
+                        <IconeInfo className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                        Ordre de mission à la charge du client : aucun bon de caisse n'est généré (variante B). Il est marqué « à refacturer ».
+                    </p>
+                )}
 
                 <Tabs defaultValue="details">
                     <TabsList>
                         <TabsTrigger value="details">Détails</TabsTrigger>
                         <TabsTrigger value="calcul">Calcul</TabsTrigger>
                         <TabsTrigger value="validations">Validations</TabsTrigger>
+                        <TabsTrigger value="bons">Bons{bons.length > 0 && ` (${bons.length})`}</TabsTrigger>
                         <TabsTrigger value="historique">Historique</TabsTrigger>
                     </TabsList>
+
+                    <TabsContent value="bons" className="mt-4">
+                        <Bons bons={bons} />
+                    </TabsContent>
 
                     <TabsContent value="validations" className="mt-4">
                         <Validations etapes={etapes} />

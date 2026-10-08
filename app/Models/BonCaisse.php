@@ -68,6 +68,11 @@ class BonCaisse extends Model
         'odm_id',
         'odm_participant_id',
         'genere_par_odm',
+        'montant_fcfa',
+        'montant_gnf_fixe',
+        'taux_change_estime',
+        'taux_change_applique',
+        'montant_estime',
         'date_retour_mission',
         'motif_annulation',
         'date_annulation',
@@ -102,6 +107,11 @@ class BonCaisse extends Model
             'references_or' => 'array',
             'lie_mission' => 'boolean',
             'genere_par_odm' => 'boolean',
+            'montant_fcfa' => 'decimal:2',
+            'montant_gnf_fixe' => 'decimal:2',
+            'taux_change_estime' => 'decimal:4',
+            'taux_change_applique' => 'decimal:4',
+            'montant_estime' => 'decimal:2',
             'date_retour_mission' => 'date',
             'date_annulation' => 'datetime',
             'montant' => 'decimal:2',
@@ -800,6 +810,9 @@ class BonCaisse extends Model
                 [...$metaFrais, 'mode_paiement' => $modePaiement, 'date_paiement' => $this->date_paiement->toIso8601String()],
             );
         }
+
+        /* M12 (RG-M12-21) : l'ODM passe « Payé » quand tous ses bons sont payés */
+        \App\Services\Odm\PaiementOdm::apresPaiement($this, $caissier);
 
         return true;
     }

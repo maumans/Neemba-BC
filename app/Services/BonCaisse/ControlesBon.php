@@ -131,6 +131,10 @@ class ControlesBon
             return self::controle(4, 'PIECES', 'Pièces justificatives', self::BLOQUANT,
                 __($erreur), $erreur, [], 4, 'pieces');
         }
+        if ($bon->genere_par_odm && $bon->type_bon === 'BD') {
+            return self::controle(4, 'PIECES', 'Pièces justificatives', self::OK,
+                'Bon généré depuis un ordre de mission : l\'ODM tient lieu de justificatif (RG-M12-29)');
+        }
         if ($bon->type_bon === 'BP' && $pieces->isEmpty()) {
             return self::controle(4, 'PIECES', 'Pièces justificatives', self::AVERTISSEMENT,
                 'Bon provisoire sans pièce : les justificatifs seront à fournir à la régularisation.');

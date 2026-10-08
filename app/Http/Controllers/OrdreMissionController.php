@@ -98,6 +98,10 @@ class OrdreMissionController extends Controller
         return Inertia::render('Odm/Show', [
             'odm' => PresentationOdm::detail($odm),
             'etapes' => PresentationOdm::etapes($odm),
+            'bons' => PresentationOdm::bons($odm),
+            'generation' => PresentationOdm::generation($odm, $utilisateur),
+            /* RG-M12-15, variante B : ODM à la charge du client, sans bon */
+            'sansBon' => \App\Services\Odm\GenererBonsOdm::sansBon($odm),
             /* RG-M12-11 : visa possible à l'étape en cours, « au titre de » pour un suppléant */
             'visa' => $visa ? [
                 'niveau' => $visa['etape']->libelle,
@@ -121,6 +125,27 @@ class OrdreMissionController extends Controller
         return redirect()->route('odm.show', $odm)->with('success', $odm->statut === 'VALIDE'
             ? \App\Exceptions\ErreurMetier::texte('MSG-M12-08', ['numero' => $odm->numero])
             : "Visa enregistré : l'ordre de mission {$odm->numero} passe au niveau suivant.");
+    }
+
+    /** POST /ordres-mission/{odm}/generer-bons — US-08, RG-M12-13 à RG-M12-15 */
+    public function genererBons(Request $request, OrdreMission $odm)
+    {
+        $donnees = $request->validate([
+            'beneficiaire_groupe_id' => ['nullable', 'integer'],
+            'bp' => ['nullable', 'array'],
+            'bp.montant' => ['nullable'],
+            'bp.motif' => ['nullable', 'string', 'max:180'],
+            'bp.beneficiaire_id' => ['nullable', 'integer'],
+        ]);
+        $bp = !empty($donnees['bp']['montant']) || !empty($donnees['bp']['motif']) ? $donnees['bp'] : null;
+
+        $bons = \App\Services\Odm\GenererBonsOdm::executer($odm, Auth::user(), [
+            'beneficiaire_groupe_id' => $donnees['beneficiaire_groupe_id'] ?? null,
+            'bp' => $bp,
+        ]);
+
+        return redirect()->route('odm.show', $odm)->with('success',
+            $bons->count() . ' bon(s) de caisse généré(s) et soumis pour validation : ' . $bons->pluck('numero')->implode(', ') . '.');
     }
 
     /** POST /ordres-mission/{odm}/rejeter — RG-M12-12 : motif obligatoire */

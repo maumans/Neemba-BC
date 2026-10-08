@@ -703,6 +703,15 @@ class BonCaisseController extends Controller
             'frais_om.min' => 'Les frais Orange Money ne peuvent pas être négatifs.',
         ]);
 
+        /* M12 (RG-M12-10) : bon d'un ODM extérieur recalculé au taux du jour ; sans taux du jour, paiement bloqué */
+        $recalcul = \App\Services\Odm\PaiementOdm::montantAuTauxDuJour($bonCaisse);
+        if ($recalcul === false) {
+            return back()->with('error', \App\Exceptions\ErreurMetier::texte('MSG-M12-05'));
+        }
+        if ($recalcul) {
+            $bonCaisse->montant = $recalcul['montant'];
+        }
+
         /* Frais Orange Money (spec v2.2, §6.6) : calculés par paliers ; hors paliers, saisis par le caissier (PO-01) */
         $frais = $bonCaisse->fraisPaiement($request->mode_paiement_effectif, $request->frais_om);
         if ($frais === null) {
@@ -749,8 +758,11 @@ class BonCaisseController extends Controller
 
         /* Paiement, consommation de l'OTP et débit au registre dans une seule transaction ;
          * le verrou sur le bon empêche un double paiement (double clic, deux caissiers). */
-        $paye = DB::transaction(function () use ($bonCaisse, $caissier, $request, $otpVerifie, $caisse) {
+        $paye = DB::transaction(function () use ($bonCaisse, $caissier, $request, $otpVerifie, $caisse, $recalcul) {
             $bon = BonCaisse::whereKey($bonCaisse->id)->lockForUpdate()->first();
+            if ($bon && $recalcul && $bon->statut === 'APPROUVE') {
+                \App\Services\Odm\PaiementOdm::appliquerTaux($bon, $recalcul);
+            }
 
             $fraisSaisis = $request->filled('frais_om') ? (float) $request->frais_om : null;
             if (!$bon || !$bon->marquerCommePaye($caissier, $request->mode_paiement_effectif, $fraisSaisis)) {
