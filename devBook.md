@@ -3170,3 +3170,79 @@ Sans préfixe, un service prend les trois premières lettres de son nom (Q35).
 ### 28.7 Déploiement
 
 Aucune migration. `php artisan optimize:clear`, puis `npm run build`. Après le déploiement, renseigner dans Paramétrage → Services le préfixe, la liste de diffusion et le dernier numéro du carnet papier de chaque service émetteur d'ODM.
+
+## 29. Version v29 — Module M12, lot M12-3 : circuit de validation des ordres de mission (8 Octobre 2026)
+
+Branche `m12-odm`. US-07 de la spec v2.2 (§7.3), RG-M12-11, RG-M12-12 et RG-M12-25.
+
+### 29.1 Le circuit (`App\Services\Odm\CircuitOdm`)
+
+| Niveau | Qui vise | Délai (§6.7) |
+|--------|----------|--------------|
+| Chef d'atelier / chef d'équipe | Rôle `chef_atelier` du service émetteur, de préférence sur le site de l'ODM | `sla_responsable_service` |
+| DAF | DAF, DAF adjoint ou chef comptable (Q27) | `sla_daf` |
+| RH (si `odm_etape_rh` est actif) | Rôle `rh` | `sla_daf` |
+| Directeur Pays | DP ou DP adjoint | `sla_directeur_pays` |
+
+- **Suppléant** : nouvelle fonctionnalité de délégation **« Visa des ordres de mission »** (`visa_odm`). Elle peut être déléguée par le chef d'atelier, le DAF, le DAF adjoint, le chef comptable, le DP, le DP adjoint et les RH. Le suppléant vise **au titre du** titulaire ; c'est enregistré sur l'étape. Une délégation de validation des bons ne donne pas le visa des ODM (décision Q36).
+- **Incompatibilités** (RG-M01-04) : le demandeur, l'initiateur et les participants ne visent pas l'ODM. Si personne d'autre ne peut viser un niveau (ni titulaire compatible, ni suppléant), l'étape est **sautée** et l'ODM passe au niveau supérieur ; c'est tracé dans le journal. Le dernier niveau n'est jamais sauté : il reste en attente (décision Q37).
+- Les statuts : **Soumis** jusqu'au premier visa, **En validation** ensuite, **Validé** après le dernier.
+
+### 29.2 Visa et rejet (`App\Services\Odm\ValiderOdm`)
+
+- **Viser** : commentaire facultatif ; l'étape suivante passe en attente et ses valideurs (titulaires et suppléants) sont notifiés.
+- **Validation finale** :
+  - le calcul est **figé** : les barèmes en vigueur à la soumission sont enregistrés avec l'ODM, ainsi que la date de validation (RG-M12-07, RG-M12-25). Un barème modifié ensuite ne change plus le calcul ;
+  - le demandeur reçoit **MSG-M12-08** (« ODM N°… validé. Vous pouvez générer le ou les bons de caisse. ») ;
+  - la liste de diffusion du service est notifiée (RG-M12-24).
+- **Rejeter** :
+  - motif obligatoire, 10 caractères au minimum (MSG-APP-024) ;
+  - les étapes à venir passent à « Non atteint » ;
+  - l'ODM revient au demandeur avec un bandeau de rejet, garde son numéro, et les barèmes sont libérés ;
+  - à la resoumission, la version passe à 2 et un nouveau circuit démarre, avec les barèmes en vigueur ce jour-là (décision Q38).
+- Hors de son tour, ou sans droit, la tentative est refusée (MSG-APP-023).
+
+### 29.3 Délais, relances, escalade
+
+Commande **`odm:relancer-visas`**, planifiée toutes les heures :
+- **à l'échéance** de l'étape (attribution + délai), une relance aux valideurs ;
+- **au double du délai** (paramètre `sla_multiplicateur_escalade`), une escalade : notification au niveau suivant, ou au DAF pour le niveau DP (§6.7).
+
+Chaque relance et chaque escalade est notée dans le journal de l'ODM. Les délais sont comptés en heures calendaires, comme pour les bons ; les heures ouvrées de la v2.2 relèvent du plan dédié aux écarts (`docs/ORDRE_DE_MISSIONS.md`, §11).
+
+### 29.4 Écrans
+
+- **Ordres de mission** : nouveau bloc « Ordres de mission à viser (n) », pour chaque personne qui peut viser maintenant (titulaire ou suppléant), avec un bouton Examiner. La page « Validations » reste celle des bons : les valideurs d'ODM n'y ont pas tous accès (chef d'atelier, DP adjoint…) (décision Q39).
+- **Fiche de l'ODM** :
+  - encadré « Votre visa est attendu », avec la mention « au titre de » pour un suppléant, et les boutons **Viser** (commentaire facultatif) et **Rejeter** (motif obligatoire) ;
+  - onglet **Validations** : une ligne par niveau, regroupées par version, avec le valideur, « au titre de », la date et la durée, l'attente, l'échéance (en rouge si dépassée), les valideurs possibles de l'étape en cours, les étapes sautées et non atteintes ;
+  - onglet Calcul : « Calcul figé à la validation » une fois l'ODM validé.
+- Un suppléant ouvre la fiche de l'ODM qu'il doit viser, même s'il n'est pas dans le périmètre de la liste.
+
+### 29.5 Tests
+
+- **`tests/Feature/M12/CircuitOdmTest.php`** (10 tests) :
+  - SC-20 complet : chef d'atelier, DAF adjoint, DP ; ODM validé, barèmes figés, notifications, journal ;
+  - ordre du circuit et périmètre du chef d'atelier ;
+  - rejet motivé puis resoumission en version 2, même numéro ;
+  - participant chef d'atelier : étape sautée ;
+  - suppléant « au titre de » ; une délégation de validation des bons ne suffit pas ;
+  - DP adjoint quand le DP est demandeur ; étape RH en option ;
+  - calcul figé ; relance à l'échéance et escalade au double du délai.
+- **Total** : **237 tests PHP** et 66 tests JavaScript passent.
+- La migration a été vérifiée sur une copie de la base de développement (aller, retour, aller), puis appliquée.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 16 vérifications. On y passe successivement par :
+  - un ODM de Philippe KOLIE, visé par Thomas BANGOURA (chef d'atelier) depuis le bloc « à viser » ;
+  - le rejet par Mohamed DIAKITE (DAF), avec un motif trop court d'abord refusé ;
+  - la correction et la resoumission en version 2 ;
+  - les visas du chef d'atelier, du DAF et de Mamadou LO (DP) : MSG-M12-08, statut Validé, onglet Validations avec les deux versions, calcul figé.
+
+### 29.6 Déploiement
+
+```bash
+php artisan migrate        # odm_etapes.statut : valeur « sautee »
+php artisan optimize:clear
+npm run build
+```
+
+Le planificateur (cron `schedule:run`) lance `odm:relancer-visas` toutes les heures.
