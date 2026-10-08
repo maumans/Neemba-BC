@@ -3539,7 +3539,7 @@ L'annexe B est vérifiée au franc près, dans `CalculOdmTest` (calcul) et dans 
 - B.3 : prolongation à 5 250 000 et 5 292 000 versés ;
 - B.4 : écart de la mission KOUROUMA signalé.
 
-**Total** : **264 tests PHP** (88 pour M12) et **66 tests JavaScript** (7 pour M12) passent.
+**Total** : **264 tests PHP** (90 pour M12) et **66 tests JavaScript** (7 pour M12) passent.
 
 ### 34.2 Parcours complet dans un navigateur (Edge)
 
