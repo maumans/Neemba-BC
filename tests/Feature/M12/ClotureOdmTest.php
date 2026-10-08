@@ -171,6 +171,18 @@ class ClotureOdmTest extends TestCase
         $this->assertEquals(1500000, (float) $this->especes->fresh()->solde);
     }
 
+    /** Q47 : un ODM validé dont les bons n'ont pas été générés reçoit ses bons au montant réel à la clôture */
+    public function test_la_cloture_genere_les_bons_manquants_au_reel(): void
+    {
+        $odm = $this->odmAvecBons(generer: false);
+
+        $this->cloturer($odm, '2026-09-23')->assertSessionHas('success', fn ($m) => str_contains($m, 'Bon(s) généré(s) au montant réel : BC-'));
+
+        $this->assertSame('CLOTURE', $odm->fresh()->statut);
+        $this->assertSame([1000000.0, 1000000.0], BonCaisse::orderBy('id')->pluck('montant')->map(fn ($m) => (float) $m)->all());   // 2 jours, 1 nuit
+        $this->assertSame(0, BonCaisse::where('statut', 'BROUILLON')->count());
+    }
+
     /** Retenue sur salaire : les RH sont prévenus et confirment */
     public function test_la_retenue_sur_salaire(): void
     {

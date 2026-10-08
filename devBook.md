@@ -3405,6 +3405,7 @@ Sur le **dernier segment validé** d'une mission, le demandeur clique sur **Clô
 | Anticipé | Calcul refait au réel (jours et nuits réels, barèmes figés). Pour chaque participant **déjà payé** : trop-perçu = montant versé − montant réel (MSG-M12-09), à **reverser en caisse** ou à **retenir sur salaire** (choix à la clôture). Un bon **non encore payé** est annulé et remplacé par un bon au montant réel, soumis aussitôt (Q26) |
 | Tardif | Refusé : « Retour après la date prévue : prolongez la mission avant de la clôturer. » (MSG-APP-036) |
 
+- Un participant sans bon actif (bons jamais générés, ou bon remplacé) reçoit son bon au montant réel au moment de la clôture (Q47).
 - Le calcul utilise désormais le retour réel s'il est saisi (`OrdreMission::dateFin()`).
 - À l'étranger, le trop-perçu porte sur l'indemnité en FCFA, au taux appliqué au paiement ; l'hébergement ne dépend pas du nombre de jours.
 - La clôture est notifiée à la liste de diffusion (RG-M12-24). Les caissiers sont prévenus d'un reversement attendu, les RH d'une retenue à opérer.
@@ -3440,14 +3441,14 @@ Dans le formulaire ODM, deux enregistrements automatiques rapprochés pouvaient 
 
 ### 32.6 Tests
 
-- **`tests/Feature/M12/ClotureOdmTest.php`** (7 tests) :
-  - clôture au retour prévu ;
+- **`tests/Feature/M12/ClotureOdmTest.php`** (8 tests) :
+  - clôture au retour prévu ; bons jamais générés créés au réel à la clôture ;
   - retour anticipé : trop-perçu de 1 500 000 GNF, bon non payé remplacé par un bon de 1 750 000 GNF, reversement inscrit au registre de la caisse espèces ;
   - retenue sur salaire confirmée par les RH ;
   - refus : retour tardif, retour avant le départ, autre utilisateur, segment déjà prolongé ;
   - annulation par le DAF, refusée si un bon est payé ;
   - hébergement payé au retour : bon complémentaire en brouillon, facture exigée, lien conservé.
-- **Total** : **261 tests PHP** et 66 tests JavaScript passent.
+- **Total** : **262 tests PHP** et 66 tests JavaScript passent.
 - La migration a été vérifiée sur une copie de la base de développement (aller, retour, aller), puis appliquée.
 - **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 11 vérifications. On y passe successivement par :
   - un ODM à deux participants, du 20/10 au 24/10, clôturé au 22/10 : MSG-M12-09, bon non payé remplacé, statut Clôturé ;

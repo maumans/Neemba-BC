@@ -64,6 +64,15 @@ final class CloturerOdm
                 $odm->update(['date_retour_reelle' => $retour->toDateString()]);
             }
 
+            /* Q26, Q47 : les participants sans bon actif (jamais généré, ou remplacé au réel) reçoivent leur bon au montant réel */
+            if (!GenererBonsOdm::sansBon($odm)) {
+                $nouveaux = GenererBonsOdm::bonsManquants($odm->fresh(), $auteur);
+                if ($nouveaux->isNotEmpty()) {
+                    $messages[] = 'Bon(s) généré(s) au montant réel : '
+                        . $nouveaux->map(fn (BonCaisse $b) => "{$b->numero} (" . Format::montant($b->montant) . ')')->implode(', ') . '.';
+                }
+            }
+
             if ($odm->type === 'exterieur' && $odm->hebergement_exterieur === 'au_retour') {
                 $messages = array_merge($messages, self::bonsComplementaires($odm, $facturesRetour));
             }
@@ -117,9 +126,7 @@ final class CloturerOdm
         if ($nonPayes->isNotEmpty() && !GenererBonsOdm::sansBon($odm)) {
             $annules = AnnulerOdm::annulerBonsNonPayes($nonPayes, $auteur,
                 "Retour anticipé de la mission {$odm->numero} : bon remplacé par un bon au montant réel.");
-            $nouveaux = GenererBonsOdm::bonsManquants($odm->fresh(), $auteur);
-            $messages[] = 'Bon(s) ' . $annules->pluck('numero')->implode(', ') . ' annulé(s) et remplacé(s) au montant réel : '
-                . $nouveaux->map(fn (BonCaisse $b) => "{$b->numero} (" . Format::montant($b->montant) . ')')->implode(', ') . '.';
+            $messages[] = 'Bon(s) ' . $annules->pluck('numero')->implode(', ') . ' annulé(s) et remplacé(s) au montant réel.';
         }
 
         return $messages;
