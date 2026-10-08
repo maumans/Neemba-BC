@@ -2893,3 +2893,112 @@ Les 16 US de la SFD v1.3 sont couvertes (lots 3, 4 et 5). Restent hors de ces lo
 ---
 
 *Ce document est maintenu à jour au fur et à mesure du développement de l'application NEEMBA Cash Management.*
+
+## 26. Version v26 — Module M12, lot M12-0 : prérequis des ordres de mission (8 Octobre 2026)
+
+Premier lot du module M12 « Ordres de mission », d'après la spec v2.2 du 07/10/2026 et le comité du 06/10/2026. Branche `m12-odm`, partie de `lot5-suivi`. Le suivi détaillé du module est dans `docs/ORDRE_DE_MISSIONS.md`.
+
+Ce lot pose ce dont les ODM ont besoin sans être propre aux ODM : frais Orange Money, taux de change, jours ouvrés, paramètres, rôles.
+
+### 26.1 Frais Orange Money (spec v2.2, §6.6)
+
+- **`App\Services\Paiement\FraisOrangeMoney`** : frais = arrondi au franc supérieur de (total × taux du palier).
+  - Le palier se lit sur le **total du bon**, pas par tranche : 1 % de 100 001 à 5 000 000 GNF, 0,8 % de 5 000 001 à 15 000 000 GNF.
+  - La grille est le paramètre `frais_om_paliers` (JSON), contrôlé à la saisie : paliers complets, cohérents, sans chevauchement.
+  - Hors paliers (≤ 100 000 ou > 15 000 000 GNF, PO-01), pas de calcul.
+- **Paiement** (`BonCaisseController::payer`, `BonCaisse::marquerCommePaye`) :
+  - si le caissier retient Orange Money, les frais s'ajoutent : **montant versé = montant du bon + frais** ;
+  - hors paliers, le caissier saisit les frais (champ « Frais Orange Money ») ; sans saisie, le paiement est refusé et l'OTP n'est pas consommé ;
+  - la caisse OM décaisse le montant versé ; le contrôle du solde porte sur ce montant ;
+  - le montant du bon ne change pas : le seuil du visa DP porte sur la dépense, hors frais (RG-M06-07) ;
+  - nouvelles colonnes `bons_caisse.frais_om`, `frais_om_taux`, `frais_om_saisis`, `montant_verse` ; le journal du bon note les frais, leur taux ou leur saisie manuelle.
+- **Fiche du bon** : à l'étape du paiement, choisir Orange Money affiche MSG-M03-06 (« Si le caissier retient Orange Money : frais estimés 7 500 GNF (1 %), montant versé 757 500 GNF. »). Une fois payé, la fiche montre les frais et le montant versé.
+- **Rapport journalier** : pour les jours antérieurs au registre, les sorties OM comptent le montant versé.
+
+### 26.2 Taux de change FCFA → GNF
+
+- Table `taux_change` (date, devise XOF, taux en GNF pour 1 FCFA, saisi par, commentaire), un taux par jour.
+- **Écran « Taux du jour »** (menu, `/tresorerie/taux-du-jour`) :
+  - saisie par la Trésorerie, et par le DAF ou le DAF adjoint en secours ;
+  - consultation par le chef comptable, le DP, le caissier et l'administrateur ;
+  - sans taux du jour, une alerte rappelle que le paiement des ODM à l'étranger est bloqué ;
+  - une correction le même jour exige un motif, conservé avec l'ancien taux.
+- `TauxChange::duJour()` (exigé au paiement d'un ODM extérieur, M12-4) et `TauxChange::dernier()` (estimation du montant pour le circuit).
+
+### 26.3 Jours ouvrés
+
+- **`App\Support\JoursOuvres`** : du lundi au vendredi, hors jours fériés du paramètre `jours_feries`.
+  - Le paramètre accepte des dates fixes `MM-JJ` (chaque année) et des dates mobiles `AAAA-MM-JJ` ; une date invalide est refusée à la saisie.
+  - Valeur initiale : 01-01, 05-01, 08-15, 10-02, 12-25 (décision Q29 : les fêtes mobiles sont à saisir chaque année).
+- **Échéance des BP** (RG-M07-02, confirmée par la v2.2) : 3 jours ouvrés après le retour de mission, 2 jours ouvrés après le paiement sinon. Le contrôle 11 de l'assistant parle désormais de « jours ouvrés ».
+
+### 26.4 Paramètres « Ordres de mission »
+
+Nouveau groupe dans Paramétrage, chaque modification passant par la double validation :
+
+| Paramètre | Valeur | Référence |
+|-----------|--------|-----------|
+| Indemnité journalière (intérieur) | 250 000 GNF, en 2 lignes égales | §6.6 |
+| Libellés des 2 lignes | Indemnité de repas / Indemnité de déplacement | RG-M12-08, PO-02 |
+| Hébergement par nuit (intérieur) | 500 000 GNF ; 0 sur base vie | §6.6 |
+| Indemnité extérieure | 22 000 FCFA (non-cadre) / 34 000 FCFA (cadre) par jour | §6.6 |
+| Participants par ODM | 10 au plus | RG-M12-04 |
+| ODM générant un BP | Oui | RG-M12-13 |
+| Mode de génération des bons | Un bon par participant | RG-M12-14, PO-03 |
+| ODM à la charge du client | Variante A | RG-M12-15, PO-04 |
+| Visa RH sur les ODM | Non | Comité du 06/10 |
+| Rappel avant la fin d'un segment | 2 jours ouvrés | RG-M12-28 |
+
+- Nouveau type de paramètre **« choix »** (`Parametre::CHOIX`) : liste déroulante à l'écran, valeur contrôlée par le serveur. Les types `number`, `boolean`, `dates` et `json` sont aussi contrôlés (`Parametre::erreurValeur`).
+- La colonne `parametres.valeur` passe en texte (listes longues).
+
+### 26.5 Rôles, n° Orange Money, fiche utilisateur
+
+- **Rôles** : `chef_atelier` (chef d'atelier ou chef d'équipe, premier visa de l'ODM), `dp_adjoint` (visa DP de l'ODM), `logistique` (déclaré pour M13).
+- **Fiche utilisateur** :
+  - **n° Orange Money** au format guinéen, 9 chiffres commençant par 6 (RG-M02-05). Il est saisi avec ou sans espaces ni indicatif (+224) et enregistré sur 9 chiffres ;
+  - **statut cadre / non-cadre**, exigé pour un ODM à l'étranger ;
+  - **rôles complémentaires** (cases à cocher), en plus du rôle principal. Toute modification passe par la double validation (type `utilisateur_roles`) ; à l'approbation, le rôle principal est conservé (décision Q31) ;
+  - le **matricule** devient facultatif à la modification (unique s'il est saisi) : les comptes créés par l'import des référentiels n'en ont souvent pas, et le formulaire ne pouvait plus être enregistré.
+- **Import des référentiels** :
+  - onglet 5, niveau « Chef d'atelier / chef d'équipe (ODM) » : le titulaire reçoit `chef_atelier` si son compte est rattaché au site et au service indiqués ; sinon, une anomalie est signalée. Un suppléant passe par une délégation ;
+  - onglet 1 : « DP adjoint », « Chef d'atelier » (à désigner dans l'onglet 5) et « Logistique » sont reconnus ;
+  - `chef_atelier` et `dp_adjoint` sont des rôles à privilèges : sur un compte existant, ils s'attribuent à l'écran, avec la double validation.
+
+### 26.6 Corrections
+
+- **Génération de l'OTP** : quand le service SMS n'est pas configuré, la réponse ne contient qu'une clé `error`, et l'écran tombait en erreur 500. Le message d'erreur est maintenant affiché (« Erreur SMS : Service SMS non configuré »).
+- Catalogue des messages : MSG-M03-06 et MSG-M12-01 à MSG-M12-09, au texte exact de la spec v2.2.
+
+### 26.7 Tests
+
+- **`tests/Feature/M12/PrerequisTest.php`** (19 tests) :
+  - frais OM des exemples de la spec (3 250 000 → 32 500 ; 7 000 000 → 56 000 ; 8 250 000 → 66 000 ; B.2 et B.3) et des bornes de paliers ;
+  - hors paliers ; grille paramétrable ;
+  - paiement OM (montant versé, registre, journal), frais saisis, espèces sans frais, solde insuffisant frais compris ;
+  - estimation MSG-M03-06 sur la fiche ;
+  - jours ouvrés (week-end, dates fixes et mobiles) et échéance des BP ;
+  - paramètres ODM, contrôle des valeurs par type, double validation ;
+  - taux du jour : saisie, correction motivée, droits ;
+  - n° OM (RG-M02-05) et rôles complémentaires.
+- Import des référentiels : chef d'atelier de l'onglet 5 (compte rattaché ou non au service), logistique.
+- Lot 0 : le paiement OM de 300 000 GNF débite désormais 303 000 GNF.
+- **Total** : **193 tests PHP** et 59 tests JavaScript passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 19 vérifications. On y passe successivement par :
+  - la saisie du taux du jour par Youssouf TOURE (Trésorerie) ;
+  - le paiement du bon BC-2026-0004 en Orange Money : 7 500 GNF de frais, 757 500 GNF versés et débités de la caisse OM ;
+  - les paramètres ODM et la grille OM dans Paramétrage, et le passage au « bon groupé » mis en double validation ;
+  - la fiche d'une utilisatrice importée sans matricule : n° OM refusé puis accepté, rôle « chef d'atelier » mis en double validation.
+
+### 26.8 Déploiement
+
+```bash
+php artisan migrate        # taux_change, users.numero_om, frais OM des bons, paramètres ODM et jours fériés
+php artisan optimize:clear
+npm run build
+```
+
+Après le déploiement :
+- l'administrateur complète `jours_feries` avec les fêtes mobiles de l'année ;
+- la Trésorerie saisit le taux du jour avant le premier paiement d'un ODM extérieur ;
+- les n° Orange Money et le statut cadre des salariés sont à renseigner (fiche utilisateur ou prochain classeur des référentiels).

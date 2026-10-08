@@ -197,7 +197,7 @@ Statut :
 | RG-M12-05 | Obligatoires : service, au moins une destination, but (10 caractères), dates, prise en charge | C | M12-2 | ☐ |
 | RG-M12-06 | Retour ≥ départ ; départ passé admis avec motif | C | M12-2 | ☐ |
 | RG-M12-07 | Calcul par participant, barèmes en vigueur à la soumission | C | M12-1 | ☐ |
-| RG-M12-08 | Libellés des 2 lignes de 125 000 paramétrables (Repas / Déplacement) | D | M12-0 | ☐ |
+| RG-M12-08 | Libellés des 2 lignes de 125 000 paramétrables (Repas / Déplacement) | D | M12-0 | ☑ |
 | RG-M12-09 | Base vie : hébergement à 0 pour le participant | C | M12-1 | ☐ |
 | RG-M12-10 | Extérieur : estimation au dernier taux, recalcul au taux du jour au paiement, blocage sans taux | C | M12-4 | ☐ |
 | RG-M12-11 | Circuit chef d'atelier → DAF → DP ; pas de CDG ni de RH ; étape RH en paramètre inactif | C | M12-3 | ☐ |
@@ -262,7 +262,7 @@ Règles d'autres modules utilisées par M12 :
 | Statut cadre, N+1, rôles déclarés (DAF adjoint, chef comptable…) | Référentiels | Participants et circuit |
 | Import des référentiels | `php artisan referentiels:importer` | Attribuera le rôle « chef d'atelier » (onglet 5) |
 | PDF (dompdf), montant en lettres, formats, messages | Socle | Fiche d'indemnités et ordre de mission |
-| **Manquent** : taux de change, frais OM par paliers, jours ouvrés, rôles chef d'atelier / DP adjoint / logistique, n° Orange Money des salariés | — | **M12-0** |
+| Taux de change, frais OM par paliers, jours ouvrés, rôles chef d'atelier / DP adjoint / logistique, n° Orange Money des salariés | ✅ Ajoutés par M12-0 (devBook §26) | Utilisés par les lots suivants |
 
 ---
 
@@ -277,21 +277,21 @@ Pour chaque lot :
 
 ### M12-0 — Prérequis transverses (≈ 2 j)
 
-- [ ] Rôles `chef_atelier`, `dp_adjoint` (actifs) et `logistique` (déclaré) dans `User::ROLES` et à l'écran
-- [ ] Visa DAF de l'ODM ouvert à `daf`, `daf_adjoint` et `chef_comptable` (Q27)
-- [ ] `users.numero_om` : format guinéen, repris sur les participants
-- [ ] `App\Support\JoursOuvres` : week-ends et paramètre `jours_feries`
-- [ ] `FraisOrangeMoney` :
-  - [ ] paliers paramétrés et arrondi à l'unité supérieure ;
-  - [ ] saisie manuelle hors paliers ;
-  - [ ] branché au paiement (montant versé = total + frais).
-- [ ] Taux de change FCFA → GNF : table `taux_change`, écran Trésorerie « Taux du jour », `duJour()` et `dernier()`
-- [ ] Paramètres ODM (groupe « Ordres de mission ») :
-  - [ ] barèmes, libellés, hébergement ;
-  - [ ] nombre maximal de participants ;
-  - [ ] BP oui / non, mode de génération, prise en charge client ;
-  - [ ] étape RH, délai du rappel.
-- [ ] Import des référentiels : rôle `chef_atelier` attribué depuis l'onglet 5
+- [x] Rôles `chef_atelier`, `dp_adjoint` (actifs) et `logistique` (déclaré) dans `User::ROLES` et à l'écran ; rôles complémentaires sur la fiche utilisateur, avec double validation (Q31)
+- [ ] Visa DAF de l'ODM ouvert à `daf`, `daf_adjoint` et `chef_comptable` (Q27) : reporté au circuit de l'ODM (M12-3)
+- [x] `users.numero_om` : format guinéen (RG-M02-05), saisi sur la fiche utilisateur ; repris sur les participants en M12-1
+- [x] `App\Support\JoursOuvres` : week-ends et paramètre `jours_feries` (Q29) ; échéance des BP en jours ouvrés
+- [x] `FraisOrangeMoney` :
+  - [x] paliers paramétrés et arrondi à l'unité supérieure ;
+  - [x] saisie manuelle hors paliers, par le caissier (Q30) ;
+  - [x] branché au paiement (montant versé = total + frais, débité de la caisse OM).
+- [x] Taux de change FCFA → GNF : table `taux_change`, écran Trésorerie « Taux du jour », `duJour()` et `dernier()` (Q32)
+- [x] Paramètres ODM (groupe « Ordres de mission ») :
+  - [x] barèmes, libellés, hébergement ;
+  - [x] nombre maximal de participants ;
+  - [x] BP oui / non, mode de génération, prise en charge client (paramètres à choix) ;
+  - [x] étape RH, délai du rappel.
+- [x] Import des référentiels : rôle `chef_atelier` attribué depuis l'onglet 5 (compte rattaché au site et au service)
 
 ### M12-1 — Modèle de données et calcul (≈ 2 j)
 
@@ -450,3 +450,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | Date | Lot | Commit | Remarques |
 |------|-----|--------|-----------|
 | 08/10/2026 | — | — | Analyse de la spec v2.2 et du comité du 06/10 ; plan approuvé ; création de ce fichier |
+| 08/10/2026 | M12-0 | 6449cf2, ae3bdbf | Frais OM au paiement, taux du jour, jours ouvrés, paramètres ODM, rôles et n° OM ; 193 tests PHP ; parcours navigateur (19 vérifications). Corrections : OTP sans service SMS, matricule facultatif. Visa DAF de l'ODM reporté à M12-3 |
