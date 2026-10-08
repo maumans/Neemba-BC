@@ -3073,3 +3073,100 @@ npm run build
 ```
 
 Après le déploiement, renseigner les préfixes des services émetteurs d'ODM et le dernier numéro de chaque carnet (écran prévu au lot M12-2).
+
+## 28. Version v28 — Module M12, lot M12-2 : saisie et soumission des ordres de mission (8 Octobre 2026)
+
+Branche `m12-odm`. US-01 à US-06 et US-11 de la spec v2.2 (§7.3). Le circuit de validation (visas) arrive au lot M12-3.
+
+### 28.1 Formulaire « Ordre de mission »
+
+Menu **Ordres de mission** → **Nouvel ordre de mission** (`Pages/Odm/Formulaire.jsx`). Une seule page, en cinq blocs, avec le panneau **Calcul** à droite :
+
+| Bloc | Contenu |
+|------|---------|
+| Type et service émetteur | Intérieur / extérieur ; frais à la charge de Neemba ou du client ; service émetteur (celui du demandeur par défaut) ; code analytique du service (Q22) ; nature technique, pré-cochée pour Technique et Aftermarket (PO-06) ; véhicule |
+| Mission | Destinations et clients en étiquettes ; but (10 caractères minimum, compteur) |
+| Dates | Départ, retour prévu, nombre de jours ; motif obligatoire si le départ est passé ; à l'étranger : mode d'hébergement et référence billet / Wanda |
+| OR liés | N° de 8 chiffres commençant par 110, type Vente ou Garantie ; obligatoires pour une mission technique |
+| Participants | Recherche des salariés actifs ; service, statut cadre et n° OM repris du référentiel ; « logé sur base vie » (intérieur) ou facture d'hébergement (extérieur, payée avant le départ) |
+
+- **Enregistrement automatique** : 800 ms après la dernière modification, le brouillon est enregistré. Il est créé à la première saisie, et l'adresse de la page devient celle du brouillon.
+- **Calcul en direct** : le serveur renvoie le calcul de chaque participant (`CalculOdm`). Le panneau affiche jours et nuits, les deux lignes de 125 000 × jours avec leurs libellés paramétrés, l'hébergement, la nuitée de rattrapage, le total et l'estimation des frais OM (MSG-M03-06). À l'étranger, il indique le taux utilisé pour l'estimation, ou l'absence de taux. Aucun calcul n'est refait à l'écran.
+- Le nombre maximal de participants (paramètre) est appliqué dès l'ajout.
+
+### 28.2 Soumission (`SoumettreOdm`)
+
+Dans une transaction, ODM verrouillé :
+1. les informations des participants sont relues dans le référentiel : un statut cadre renseigné par les RH entre-temps est pris en compte ;
+2. le calcul est refait ;
+3. les contrôles bloquants (`ReglesOdm`) sont refaits ; toutes les erreurs sont renvoyées, chacune avec son champ, et un clic sur le message place le curseur sur le champ ;
+4. le numéro est attribué (`NumeroteurOdm`) ; un ODM rejeté garde le sien et passe à la version suivante ;
+5. les étapes du circuit sont créées (chef d'atelier en attente, DAF et DP à venir), statut **Soumis** ;
+6. après la transaction, notifications à la **liste de diffusion du service** (RG-M12-24) et aux **chefs d'atelier du service** (premier visa).
+
+La même clé d'idempotence rejouée renvoie l'ODM déjà soumis (double clic) ; un échec ne consomme aucun numéro.
+
+| Contrôle | Message |
+|----------|---------|
+| Type, service, code analytique, prise en charge, dates obligatoires | MSG-BC-001, MSG-APP-021 (code inconnu) |
+| Au moins une destination ; but de 10 caractères | MSG-APP-012, MSG-APP-011 |
+| Retour avant le départ | MSG-M12-02 |
+| Départ passé sans motif | MSG-APP-015 |
+| Mission technique sans OR ; OR mal formé | MSG-M12-01, MSG-M03-07 |
+| Aucun participant ; trop de participants ; salarié inactif | MSG-APP-013, MSG-APP-014, MSG-APP-017 |
+| Extérieur : mode d'hébergement, statut cadre, facture d'hébergement | MSG-APP-016, MSG-M12-04, MSG-APP-018 |
+| Chevauchement | MSG-M12-03 |
+
+### 28.3 Chevauchement et dérogation (RG-M12-16, SC-26)
+
+- **`ChevauchementOdm`** : un participant ne peut figurer sur deux ODM dont les périodes se chevauchent, bornes comprises. Le retour réel compte s'il est saisi, sinon le retour prévu. Les brouillons et les ODM annulés ne comptent pas (Q25). Deux missions qui se suivent (retour le 26, départ le 27) ne se chevauchent pas.
+- **Dérogation** :
+  - le demandeur la demande depuis le message d'erreur, avec un motif d'au moins 10 caractères (MSG-APP-022) ; le DAF et le DAF adjoint sont notifiés ;
+  - dans la liste des ODM, le DAF voit le bloc « Dérogations au chevauchement à décider », avec les conflits. Il accorde ou refuse avec un motif, et le demandeur est notifié ;
+  - une dérogation accordée lève le contrôle à la soumission ;
+  - si les dates ou les participants changent ensuite, la dérogation est **retirée** (décision Q33) ;
+  - tout est tracé dans le journal de l'ODM.
+
+### 28.4 Liste, fiche, droits
+
+- **Liste** (`Pages/Odm/Index.jsx`) : numéro (ou « Brouillon »), type, destinations, période, participants, total, statut ; recherche à la frappe (numéro, destination, but, participant), filtres statut et type, 20 lignes.
+- **Fiche** (`Pages/Odm/Show.jsx`) : en-tête, bandeaux de rejet et de dérogation, onglets Détails, Calcul et Historique ; boutons Reprendre, Annuler, Décider de la dérogation.
+- **Visibilité** (`OrdreMission::visiblesPar`) :
+  - le demandeur et l'initiateur voient leurs ODM, y compris les brouillons ;
+  - une fois l'ODM soumis : les participants, le chef d'atelier du service, les valideurs, et les rôles DAF, DAF adjoint, chef comptable, DP, DP adjoint, Trésorerie, RH et administrateur (décision Q34) ;
+  - le DAF voit aussi un brouillon dont la dérogation est demandée.
+- **Modification** : demandeur ou initiateur, en brouillon ou rejeté (MSG-APP-020, MSG-APP-019).
+- **Annulation** (RG-M12-22, partie demandeur) : tant qu'aucun bon n'est généré ; les étapes ouvertes du circuit sont closes. L'annulation par le DAF viendra avec M12-6.
+
+### 28.5 Paramétrage des services
+
+Dans Paramétrage → Services, chaque service reçoit :
+- son **préfixe des ODM** (ex. AT) ;
+- sa **liste de diffusion** (cases à cocher parmi les utilisateurs actifs) ;
+- le **dernier n° du carnet papier** de l'année : le prochain ODM prendra le numéro suivant. Le compteur ne recule jamais (décision Q35).
+
+Sans préfixe, un service prend les trois premières lettres de son nom (Q35).
+
+### 28.6 Tests
+
+- **`tests/Feature/M12/SaisieOdmTest.php`** (16 tests) :
+  - brouillon pré-rempli, calcul B.1 renvoyé par le serveur, informations reprises du référentiel ;
+  - plusieurs participants dont un sur base vie (SC-21, SC-27), retrait d'un participant ;
+  - soumission : numéro, étapes, notifications, idempotence ;
+  - champs obligatoires sans consommer de numéro ; mission technique et OR (SC-22) ; dates ; nombre maximal ;
+  - ODM extérieur : hébergement, statut cadre relu, facture ;
+  - chevauchement (SC-26), brouillons et annulés ignorés, missions consécutives ;
+  - dérogation du DAF, retirée si les dates changent ;
+  - droits de modification, visibilité de la liste, annulation, écrans, reprise du carnet.
+- **`tests/js/odm.test.js`** (7 tests) : format des OR, étiquettes, dates, nature technique, codes du service, participants, données du brouillon, erreurs par champ.
+- **Total** : **227 tests PHP** et **66 tests JavaScript** passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 23 vérifications. Philippe KOLIE (Technique) crée un ODM pour Yacouba BARRY :
+  - OR invalide refusé à la saisie ;
+  - brouillon enregistré automatiquement, total de 3 250 000 GNF calculé par le serveur ;
+  - soumission : N°1/AT/26.
+
+  Un second ODM sur la même période est bloqué (MSG-M12-03). Philippe demande une dérogation, que Mohamed DIAKITE (DAF) accorde ; le second ODM part en N°2/AT/26. Thomas BANGOURA (chef d'atelier) voit les deux ODM et a été notifié deux fois.
+
+### 28.7 Déploiement
+
+Aucune migration. `php artisan optimize:clear`, puis `npm run build`. Après le déploiement, renseigner dans Paramétrage → Services le préfixe, la liste de diffusion et le dernier numéro du carnet papier de chaque service émetteur d'ODM.

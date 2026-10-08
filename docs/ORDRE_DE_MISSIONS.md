@@ -190,12 +190,12 @@ Statut :
 
 | Règle | Contenu | Statut | Lot | Fait |
 |-------|---------|:------:|:---:|:----:|
-| RG-M12-01 | Type intérieur / extérieur obligatoire | C | M12-2 | ☐ |
-| RG-M12-02 | Nature technique : au moins un OR ; case pré-cochée pour Technique et Aftermarket | D | M12-2 | ☐ |
-| RG-M12-03 | Numéro à la soumission N°[séq]/[préfixe]/[AA], séquence par préfixe et par année | D | M12-1 | ☐ |
-| RG-M12-04 | 1 à 10 participants (paramètre), salariés ; statut cadre, service et n° OM repris | C | M12-2 | ☐ |
-| RG-M12-05 | Obligatoires : service, au moins une destination, but (10 caractères), dates, prise en charge | C | M12-2 | ☐ |
-| RG-M12-06 | Retour ≥ départ ; départ passé admis avec motif | C | M12-2 | ☐ |
+| RG-M12-01 | Type intérieur / extérieur obligatoire | C | M12-2 | ☑ |
+| RG-M12-02 | Nature technique : au moins un OR ; case pré-cochée pour Technique et Aftermarket | D | M12-2 | ☑ |
+| RG-M12-03 | Numéro à la soumission N°[séq]/[préfixe]/[AA], séquence par préfixe et par année | D | M12-1 | ☑ |
+| RG-M12-04 | 1 à 10 participants (paramètre), salariés ; statut cadre, service et n° OM repris | C | M12-2 | ☑ |
+| RG-M12-05 | Obligatoires : service, au moins une destination, but (10 caractères), dates, prise en charge | C | M12-2 | ☑ |
+| RG-M12-06 | Retour ≥ départ ; départ passé admis avec motif | C | M12-2 | ☑ |
 | RG-M12-07 | Calcul par participant, barèmes en vigueur à la soumission | C | M12-1 | ☑ |
 | RG-M12-08 | Libellés des 2 lignes de 125 000 paramétrables (Repas / Déplacement) | D | M12-0 | ☑ |
 | RG-M12-09 | Base vie : hébergement à 0 pour le participant | C | M12-1 | ☑ |
@@ -205,7 +205,7 @@ Statut :
 | RG-M12-13 | Génération depuis un ODM validé : BD, plus BP facultatif ; circuit complet ; OM souhaité | C | M12-4 | ☐ |
 | RG-M12-14 | Un bon par participant (défaut) ou bon groupé | O | M12-4 | ☐ |
 | RG-M12-15 | Prise en charge client : variante A (bons et « à refacturer », défaut) ou B (aucun bon) | O | M12-4 | ☐ |
-| RG-M12-16 | Chevauchement bloqué ; dérogation du DAF motivée | C | M12-2 | ☐ |
+| RG-M12-16 | Chevauchement bloqué ; dérogation du DAF motivée | C | M12-2 | ☑ |
 | RG-M12-17 | Prolongation : segment lié, départ = retour + 1, participants repris (pas d'ajout) | C | M12-5 | ☐ |
 | RG-M12-18 | Nuitée de rattrapage pour chaque participant non logé sur base vie | C | M12-5 | ☐ |
 | RG-M12-19 | Vue mission : cumuls et contrôle nuits = jours − 1, signalé au DAF | C | M12-5 | ☐ |
@@ -213,7 +213,7 @@ Statut :
 | RG-M12-21 | 9 statuts | C | M12-1 | ☑ |
 | RG-M12-22 | Annulation : demandeur avant génération, DAF ensuite ; un bon payé interdit l'annulation | D | M12-6 | ☐ |
 | RG-M12-23 | PDF fiche d'indemnités et ordre de mission, visas horodatés | C | M12-7 | ☐ |
-| RG-M12-24 | Notifications à la liste de diffusion du service émetteur | C | M12-2 | ☐ |
+| RG-M12-24 | Notifications à la liste de diffusion du service émetteur | C | M12-2 | ☑ |
 | RG-M12-25 | Calcul figé à la validation finale | C | M12-3 | ☐ |
 | RG-M12-26 | Hébergement extérieur, 3 modes | C | M12-6 | ☐ |
 | RG-M12-27 | Référence billet / bon de commande Wanda (facultatif) | C | M12-6 | ☐ |
@@ -304,11 +304,12 @@ Pour chaque lot :
 
 ### M12-2 — Saisie et soumission (≈ 3 j)
 
-- [ ] API `/api/v1/odm` : brouillon, enregistrement, calcul en direct, participants, OR, contrôles, soumission, annulation
-- [ ] `ReglesOdm` : champs obligatoires, dates (MSG-M12-02), départ passé, OR d'une mission technique (MSG-M12-01), statut cadre pour l'extérieur (MSG-M12-04)
-- [ ] `ChevauchementOdm` (MSG-M12-03) et dérogation du DAF
-- [ ] `SoumettreOdm` : numéro, circuit, notification à la liste de diffusion
-- [ ] Écrans : liste des ODM et formulaire avec panneau « Calcul » ; menu « Ordres de mission »
+- [x] API `/api/v1/odm` : brouillon, enregistrement, calcul en direct, participants, OR, contrôles, soumission, annulation
+- [x] `ReglesOdm` : champs obligatoires, dates (MSG-M12-02), départ passé, OR d'une mission technique (MSG-M12-01), statut cadre pour l'extérieur (MSG-M12-04)
+- [x] `ChevauchementOdm` (MSG-M12-03) et dérogation du DAF
+- [x] `SoumettreOdm` : numéro, circuit, notification à la liste de diffusion
+- [x] Écrans : liste des ODM et formulaire avec panneau « Calcul » ; menu « Ordres de mission »
+- [x] Paramétrage des services : préfixe, liste de diffusion, reprise du carnet papier (Q35)
 
 ### M12-3 — Circuit de validation (≈ 2 j)
 
@@ -406,13 +407,13 @@ Ces questions ne sont pas tranchées par la spécification. Elles seront report�
 | Scénario | Sujet | Lot | Test automatique | Fait |
 |----------|-------|:---:|------------------|:----:|
 | SC-20 | ODM intérieur, une personne (exemple B.1) | M12-2 / M12-3 | `tests/Feature/M12/…` | ☐ |
-| SC-21 | ODM à plusieurs personnes | M12-2 | | ☐ |
-| SC-22 | ODM technique avec OR liés | M12-2 | | ☐ |
+| SC-21 | ODM à plusieurs personnes | M12-2 | `SaisieOdmTest` | ☑ |
+| SC-22 | ODM technique avec OR liés | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-23 | Génération des bons (individuels / groupé, exemple B.2) | M12-4 | | ☐ |
 | SC-24 | Prolongation d'une mission longue, nuitée de rattrapage (exemple B.3) | M12-5 | | ☐ |
 | SC-25 | Ajustement au réel et clôture | M12-6 | | ☐ |
-| SC-26 | Chevauchement de périodes (anti-doublon) | M12-2 | | ☐ |
-| SC-27 | Mission sur base vie | M12-1 / M12-2 | | ☐ |
+| SC-26 | Chevauchement de périodes (anti-doublon) | M12-2 | `SaisieOdmTest` | ☑ |
+| SC-27 | Mission sur base vie | M12-1 / M12-2 | `CalculOdmTest, SaisieOdmTest` | ☑ |
 | SC-28 | ODM à la charge du client | M12-4 / M12-7 | | ☐ |
 | SC-29 | ODM extérieur | M12-4 / M12-6 | | ☐ |
 | SC-37 | ODM générant un BP (avance pour frais réels) | M12-4 | | ☐ |
@@ -452,3 +453,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 08/10/2026 | — | — | Analyse de la spec v2.2 et du comité du 06/10 ; plan approuvé ; création de ce fichier |
 | 08/10/2026 | M12-0 | 6449cf2, ae3bdbf | Frais OM au paiement, taux du jour, jours ouvrés, paramètres ODM, rôles et n° OM ; 193 tests PHP ; parcours navigateur (19 vérifications). Corrections : OTP sans service SMS, matricule facultatif. Visa DAF de l'ODM reporté à M12-3 |
 | 08/10/2026 | M12-1 | 88cfbcd, b569a0b | Tables des ODM, modèles, CalculOdm (annexes B.1 à B.4 vérifiées), NumeroteurOdm ; 211 tests PHP. La numérotation sera attribuée à la soumission (M12-2) : RG-M12-03 cochée avec M12-2 |
+| 08/10/2026 | M12-2 | 61b52eb, e051c9f | Formulaire (brouillon automatique, calcul du serveur), soumission, chevauchement et dérogation du DAF, liste, fiche, paramétrage des services ; 227 tests PHP, 66 JS ; parcours navigateur (23 vérifications). Décisions Q33 à Q35 |
