@@ -3390,3 +3390,74 @@ La commande **`odm:rappeler-fin-segment`** est planifiée chaque jour à 7 h.
 ### 31.5 Déploiement
 
 Aucune migration. `php artisan optimize:clear`, puis `npm run build`. Le planificateur lance `odm:rappeler-fin-segment` chaque jour à 7 h.
+
+## 32. Version v32 — Module M12, lot M12-6 : clôture, annulation, hébergement à l'étranger (8 Octobre 2026)
+
+Branche `m12-odm`. US-10 de la spec v2.2 (§7.3) ; RG-M12-20, RG-M12-22, RG-M12-26 et RG-M12-27 ; scénarios SC-25 et SC-29 ; décisions Q24 et Q26.
+
+### 32.1 Clôture (`App\Services\Odm\CloturerOdm`, RG-M12-20)
+
+Sur le **dernier segment validé** d'une mission, le demandeur clique sur **Clôturer la mission** et saisit la date de retour réelle.
+
+| Retour | Effet |
+|--------|-------|
+| À la date prévue | Clôture simple : statut **Clôturé**, date de retour réelle et date de clôture enregistrées |
+| Anticipé | Calcul refait au réel (jours et nuits réels, barèmes figés). Pour chaque participant **déjà payé** : trop-perçu = montant versé − montant réel (MSG-M12-09), à **reverser en caisse** ou à **retenir sur salaire** (choix à la clôture). Un bon **non encore payé** est annulé et remplacé par un bon au montant réel, soumis aussitôt (Q26) |
+| Tardif | Refusé : « Retour après la date prévue : prolongez la mission avant de la clôturer. » (MSG-APP-036) |
+
+- Le calcul utilise désormais le retour réel s'il est saisi (`OrdreMission::dateFin()`).
+- À l'étranger, le trop-perçu porte sur l'indemnité en FCFA, au taux appliqué au paiement ; l'hébergement ne dépend pas du nombre de jours.
+- La clôture est notifiée à la liste de diffusion (RG-M12-24). Les caissiers sont prévenus d'un reversement attendu, les RH d'une retenue à opérer.
+- Un segment déjà prolongé ne se clôture pas : la clôture se fait sur le dernier segment (MSG-APP-035).
+
+### 32.2 Régularisation du trop-perçu (`RegulariserTropPercu`)
+
+L'encadré « Trop-perçus à régulariser » de la fiche affiche, pour chaque participant concerné, le montant, le mode, l'état et la date de régularisation.
+
+- **Reversement en caisse** : le caissier clique sur **Enregistrer le reversement**. Le montant est inscrit au registre de la caisse espèces du site, à défaut de la caisse principale de Conakry, avec la nouvelle nature `reversement_odm`. Le caissier peut ouvrir la fiche de l'ODM pour cela.
+- **Retenue sur salaire** : les RH cliquent sur **Confirmer la retenue**.
+- Personne d'autre ne peut régulariser (MSG-APP-040). Chaque régularisation est tracée dans le journal de l'ODM.
+
+### 32.3 Annulation (`AnnulerOdm`, RG-M12-22)
+
+- **Demandeur** : tant qu'aucun bon n'est généré (lot M12-2).
+- **DAF ou DAF adjoint** : ensuite, avec un motif d'au moins 10 caractères (MSG-APP-039). Les bons non payés de l'ODM sont annulés, et leurs étapes de validation en attente sont retirées. Bouton **Annuler (DAF)** sur la fiche.
+- Si un bon de l'ODM est payé, l'annulation est refusée (MSG-APP-037) : l'ODM se clôture avec régularisation.
+
+### 32.4 Hébergement à l'étranger payé au retour (RG-M12-26, Q24)
+
+Pour un ODM extérieur en mode « facture payée au retour », la fenêtre de clôture demande le montant de la facture de chaque participant.
+
+- Un **bon complémentaire** est préparé **en brouillon** : BD, catégorie Hébergement, rattaché à l'ODM, au nom du participant, mode Orange Money.
+- Le demandeur l'ouvre dans l'assistant, joint la facture (justificatif obligatoire, MSG-BC-017), puis le soumet ; le bon suit le circuit normal.
+- Le bon reste rattaché à l'ODM quand on le modifie : `EnregistrementBon` ne retire plus le lien d'un BD.
+
+La référence du billet ou du bon de commande Wanda (RG-M12-27) est saisie dans le formulaire depuis M12-2.
+
+### 32.5 Correction
+
+Dans le formulaire ODM, deux enregistrements automatiques rapprochés pouvaient créer **deux brouillons**, si le second partait avant la réponse du premier. Le parcours navigateur l'a révélé. La création est désormais unique : un enregistrement lancé pendant la création attend l'identifiant du brouillon, puis le met à jour.
+
+### 32.6 Tests
+
+- **`tests/Feature/M12/ClotureOdmTest.php`** (7 tests) :
+  - clôture au retour prévu ;
+  - retour anticipé : trop-perçu de 1 500 000 GNF, bon non payé remplacé par un bon de 1 750 000 GNF, reversement inscrit au registre de la caisse espèces ;
+  - retenue sur salaire confirmée par les RH ;
+  - refus : retour tardif, retour avant le départ, autre utilisateur, segment déjà prolongé ;
+  - annulation par le DAF, refusée si un bon est payé ;
+  - hébergement payé au retour : bon complémentaire en brouillon, facture exigée, lien conservé.
+- **Total** : **261 tests PHP** et 66 tests JavaScript passent.
+- La migration a été vérifiée sur une copie de la base de développement (aller, retour, aller), puis appliquée.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 11 vérifications. On y passe successivement par :
+  - un ODM à deux participants, du 20/10 au 24/10, clôturé au 22/10 : MSG-M12-09, bon non payé remplacé, statut Clôturé ;
+  - le reversement de 1 500 000 GNF encaissé par Youssouf TOURE ;
+  - l'annulation par Mohamed DIAKITE (DAF) d'un second ODM et de ses deux bons.
+
+### 32.7 Déploiement
+
+```bash
+php artisan migrate        # odm_participants : regularise_le, regularise_par_id, bon_complement_id
+php artisan optimize:clear
+npm run build
+```
