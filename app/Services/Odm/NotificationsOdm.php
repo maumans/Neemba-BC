@@ -77,6 +77,25 @@ final class NotificationsOdm
             . ' : prolongez-la si elle continue, ou clôturez-la au retour.');
     }
 
+    /** RG-M12-24 : clôture notifiée à la liste de diffusion ; retenues sur salaire signalées aux RH, reversements aux caissiers */
+    public static function cloture(OrdreMission $odm, User $auteur, array $messages): void
+    {
+        $texte = "{$auteur->nom_complet} a clôturé la mission {$odm->numero} : retour le " . \App\Support\Format::date($odm->date_retour_reelle) . '.'
+            . ($messages ? ' ' . implode(' ', $messages) : '');
+        self::envoyer(self::diffusion($odm), $auteur, $odm, 'odm_cloture', "Mission {$odm->numero} clôturée", $texte);
+
+        $participants = $odm->participantsActifs()->where('regularisation_statut', 'a_regulariser')->get();
+        $rolesVers = fn (array $roles) => User::actifs()->where(fn ($q) => $q->whereIn('role', $roles)->orWhereHas('roles', fn ($r) => $r->whereIn('role', $roles)))->get();
+        foreach ($participants as $participant) {
+            $message = \App\Exceptions\ErreurMetier::texte('MSG-M12-09', ['montant' => (float) $participant->trop_percu, 'participant' => $participant->nom]);
+            if ($participant->regularisation === 'retenue') {
+                self::envoyer($rolesVers(['rh']), $auteur, $odm, 'odm_regularisation', 'Retenue sur salaire à opérer', "{$message} Retenue sur salaire demandée (mission {$odm->numero}).");
+            } else {
+                self::envoyer($rolesVers(['caissier']), $auteur, $odm, 'odm_regularisation', 'Reversement en caisse attendu', "{$message} Reversement en caisse attendu (mission {$odm->numero}).");
+            }
+        }
+    }
+
     /** RG-M12-12 : rejet motivé, au demandeur */
     public static function rejete(OrdreMission $odm, User $valideur, string $motif): void
     {

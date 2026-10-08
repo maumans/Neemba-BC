@@ -48,22 +48,7 @@ final class GenererBonsOdm
             $odm = OrdreMission::whereKey($odm->id)->lockForUpdate()->firstOrFail();
             self::verifier($odm, $auteur);
 
-            if ($odm->type === 'exterieur') {
-                self::estimerAuDernierTaux($odm);
-            }
-
-            $bons = collect();
-            if (Parametre::valeur('odm_mode_generation', 'par_participant') === 'groupe') {
-                if (!self::bonsActifs($odm)->where('type_bon', 'BD')->count()) {
-                    $bons->push(self::bonGroupe($odm, $auteur, $options['beneficiaire_groupe_id'] ?? null));
-                }
-            } else {
-                foreach ($odm->participantsActifs()->with(['utilisateur', 'bonCaisse'])->get() as $participant) {
-                    if (!$participant->bonCaisse || in_array($participant->bonCaisse->statut, self::STATUTS_INACTIFS, true)) {
-                        $bons->push(self::bonParticipant($odm, $participant, $auteur));
-                    }
-                }
-            }
+            $bons = self::bonsManquants($odm, $auteur, $options['beneficiaire_groupe_id'] ?? null);
 
             if (!empty($options['bp'])) {
                 $bons->push(self::bonProvisoire($odm, $auteur, $options['bp']));
@@ -81,6 +66,33 @@ final class GenererBonsOdm
 
             return $bons;
         });
+    }
+
+    /**
+     * BD des participants qui n'ont pas de bon actif (ou bon groupé s'il n'y en a pas), créés et soumis.
+     * Sert à la génération et à la clôture d'un ODM (bons régénérés au réel, décision Q26). À appeler dans une transaction.
+     */
+    public static function bonsManquants(OrdreMission $odm, User $auteur, ?int $beneficiaireGroupeId = null): Collection
+    {
+        if ($odm->type === 'exterieur') {
+            self::estimerAuDernierTaux($odm);
+        }
+
+        $bons = collect();
+        if (Parametre::valeur('odm_mode_generation', 'par_participant') === 'groupe') {
+            if (!self::bonsActifs($odm)->where('type_bon', 'BD')->count()) {
+                $bons->push(self::bonGroupe($odm, $auteur, $beneficiaireGroupeId));
+            }
+
+            return $bons;
+        }
+        foreach ($odm->participantsActifs()->with(['utilisateur', 'bonCaisse'])->get() as $participant) {
+            if (!$participant->bonCaisse || in_array($participant->bonCaisse->statut, self::STATUTS_INACTIFS, true)) {
+                $bons->push(self::bonParticipant($odm, $participant, $auteur));
+            }
+        }
+
+        return $bons;
     }
 
     /** Contrôles préalables (RG-M12-13, RG-M12-15) */

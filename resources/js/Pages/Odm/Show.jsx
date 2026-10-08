@@ -5,7 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import axios from 'axios';
-import { AlertTriangle, ArrowLeft, CalendarPlus, CheckCircle2, FileText, Info as IconeInfo, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarPlus, CheckCircle2, FileText, Info as IconeInfo, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
 import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
@@ -349,6 +349,136 @@ function Mission({ mission }) {
     );
 }
 
+/** RG-M12-20 : clôture, retour réel ; retour anticipé : trop-perçu à reverser ou à retenir ; extérieur : factures payées au retour */
+function Cloturer({ odm, regularisationsPossibles }) {
+    const [ouvert, setOuvert] = useState(false);
+    const form = useForm({
+        date_retour_reelle: odm.date_retour_prevue,
+        regularisations: Object.fromEntries(odm.participants.map((p) => [p.user_id, 'reversement'])),
+        factures_retour: {},
+    });
+    const anticipe = form.data.date_retour_reelle && form.data.date_retour_reelle < odm.date_retour_prevue;
+    const auRetour = odm.type === 'exterieur' && odm.hebergement_exterieur === 'au_retour';
+
+    return (
+        <>
+            <Button size="sm" variant="outline" onClick={() => setOuvert(true)}><CalendarCheck className="mr-1 h-4 w-4" /> Clôturer la mission</Button>
+            <Dialog open={ouvert} onOpenChange={setOuvert}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Clôturer la mission {odm.libelle}</DialogTitle>
+                        <DialogDescription>
+                            Retour prévu le {odm.date_retour_prevue_format}. Un retour plus tardif exige d'abord une prolongation.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        <div>
+                            <label htmlFor="retour-reel" className="text-sm font-medium">Date de retour réelle</label>
+                            <Input id="retour-reel" type="date" className="mt-1" max={odm.date_retour_prevue} min={odm.date_depart}
+                                value={form.data.date_retour_reelle} onChange={(e) => form.setData('date_retour_reelle', e.target.value)} />
+                            {(form.errors.date_retour_reelle || form.errors.general) && (
+                                <p className="mt-1 text-sm text-red-600">{form.errors.date_retour_reelle ?? form.errors.general}</p>
+                            )}
+                        </div>
+                        {anticipe && (
+                            <div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm">
+                                <p className="text-amber-900">
+                                    Retour anticipé : le calcul est refait au réel. Un participant déjà payé a un trop-perçu à régulariser ; un bon
+                                    non encore payé est remplacé par un bon au montant réel.
+                                </p>
+                                {odm.participants.map((p) => (
+                                    <div key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
+                                        <span>{p.nom}</span>
+                                        <select aria-label={`Régularisation de ${p.nom}`} className="h-8 rounded-md border border-input bg-white px-2 text-sm"
+                                            value={form.data.regularisations[p.user_id]}
+                                            onChange={(e) => form.setData('regularisations', { ...form.data.regularisations, [p.user_id]: e.target.value })}>
+                                            {Object.entries(regularisationsPossibles).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                        </select>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {auRetour && (
+                            <div className="space-y-2 rounded-md border p-3 text-sm">
+                                <p className="font-medium">Factures d'hébergement payées au retour</p>
+                                <p className="text-xs text-gray-500">Un bon complémentaire est préparé en brouillon pour chaque facture : joignez-la, puis soumettez le bon.</p>
+                                {odm.participants.map((p) => (
+                                    <div key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
+                                        <span>{p.nom}</span>
+                                        <MontantInput className="w-40" value={form.data.factures_retour[p.user_id] ?? ''}
+                                            onChange={(v) => form.setData('factures_retour', { ...form.data.factures_retour, [p.user_id]: v })} />
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setOuvert(false)}>Revenir</Button>
+                        <Button disabled={form.processing || !form.data.date_retour_reelle} onClick={() => form.post(route('odm.cloturer', odm.id), { onSuccess: () => setOuvert(false) })}>
+                            Clôturer
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
+/** RG-M12-22 : annulation par le DAF, bons non payés annulés */
+function AnnulerDaf({ odm }) {
+    const [ouvert, setOuvert] = useState(false);
+    const form = useForm({ motif: '' });
+
+    return (
+        <>
+            <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700" onClick={() => setOuvert(true)}>
+                <Trash2 className="mr-1 h-4 w-4" /> Annuler (DAF)
+            </Button>
+            <Dialog open={ouvert} onOpenChange={setOuvert}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Annuler l'ordre de mission {odm.libelle}</DialogTitle>
+                        <DialogDescription>Les bons non payés de l'ODM sont annulés. Un ODM dont un bon est payé se clôture au lieu de s'annuler.</DialogDescription>
+                    </DialogHeader>
+                    <Textarea rows={3} value={form.data.motif} onChange={(e) => form.setData('motif', e.target.value)} placeholder="Motif de l'annulation" aria-label="Motif de l'annulation (DAF)" />
+                    {(form.errors.motif || form.errors.general) && <p className="text-sm text-red-600">{form.errors.motif ?? form.errors.general}</p>}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setOuvert(false)}>Revenir</Button>
+                        <Button variant="destructive" disabled={form.processing} onClick={() => form.post(route('odm.annuler-daf', odm.id), { onSuccess: () => setOuvert(false) })}>
+                            Annuler l'ODM
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
+/** Trop-perçus d'un retour anticipé : reversement en caisse (caissier) ou retenue sur salaire (RH) */
+function Regularisations({ odm, regularisations }) {
+    return (
+        <Card className="border-amber-200">
+            <CardContent className="space-y-2 p-4">
+                <p className="text-sm font-semibold text-amber-900">Trop-perçus à régulariser (retour anticipé)</p>
+                {regularisations.map((r) => (
+                    <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-2 text-sm" data-testid={`regularisation-${r.id}`}>
+                        <span>{r.nom} : <strong>{formaterMontant(r.trop_percu)}</strong> · {r.mode}</span>
+                        {r.statut === 'regularise' ? (
+                            <span className="text-green-700">Régularisé le {r.regularise_le} par {r.regularise_par}</span>
+                        ) : r.peut_regulariser ? (
+                            <Button size="sm" onClick={() => router.post(route('odm.regulariser', [odm.id, r.id]), {}, { preserveScroll: true })}>
+                                {r.mode === 'Retenue sur salaire' ? 'Confirmer la retenue' : 'Enregistrer le reversement'}
+                            </Button>
+                        ) : (
+                            <span className="text-amber-700">À régulariser</span>
+                        )}
+                    </div>
+                ))}
+            </CardContent>
+        </Card>
+    );
+}
+
 /** RG-M12-17 : prolongation depuis le dernier segment validé */
 function Prolonger({ odm }) {
     const [ouvert, setOuvert] = useState(false);
@@ -389,6 +519,7 @@ function Prolonger({ odm }) {
 export default function Show({
     odm, etapes = [], visa = null, bons = [], generation = null, sansBon = false, mission = null,
     peutModifier = false, peutAnnuler = false, peutDeciderDerogation = false, peutProlonger = false, prolongation = null,
+    peutCloturer = false, peutAnnulerDaf = false, regularisations = [], regularisationsPossibles = {},
 }) {
     const [annulation, setAnnulation] = useState(false);
     const [motifAnnulation, setMotifAnnulation] = useState('');
@@ -434,6 +565,8 @@ export default function Show({
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {peutProlonger && <Prolonger odm={odm} />}
+                            {peutCloturer && <Cloturer odm={odm} regularisationsPossibles={regularisationsPossibles} />}
+                            {peutAnnulerDaf && <AnnulerDaf odm={odm} />}
                             {prolongation && (
                                 <Link href={route('odm.show', prolongation.id)}>
                                     <Button size="sm" variant="outline"><CalendarPlus className="mr-1 h-4 w-4" /> Prolongation : {prolongation.libelle}</Button>
@@ -471,6 +604,7 @@ export default function Show({
                 )}
 
                 {visa && <ActionsVisa odm={odm} visa={visa} />}
+                {regularisations.length > 0 && <Regularisations odm={odm} regularisations={regularisations} />}
                 {generation && <GenerationBons odm={odm} generation={generation} />}
                 {sansBon && ['VALIDE', 'BONS_GENERES'].includes(odm.statut) && (
                     <p className="flex items-start gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">

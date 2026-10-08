@@ -103,7 +103,8 @@ final class EnregistrementOdm
         }
         $segment = [
             'type' => $odm->type,
-            'jours' => CalculOdm::jours($odm->date_depart, $odm->date_retour_prevue),
+            /* Retour réel s'il est saisi (clôture, RG-M12-20), sinon retour prévu */
+            'jours' => CalculOdm::jours($odm->date_depart, $odm->dateFin()),
             'hebergement_exterieur' => $odm->hebergement_exterieur,
             'taux' => $taux,
         ];

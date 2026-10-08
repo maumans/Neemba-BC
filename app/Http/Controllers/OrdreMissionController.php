@@ -93,7 +93,9 @@ class OrdreMissionController extends Controller
         $utilisateur = Auth::user();
         /* Un suppléant (délégation « visa des ODM ») voit l'ODM qu'il doit viser */
         $visa = \App\Services\Odm\CircuitOdm::peutViser($odm, $utilisateur);
-        abort_unless($visa || $odm->estVisiblePar($utilisateur), 403);
+        /* Le caissier qui encaisse un reversement (RG-M12-20) ouvre aussi la fiche */
+        $reversement = $utilisateur->peutPayer() && $odm->participants()->where('regularisation', 'reversement')->where('regularisation_statut', 'a_regulariser')->exists();
+        abort_unless($visa || $reversement || $odm->estVisiblePar($utilisateur), 403);
 
         return Inertia::render('Odm/Show', [
             'odm' => PresentationOdm::detail($odm),
@@ -113,6 +115,12 @@ class OrdreMissionController extends Controller
                 'dernier' => $odm->etapes()->where('version', $odm->version)->where('statut', 'a_venir')->doesntExist(),
             ] : null,
             'peutModifier' => $odm->estModifiablePar($utilisateur),
+            /* RG-M12-20, RG-M12-22 : clôture, régularisation des trop-perçus, annulation par le DAF */
+            'peutCloturer' => \App\Services\Odm\CloturerOdm::peutCloturer($odm, $utilisateur),
+            'peutAnnulerDaf' => \App\Services\Odm\AnnulerOdm::peutAnnulerParLeDaf($odm, $utilisateur)
+                && ($odm->bons()->exists() || !in_array($utilisateur->id, [$odm->demandeur_id, $odm->initiateur_id], true)),
+            'regularisations' => PresentationOdm::regularisations($odm, $utilisateur),
+            'regularisationsPossibles' => \App\Models\ParticipantOdm::REGULARISATIONS,
             'peutAnnuler' => in_array($utilisateur->id, [$odm->demandeur_id, $odm->initiateur_id], true)
                 && in_array($odm->statut, \App\Services\Odm\AnnulerOdm::STATUTS_ANNULABLES_PAR_LE_DEMANDEUR, true)
                 && !$odm->bons()->exists(),
@@ -161,6 +169,40 @@ class OrdreMissionController extends Controller
         [$segment, $message] = \App\Services\Odm\ProlongerOdm::executer($odm, Auth::user(), $request->input('date_retour_prevue'));
 
         return redirect()->route('odm.edit', $segment)->with('success', $message);
+    }
+
+    /** POST /ordres-mission/{odm}/cloturer — RG-M12-20 : retour réel, trop-perçu, bons régénérés au réel */
+    public function cloturer(Request $request, OrdreMission $odm)
+    {
+        $donnees = $request->validate([
+            'date_retour_reelle' => ['required', 'date_format:Y-m-d'],
+            'regularisations' => ['nullable', 'array'],
+            'regularisations.*' => ['in:reversement,retenue'],
+            'factures_retour' => ['nullable', 'array'],
+        ], ['date_retour_reelle.required' => \App\Exceptions\ErreurMetier::texte('MSG-BC-001')]);
+
+        [$odm, $messages] = \App\Services\Odm\CloturerOdm::executer($odm, Auth::user(), $donnees['date_retour_reelle'],
+            $donnees['regularisations'] ?? [], $donnees['factures_retour'] ?? []);
+
+        return redirect()->route('odm.show', $odm)->with('success', trim("Mission {$odm->numero} clôturée. " . implode(' ', $messages)));
+    }
+
+    /** POST /ordres-mission/{odm}/annuler-daf — RG-M12-22 : annulation par le DAF, bons non payés annulés */
+    public function annulerDaf(Request $request, OrdreMission $odm)
+    {
+        $request->validate(['motif' => ['nullable', 'string', 'max:1000']]);
+        $odm = \App\Services\Odm\AnnulerOdm::parLeDaf($odm, Auth::user(), $request->input('motif'));
+
+        return redirect()->route('odm.show', $odm)->with('success', "Ordre de mission {$odm->numero} annulé.");
+    }
+
+    /** POST /ordres-mission/{odm}/participants/{participant}/regulariser — reversement (caissier) ou retenue (RH) */
+    public function regulariser(OrdreMission $odm, \App\Models\ParticipantOdm $participant)
+    {
+        abort_unless($participant->ordre_mission_id === $odm->id, 404);
+        \App\Services\Odm\RegulariserTropPercu::executer($participant, Auth::user());
+
+        return redirect()->route('odm.show', $odm)->with('success', "Trop-perçu de {$participant->nom} régularisé.");
     }
 
     /** POST /ordres-mission/{odm}/rejeter — RG-M12-12 : motif obligatoire */

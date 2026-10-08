@@ -261,6 +261,22 @@ final class PresentationOdm
         ];
     }
 
+    /** RG-M12-20 : trop-perçus d'un retour anticipé et leur régularisation */
+    public static function regularisations(OrdreMission $odm, \App\Models\User $utilisateur): array
+    {
+        return $odm->participants()->whereNotNull('trop_percu')->with('regularisePar')->get()
+            ->map(fn (ParticipantOdm $p) => [
+                'id' => $p->id,
+                'nom' => $p->nom,
+                'trop_percu' => (float) $p->trop_percu,
+                'mode' => ParticipantOdm::REGULARISATIONS[$p->regularisation] ?? $p->regularisation,
+                'statut' => $p->regularisation_statut,
+                'regularise_le' => $p->regularise_le ? Format::dateHeure($p->regularise_le) : null,
+                'regularise_par' => $p->regularisePar?->nom_complet,
+                'peut_regulariser' => RegulariserTropPercu::peutRegulariser($p, $utilisateur),
+            ])->values()->all();
+    }
+
     /** Référentiels du formulaire */
     public static function referentiels(): array
     {

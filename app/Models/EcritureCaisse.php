@@ -20,6 +20,7 @@ class EcritureCaisse extends Model
         'retrait' => 'Retrait',
         'ajustement' => 'Ajustement',
         'correction_solde' => 'Correction du solde (double validation)',
+        'reversement_odm' => "Reversement d'un trop-perçu de mission",
     ];
 
     protected $fillable = [

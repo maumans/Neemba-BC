@@ -101,6 +101,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/ordres-mission/{odm}/rejeter', [OrdreMissionController::class, 'rejeter'])->name('odm.rejeter');
     Route::post('/ordres-mission/{odm}/generer-bons', [OrdreMissionController::class, 'genererBons'])->name('odm.generer-bons');
     Route::post('/ordres-mission/{odm}/prolonger', [OrdreMissionController::class, 'prolonger'])->name('odm.prolonger');
+    Route::post('/ordres-mission/{odm}/cloturer', [OrdreMissionController::class, 'cloturer'])->name('odm.cloturer');
+    Route::post('/ordres-mission/{odm}/annuler-daf', [OrdreMissionController::class, 'annulerDaf'])->name('odm.annuler-daf');
+    Route::post('/ordres-mission/{odm}/participants/{participant}/regulariser', [OrdreMissionController::class, 'regulariser'])->name('odm.regulariser');
 
     /* Actions spécifiques sur les bons de caisse (toutes paramétrées → pas de conflit) */
     Route::post('/bons-caisse/{bonCaisse}/otp/generer', [BonCaisseController::class, 'genererOtp'])

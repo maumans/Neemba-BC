@@ -115,7 +115,10 @@ class EnregistrementBon
         }
         if (!$bon->lie_mission) {
             $bon->date_retour_mission = null;
-            $bon->odm_id = null;
+            /* Un BD peut rester rattaché à son ODM (bon complémentaire d'hébergement, M12) */
+            if ($bon->type_bon === 'BP') {
+                $bon->odm_id = null;
+            }
         }
 
         /* RG-BC-12 : caisse payeuse prévue (le paiement inscrit la caisse réellement débitée) */

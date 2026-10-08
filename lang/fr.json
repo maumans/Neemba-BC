@@ -74,5 +74,12 @@
     "MSG-APP-031": "Le paramétrage ne permet pas de générer un bon provisoire depuis un ordre de mission.",
     "MSG-APP-032": "Un bon provisoire est déjà généré pour cet ordre de mission.",
     "MSG-APP-033": "Une prolongation reprend les participants du segment précédent : on peut en retirer, pas en ajouter.",
-    "MSG-APP-034": "Seul le dernier segment validé d'une mission en cours peut être prolongé."
+    "MSG-APP-034": "Seul le dernier segment validé d'une mission en cours peut être prolongé.",
+    "MSG-APP-035": "Seul le dernier segment validé d'une mission en cours peut être clôturé.",
+    "MSG-APP-036": "Retour après la date prévue : prolongez la mission avant de la clôturer.",
+    "MSG-APP-037": "Un bon de cet ordre de mission est déjà payé : clôturez-le avec régularisation au lieu de l'annuler.",
+    "MSG-APP-038": "Seul le DAF annule un ordre de mission dont les bons sont générés.",
+    "MSG-APP-039": "Indiquez le motif de l'annulation (10 caractères minimum).",
+    "MSG-APP-040": "Vous ne pouvez pas enregistrer cette régularisation.",
+    "MSG-APP-041": "Aucune caisse espèces active pour encaisser le reversement : vérifiez le paramétrage des caisses."
 }

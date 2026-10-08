@@ -75,6 +75,9 @@ export default function Formulaire({
 }) {
     const [form, setForm] = useState(() => etatInitial(odm, defauts));
     const [odmId, setOdmId] = useState(odm?.id ?? null);
+    /* Identifiant du brouillon et création en cours, lus par les enregistrements automatiques successifs */
+    const idBrouillon = useRef(odm?.id ?? null);
+    const creation = useRef(null);
     const [statut] = useState(odm?.statut ?? 'BROUILLON');
     const [numero] = useState(odm?.numero ?? null);
     const [calcul, setCalcul] = useState(odm?.calcul ?? null);
@@ -109,10 +112,17 @@ export default function Formulaire({
         const numeroRequete = ++requete.current;
         setEnregistrement('en_cours');
         try {
-            const { data } = odmId
-                ? await axios.put(route('api.odm.enregistrer', odmId), donnees)
-                : await axios.post(route('api.odm.creer'), donnees);
-            if (!odmId) {
+            /* Un seul brouillon : un enregistrement lancé pendant la création attend l'identifiant puis met à jour */
+            if (!idBrouillon.current && creation.current) {
+                await creation.current.catch(() => null);
+            }
+            let data;
+            if (idBrouillon.current) {
+                ({ data } = await axios.put(route('api.odm.enregistrer', idBrouillon.current), donnees));
+            } else {
+                creation.current = axios.post(route('api.odm.creer'), donnees);
+                ({ data } = await creation.current);
+                idBrouillon.current = data.odm.id;
                 setOdmId(data.odm.id);
                 window.history.replaceState(window.history.state, '', route('odm.edit', data.odm.id));
             }
@@ -130,7 +140,7 @@ export default function Formulaire({
             }
             throw e;
         }
-    }, [odmId]);
+    }, []);
 
     /* Enregistrement automatique 800 ms après la dernière modification */
     useEffect(() => {

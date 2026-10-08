@@ -18,7 +18,13 @@ class ParticipantOdm extends Model
         'ordre_mission_id', 'user_id',
         'nom', 'matricule', 'service', 'statut_cadre', 'numero_om', 'base_vie',
         'jours', 'nuits', 'nuit_rattrapage', 'indemnite_fcfa', 'indemnite', 'hebergement', 'rattrapage', 'hebergement_facture', 'total',
-        'retire', 'trop_percu', 'regularisation', 'regularisation_statut', 'bon_caisse_id',
+        'retire', 'trop_percu', 'regularisation', 'regularisation_statut', 'regularise_le', 'regularise_par_id',
+        'bon_caisse_id', 'bon_complement_id',
+    ];
+
+    public const REGULARISATIONS = [
+        'reversement' => 'Reversement en caisse',
+        'retenue' => 'Retenue sur salaire',
     ];
 
     protected function casts(): array
@@ -36,6 +42,7 @@ class ParticipantOdm extends Model
             'hebergement_facture' => 'decimal:2',
             'total' => 'decimal:2',
             'trop_percu' => 'decimal:2',
+            'regularise_le' => 'datetime',
         ];
     }
 
@@ -47,6 +54,16 @@ class ParticipantOdm extends Model
     public function utilisateur(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function regularisePar(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'regularise_par_id');
+    }
+
+    public function bonComplement(): BelongsTo
+    {
+        return $this->belongsTo(BonCaisse::class, 'bon_complement_id');
     }
 
     public function bonCaisse(): BelongsTo
