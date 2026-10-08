@@ -29,7 +29,8 @@ final class NotificationsOdm
     public static function soumission(OrdreMission $odm, User $auteur): void
     {
         $libelle = self::libelle($odm);
-        $message = "{$auteur->nom_complet} a soumis l'ordre de mission {$libelle} ("
+        $quoi = $odm->estProlongation() ? "la prolongation {$libelle} ({$odm->libelle_prolongation})" : "l'ordre de mission {$libelle}";
+        $message = "{$auteur->nom_complet} a soumis {$quoi} ("
             . self::periode($odm) . ', ' . implode(', ', $odm->destinations ?? []) . ').';
 
         self::envoyer(self::diffusion($odm), $auteur, $odm, 'odm_soumis', "Ordre de mission {$libelle}", $message);
@@ -57,6 +58,23 @@ final class NotificationsOdm
         self::envoyer(collect([$odm->demandeur, $odm->initiateur]), $valideur, $odm, 'odm_valide', 'Ordre de mission validé', $message);
         self::envoyer(self::diffusion($odm), $valideur, $odm, 'odm_valide', 'Ordre de mission validé',
             'L\'ordre de mission ' . self::libelle($odm) . ' (' . self::periode($odm) . ') est validé.');
+    }
+
+    /** RG-M12-19, MSG-M12-07 : incohérence nuits / jours sur la mission, signalée au DAF */
+    public static function incoherence(OrdreMission $odm, array $incoherences): void
+    {
+        $dafs = User::actifs()->where(fn ($q) => $q->whereIn('role', OrdreMission::ROLES_DEROGATION)
+            ->orWhereHas('roles', fn ($r) => $r->whereIn('role', OrdreMission::ROLES_DEROGATION)))->get();
+        self::envoyer($dafs, null, $odm->initial(), 'odm_incoherence', 'Mission : nuits incohérentes', implode(' ', $incoherences));
+        \App\Models\HistoriqueOdm::enregistrer($odm->initial(), 'incoherence', null, null, null, 'Signalé au DAF : ' . implode(' ', $incoherences));
+    }
+
+    /** RG-M12-28 : rappel au demandeur avant la fin d'un segment, pour prolonger ou clôturer */
+    public static function rappelFinDeSegment(OrdreMission $odm): void
+    {
+        self::envoyer(collect([$odm->demandeur, $odm->initiateur]), null, $odm, 'odm_rappel', "Mission {$odm->numero} : fin le " . \App\Support\Format::date($odm->date_retour_prevue),
+            "La mission {$odm->numero} (" . implode(', ', $odm->destinations ?? []) . ') se termine le ' . \App\Support\Format::date($odm->date_retour_prevue)
+            . ' : prolongez-la si elle continue, ou clôturez-la au retour.');
     }
 
     /** RG-M12-12 : rejet motivé, au demandeur */

@@ -100,6 +100,10 @@ class OrdreMissionController extends Controller
             'etapes' => PresentationOdm::etapes($odm),
             'bons' => PresentationOdm::bons($odm),
             'generation' => PresentationOdm::generation($odm, $utilisateur),
+            /* RG-M12-17, RG-M12-19 : prolongation et vue de la mission */
+            'peutProlonger' => \App\Services\Odm\ProlongerOdm::peutProlonger($odm, $utilisateur),
+            'prolongation' => ($suite = \App\Services\Odm\ProlongerOdm::prolongationEnCours($odm)) ? ['id' => $suite->id, 'libelle' => $suite->libelle, 'statut' => $suite->statut] : null,
+            'mission' => \App\Services\Odm\VueMission::pour($odm),
             /* RG-M12-15, variante B : ODM à la charge du client, sans bon */
             'sansBon' => \App\Services\Odm\GenererBonsOdm::sansBon($odm),
             /* RG-M12-11 : visa possible à l'étape en cours, « au titre de » pour un suppléant */
@@ -146,6 +150,17 @@ class OrdreMissionController extends Controller
 
         return redirect()->route('odm.show', $odm)->with('success',
             $bons->count() . ' bon(s) de caisse généré(s) et soumis pour validation : ' . $bons->pluck('numero')->implode(', ') . '.');
+    }
+
+    /** POST /ordres-mission/{odm}/prolonger — RG-M12-17 : nouveau segment en brouillon, à compléter puis soumettre */
+    public function prolonger(Request $request, OrdreMission $odm)
+    {
+        $request->validate(['date_retour_prevue' => ['required', 'date_format:Y-m-d']], [
+            'date_retour_prevue.required' => \App\Exceptions\ErreurMetier::texte('MSG-BC-001'),
+        ]);
+        [$segment, $message] = \App\Services\Odm\ProlongerOdm::executer($odm, Auth::user(), $request->input('date_retour_prevue'));
+
+        return redirect()->route('odm.edit', $segment)->with('success', $message);
     }
 
     /** POST /ordres-mission/{odm}/rejeter — RG-M12-12 : motif obligatoire */

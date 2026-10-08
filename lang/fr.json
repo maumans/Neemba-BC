@@ -72,5 +72,7 @@
     "MSG-APP-029": "Aucun taux FCFA → GNF n'a encore été saisi : le montant des bons ne peut pas être estimé. Contactez la Trésorerie.",
     "MSG-APP-030": "Tous les bons de cet ordre de mission sont déjà générés.",
     "MSG-APP-031": "Le paramétrage ne permet pas de générer un bon provisoire depuis un ordre de mission.",
-    "MSG-APP-032": "Un bon provisoire est déjà généré pour cet ordre de mission."
+    "MSG-APP-032": "Un bon provisoire est déjà généré pour cet ordre de mission.",
+    "MSG-APP-033": "Une prolongation reprend les participants du segment précédent : on peut en retirer, pas en ajouter.",
+    "MSG-APP-034": "Seul le dernier segment validé d'une mission en cours peut être prolongé."
 }

@@ -78,6 +78,13 @@ final class PresentationOdm
             ])->values()->all(),
             'derogation' => self::derogation($odm),
             'rejet' => self::rejet($odm),
+            /* RG-M12-17 : prolongation, départ et participants repris du segment précédent */
+            'prolongation' => $odm->estProlongation() ? [
+                'libelle' => $odm->libelle_prolongation,
+                'precedent' => $odm->segmentPrecedent?->numero,
+                'depart' => Format::date($odm->date_depart),
+                'rattrapages' => $odm->participantsActifs()->where('nuit_rattrapage', '>', 0)->count(),
+            ] : null,
             'calcul' => self::calcul($odm),
         ];
     }

@@ -58,6 +58,11 @@ final class ValiderOdm
             NotificationsOdm::aViser($odm, $suivante, $valideur);
         } else {
             NotificationsOdm::valide($odm, $valideur);
+            /* RG-M12-19 : une incohérence nuits / jours sur la mission est signalée au DAF */
+            $incoherences = VueMission::pour($odm)['incoherences'];
+            if ($incoherences) {
+                NotificationsOdm::incoherence($odm, $incoherences);
+            }
         }
 
         return $odm;

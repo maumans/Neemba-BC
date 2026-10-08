@@ -20,6 +20,9 @@ Schedule::command('validations:relancer-sla')->hourly();
 /* M12 : visas d'ordres de mission en retard, relance à l'échéance puis escalade au double du délai (§6.7) */
 Schedule::command('odm:relancer-visas')->hourly();
 
+/* RG-M12-28 : rappel au demandeur 2 jours ouvrés avant la fin d'un segment de mission */
+Schedule::command('odm:rappeler-fin-segment')->dailyAt('07:00');
+
 /* Alertes d'expiration des archives légales (J-30, J-7, J-1) */
 Schedule::command('archives:alerter-expiration')->dailyAt('08:30');
 

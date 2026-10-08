@@ -5,7 +5,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import axios from 'axios';
-import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, Info as IconeInfo, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarPlus, CheckCircle2, FileText, Info as IconeInfo, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
+import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
@@ -273,9 +274,121 @@ function Bons({ bons }) {
     );
 }
 
+/** Onglet « Mission » (RG-M12-19) : segments, cumuls par participant, contrôle nuits = jours − 1 */
+function Mission({ mission }) {
+    return (
+        <div className="space-y-4">
+            {mission.incoherences.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800" role="alert">
+                    {mission.incoherences.map((m, i) => <p key={i}>{m}</p>)}
+                </div>
+            )}
+            <Card>
+                <CardContent className="overflow-x-auto p-4">
+                    <h3 className="mb-2 text-sm font-semibold text-gray-900">
+                        Mission {mission.numero ?? ''} : {mission.jours} jour(s), du {mission.debut} au {mission.fin}
+                    </h3>
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b text-left text-xs text-gray-500">
+                                <th className="py-2 pr-3 font-medium">Segment</th>
+                                <th className="py-2 pr-3 font-medium">Période</th>
+                                <th className="py-2 pr-3 text-right font-medium">Jours</th>
+                                <th className="py-2 pr-3 text-right font-medium">Total</th>
+                                <th className="py-2 font-medium">Statut</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {mission.segments.map((s) => (
+                                <tr key={s.id} className="border-b last:border-b-0">
+                                    <td className="py-2 pr-3">
+                                        <Link href={route('odm.show', s.id)} className="font-medium text-neemba-700 hover:underline">{s.libelle}</Link>
+                                        {s.libelle_prolongation && <p className="text-xs text-gray-500">{s.libelle_prolongation}</p>}
+                                    </td>
+                                    <td className="py-2 pr-3">{s.periode}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{s.jours}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{s.total !== null ? formaterMontant(s.total) : '—'}</td>
+                                    <td className="py-2"><BadgeStatutOdm statut={s.statut} /></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardContent className="overflow-x-auto p-4">
+                    <h3 className="mb-2 text-sm font-semibold text-gray-900">Cumul par participant</h3>
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b text-left text-xs text-gray-500">
+                                <th className="py-2 pr-3 font-medium">Participant</th>
+                                <th className="py-2 pr-3 text-right font-medium">Jours</th>
+                                <th className="py-2 pr-3 text-right font-medium">Nuits payées</th>
+                                <th className="py-2 pr-3 text-right font-medium">Montant</th>
+                                <th className="py-2 font-medium">Contrôle nuits = jours − 1</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {mission.participants.map((p) => (
+                                <tr key={p.user_id} className="border-b last:border-b-0" data-testid={`mission-${p.user_id}`}>
+                                    <td className="py-2 pr-3 font-medium">{p.nom}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{p.jours}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{p.nuits}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{formaterMontant(p.montant)}</td>
+                                    <td className={`py-2 ${p.coherent ? 'text-green-700' : 'font-medium text-red-700'}`}>
+                                        {p.jours_heberges === 0 ? 'Sans objet (non hébergé)' : p.coherent ? `Cohérent (${p.nuits} = ${p.jours_heberges} − 1)` : `Écart : ${p.nuits} nuits pour ${p.jours_heberges} jours`}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <p className="mt-3 text-right text-sm font-semibold">Coût de la mission : {formaterMontant(mission.total)}</p>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+/** RG-M12-17 : prolongation depuis le dernier segment validé */
+function Prolonger({ odm }) {
+    const [ouvert, setOuvert] = useState(false);
+    const form = useForm({ date_retour_prevue: '' });
+
+    return (
+        <>
+            <Button size="sm" variant="outline" onClick={() => setOuvert(true)}><CalendarPlus className="mr-1 h-4 w-4" /> Prolonger la mission</Button>
+            <Dialog open={ouvert} onOpenChange={setOuvert}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Prolonger la mission {odm.libelle}</DialogTitle>
+                        <DialogDescription>
+                            Un nouveau segment est créé en brouillon : départ le lendemain du retour ({odm.date_retour_reelle_format ?? odm.date_retour_prevue_format}),
+                            mêmes participants (retrait possible), nuitée de rattrapage du segment précédent. Il suit le même circuit de validation.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div>
+                        <label htmlFor="retour-prolongation" className="text-sm font-medium">Nouvelle date de retour prévue</label>
+                        <Input id="retour-prolongation" type="date" className="mt-1" value={form.data.date_retour_prevue}
+                            onChange={(e) => form.setData('date_retour_prevue', e.target.value)} />
+                        {(form.errors.date_retour_prevue || form.errors.general) && (
+                            <p className="mt-1 text-sm text-red-600">{form.errors.date_retour_prevue ?? form.errors.general}</p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setOuvert(false)}>Revenir</Button>
+                        <Button disabled={form.processing || !form.data.date_retour_prevue} onClick={() => form.post(route('odm.prolonger', odm.id))}>
+                            Créer la prolongation
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
 export default function Show({
-    odm, etapes = [], visa = null, bons = [], generation = null, sansBon = false,
-    peutModifier = false, peutAnnuler = false, peutDeciderDerogation = false,
+    odm, etapes = [], visa = null, bons = [], generation = null, sansBon = false, mission = null,
+    peutModifier = false, peutAnnuler = false, peutDeciderDerogation = false, peutProlonger = false, prolongation = null,
 }) {
     const [annulation, setAnnulation] = useState(false);
     const [motifAnnulation, setMotifAnnulation] = useState('');
@@ -320,6 +433,12 @@ export default function Show({
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                            {peutProlonger && <Prolonger odm={odm} />}
+                            {prolongation && (
+                                <Link href={route('odm.show', prolongation.id)}>
+                                    <Button size="sm" variant="outline"><CalendarPlus className="mr-1 h-4 w-4" /> Prolongation : {prolongation.libelle}</Button>
+                                </Link>
+                            )}
                             {peutModifier && (
                                 <Link href={route('odm.edit', odm.id)}>
                                     <Button size="sm"><Pencil className="mr-1 h-4 w-4" /> {odm.statut === 'REJETE' ? 'Corriger et resoumettre' : 'Reprendre'}</Button>
@@ -366,12 +485,19 @@ export default function Show({
                         <TabsTrigger value="calcul">Calcul</TabsTrigger>
                         <TabsTrigger value="validations">Validations</TabsTrigger>
                         <TabsTrigger value="bons">Bons{bons.length > 0 && ` (${bons.length})`}</TabsTrigger>
+                        {mission && mission.segments.length > 0 && <TabsTrigger value="mission">Mission{mission.segments.length > 1 && ` (${mission.segments.length} segments)`}</TabsTrigger>}
                         <TabsTrigger value="historique">Historique</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="bons" className="mt-4">
                         <Bons bons={bons} />
                     </TabsContent>
+
+                    {mission && (
+                        <TabsContent value="mission" className="mt-4">
+                            <Mission mission={mission} />
+                        </TabsContent>
+                    )}
 
                     <TabsContent value="validations" className="mt-4">
                         <Validations etapes={etapes} />

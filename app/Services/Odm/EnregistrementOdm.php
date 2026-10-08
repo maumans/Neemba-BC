@@ -59,7 +59,9 @@ final class EnregistrementOdm
 
             $signatureAvant = self::signature($odm);
 
-            foreach (self::CHAMPS as $champ) {
+            /* RG-M12-17 : une prolongation garde le type et le départ fixés à sa création */
+            $verrouilles = $odm->segment_precedent_id ? ['type', 'date_depart'] : [];
+            foreach (array_diff(self::CHAMPS, $verrouilles) as $champ) {
                 if (array_key_exists($champ, $donnees)) {
                     $odm->{$champ} = self::normaliser($champ, $donnees[$champ]);
                 }
@@ -154,7 +156,16 @@ final class EnregistrementOdm
             ->filter(fn ($p) => is_array($p) && is_numeric($p['user_id'] ?? null))
             ->keyBy(fn ($p) => (int) $p['user_id']);
 
-        $odm->participants()->whereNotIn('user_id', $voulus->keys())->delete();
+        /* RG-M12-17 : une prolongation reprend les participants du segment précédent ; retrait possible, ajout impossible */
+        if ($odm->segment_precedent_id) {
+            $admis = ProlongerOdm::participantsAdmis($odm);
+            if ($voulus->keys()->diff($admis)->isNotEmpty()) {
+                throw new ErreurMetier('AJOUT_INTERDIT_PROLONGATION', 'MSG-APP-033', [], 'RG-M12-17', 'participants');
+            }
+            $odm->participants()->whereNotIn('user_id', $voulus->keys())->update(['retire' => true]);
+        } else {
+            $odm->participants()->whereNotIn('user_id', $voulus->keys())->delete();
+        }
 
         foreach ($voulus as $userId => $voulu) {
             $existant = $odm->participants()->where('user_id', $userId)->first();
@@ -163,7 +174,7 @@ final class EnregistrementOdm
                 'hebergement_facture' => is_numeric($voulu['hebergement_facture'] ?? null) ? max(0, (float) $voulu['hebergement_facture']) : null,
             ];
             if ($existant) {
-                $existant->update($valeurs);
+                $existant->update($valeurs + ['retire' => false]);
                 continue;
             }
             $utilisateur = User::find($userId);

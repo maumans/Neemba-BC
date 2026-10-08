@@ -205,6 +205,8 @@ export default function Formulaire({
 
     const exterieur = form.type === 'exterieur';
     const passe = departPasse(form.date_depart, dateDuJour);
+    /* RG-M12-17 : une prolongation garde son type et son départ ; ses participants peuvent être retirés, pas ajoutés */
+    const prolongation = odm?.prolongation ?? null;
 
     return (
         <AuthenticatedLayout header={numero ? `Ordre de mission ${numero}` : 'Nouvel ordre de mission'}>
@@ -222,6 +224,19 @@ export default function Formulaire({
                         {enregistrement === 'erreur' && <span className="inline-flex items-center gap-1 text-red-600"><XCircle className="h-3 w-3" /> Non enregistré</span>}
                     </div>
                 </div>
+
+                {prolongation && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                        <p className="font-semibold">{prolongation.libelle}</p>
+                        <p className="mt-1">
+                            Départ fixé au {prolongation.depart}, lendemain du retour de l'ordre de mission {prolongation.precedent}. Participants repris :
+                            vous pouvez en retirer, pas en ajouter.
+                        </p>
+                        {prolongation.rattrapages > 0 && (
+                            <p className="mt-1">{msg('MSG-M12-06', { segment: prolongation.precedent, nombre: prolongation.rattrapages })}</p>
+                        )}
+                    </div>
+                )}
 
                 {odm?.rejet && (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
@@ -273,7 +288,7 @@ export default function Formulaire({
                                     <div className="flex gap-4 pt-1">
                                         {Object.entries(types).map(([valeur, libelle]) => (
                                             <label key={valeur} className="flex items-center gap-2 text-sm">
-                                                <input type="radio" name="type" value={valeur} checked={form.type === valeur} onChange={() => changer('type', valeur)} />
+                                                <input type="radio" name="type" value={valeur} checked={form.type === valeur} onChange={() => changer('type', valeur)} disabled={Boolean(prolongation)} />
                                                 {libelle}
                                             </label>
                                         ))}
@@ -334,7 +349,7 @@ export default function Formulaire({
                             <CardHeader className="pb-3"><CardTitle className="text-base">Dates{jours > 0 && <span className="ml-2 text-sm font-normal text-gray-500">{jours} jour{jours > 1 ? 's' : ''}</span>}</CardTitle></CardHeader>
                             <CardContent className="grid gap-4 sm:grid-cols-2">
                                 <Champ champ="date_depart" libelle="Départ" obligatoire erreur={erreurDe('date_depart')}>
-                                    <Input id="champ-date_depart" type="date" value={form.date_depart ?? ''} onChange={(e) => changer('date_depart', e.target.value)} />
+                                    <Input id="champ-date_depart" type="date" value={form.date_depart ?? ''} onChange={(e) => changer('date_depart', e.target.value)} disabled={Boolean(prolongation)} />
                                 </Champ>
                                 <Champ champ="date_retour_prevue" libelle="Retour prévu" obligatoire
                                     erreur={erreurDe('date_retour_prevue') ?? (retourAvantDepart(form.date_depart, form.date_retour_prevue) ? msg('MSG-M12-02') : null)}>
@@ -382,7 +397,9 @@ export default function Formulaire({
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <Champ champ="participants" erreur={erreurParticipant ?? (erreursParChamp.participants ? null : erreurDe('participants'))}>
-                                    <RechercheParticipant onChoisir={ajouter} dejaChoisis={form.participants.map((p) => p.user_id)} desactive={form.participants.length >= maxParticipants} />
+                                    {!prolongation && (
+                                        <RechercheParticipant onChoisir={ajouter} dejaChoisis={form.participants.map((p) => p.user_id)} desactive={form.participants.length >= maxParticipants} />
+                                    )}
                                 </Champ>
                                 {erreursParChamp.participants && (
                                     <ul className="space-y-1 text-sm text-red-600" role="alert">

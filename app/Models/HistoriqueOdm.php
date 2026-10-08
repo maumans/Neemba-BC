@@ -31,6 +31,7 @@ class HistoriqueOdm extends Model
         'cloture' => 'Clôture',
         'annulation' => 'Annulation',
         'rappel' => 'Rappel',
+        'incoherence' => 'Incohérence signalée au DAF',
     ];
 
     protected $fillable = ['ordre_mission_id', 'action', 'statut_avant', 'statut_apres', 'utilisateur_id', 'commentaire', 'metadonnees'];
