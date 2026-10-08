@@ -36,9 +36,34 @@ final class NotificationsOdm
 
         $etape = CircuitOdm::etapeEnCours($odm);
         if ($etape) {
-            self::envoyer(CircuitOdm::valideursPossibles($odm, $etape->role), $auteur, $odm, 'odm_a_viser',
-                "ODM {$libelle} à viser", "{$message} Votre visa est attendu.");
+            self::aViser($odm, $etape, $auteur);
         }
+    }
+
+    /** Valideurs de l'étape qui s'ouvre (titulaires compatibles et suppléants) */
+    public static function aViser(OrdreMission $odm, \App\Models\EtapeOdm $etape, ?User $expediteur): void
+    {
+        $libelle = self::libelle($odm);
+        self::envoyer(CircuitOdm::valideursPossibles($odm, $etape->role), $expediteur, $odm, 'odm_a_viser',
+            "ODM {$libelle} à viser",
+            "L'ordre de mission {$libelle} (" . self::periode($odm) . ', ' . implode(', ', $odm->destinations ?? [])
+            . ") attend votre visa ({$etape->libelle}).");
+    }
+
+    /** RG-M12-24 et MSG-M12-08 : validation finale, au demandeur et à la liste de diffusion */
+    public static function valide(OrdreMission $odm, User $valideur): void
+    {
+        $message = \App\Exceptions\ErreurMetier::texte('MSG-M12-08', ['numero' => self::libelle($odm)]);
+        self::envoyer(collect([$odm->demandeur, $odm->initiateur]), $valideur, $odm, 'odm_valide', 'Ordre de mission validé', $message);
+        self::envoyer(self::diffusion($odm), $valideur, $odm, 'odm_valide', 'Ordre de mission validé',
+            'L\'ordre de mission ' . self::libelle($odm) . ' (' . self::periode($odm) . ') est validé.');
+    }
+
+    /** RG-M12-12 : rejet motivé, au demandeur */
+    public static function rejete(OrdreMission $odm, User $valideur, string $motif): void
+    {
+        self::envoyer(collect([$odm->demandeur, $odm->initiateur]), $valideur, $odm, 'odm_rejete', 'Ordre de mission rejeté',
+            "{$valideur->nom_complet} a rejeté l'ordre de mission " . self::libelle($odm) . " : {$motif} Corrigez-le puis soumettez-le à nouveau.");
     }
 
     public static function derogationDemandee(OrdreMission $odm, User $demandeur): void
@@ -75,7 +100,7 @@ final class NotificationsOdm
         return $odm->numero ?? 'en brouillon';
     }
 
-    private static function periode(OrdreMission $odm): string
+    public static function periode(OrdreMission $odm): string
     {
         return 'du ' . \App\Support\Format::date($odm->date_depart) . ' au ' . \App\Support\Format::date($odm->date_retour_prevue);
     }

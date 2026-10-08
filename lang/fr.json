@@ -62,5 +62,7 @@
     "MSG-APP-019": "Cet ordre de mission a déjà été soumis : il ne peut plus être modifié ni soumis à nouveau.",
     "MSG-APP-020": "Vous ne pouvez pas modifier cet ordre de mission.",
     "MSG-APP-021": "Le code analytique choisi n'existe pas ou n'est plus actif.",
-    "MSG-APP-022": "Indiquez le motif de la dérogation (10 caractères minimum)."
+    "MSG-APP-022": "Indiquez le motif de la dérogation (10 caractères minimum).",
+    "MSG-APP-023": "Vous ne pouvez pas viser cet ordre de mission.",
+    "MSG-APP-024": "Indiquez le motif du rejet (10 caractères minimum)."
 }

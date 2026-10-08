@@ -56,11 +56,17 @@ class Delegation extends Model
     const FONCTIONNALITES_PAR_ROLE = [
         'responsable_service' => ['validation', 'archivage'],
         'controle_gestion'    => ['validation'],
-        'daf'                 => ['validation', 'mouvement_caisse', 'archivage'],
-        'directeur_pays'      => ['validation', 'archivage'],
+        'daf'                 => ['validation', 'mouvement_caisse', 'archivage', 'visa_odm'],
+        'directeur_pays'      => ['validation', 'archivage', 'visa_odm'],
         'caissier'            => ['paiement', 'rapport_caisse', 'mouvement_caisse'],
         'demandeur'           => [],
         'administrateur'      => ['validation', 'archivage', 'mouvement_caisse'],
+        /* M12 : visa des ordres de mission, délégué au suppléant (RG-M12-11) */
+        'chef_atelier'        => ['visa_odm'],
+        'daf_adjoint'         => ['visa_odm'],
+        'chef_comptable'      => ['visa_odm'],
+        'dp_adjoint'          => ['visa_odm'],
+        'rh'                  => ['visa_odm'],
     ];
 
     /**
@@ -73,6 +79,7 @@ class Delegation extends Model
         'mouvement_caisse' => 'Mouvements de caisse',
         'archivage'        => 'Archivage des bons',
         'initiation'       => 'Initiation de bons (pour le compte de)',
+        'visa_odm'         => 'Visa des ordres de mission',
     ];
 
     /* ----------------------------------------------------------------

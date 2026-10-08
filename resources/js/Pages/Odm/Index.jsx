@@ -5,7 +5,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
-import { Eye, Pencil, Plus, Search, ShieldAlert } from 'lucide-react';
+import { Eye, Pencil, Plus, Search, ShieldAlert, Stamp } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
 import { Input } from '@/Components/ui/input';
@@ -53,7 +53,7 @@ function DecisionDerogation({ odm, onFermer }) {
     );
 }
 
-export default function Index({ odms, filtres = {}, statuts = {}, types = {}, peutCreer = false, derogations = [] }) {
+export default function Index({ odms, filtres = {}, statuts = {}, types = {}, peutCreer = false, derogations = [], aViser = [] }) {
     const [recherche, setRecherche] = useState(filtres.recherche ?? '');
     const [derogation, setDerogation] = useState(null);
     const premier = useRef(true);
@@ -77,6 +77,27 @@ export default function Index({ odms, filtres = {}, statuts = {}, types = {}, pe
             <Head title="Ordres de mission" />
 
             <div className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
+                {aViser.length > 0 && (
+                    <Card className="border-blue-200">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center gap-2 text-base text-blue-900">
+                                <Stamp className="h-4 w-4" /> Ordres de mission à viser ({aViser.length})
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            {aViser.map((o) => (
+                                <div key={o.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm">
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-gray-900">{o.libelle} · {o.service} · {o.periode}</p>
+                                        <p className="text-gray-600">{o.destinations.join(', ')} · {o.participants} participant(s) · {o.total_format} · demandé par {o.demandeur}</p>
+                                    </div>
+                                    <Link href={route('odm.show', o.id)}><Button size="sm">Examiner</Button></Link>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
+
                 {derogations.length > 0 && (
                     <Card className="border-amber-200">
                         <CardHeader className="pb-2">

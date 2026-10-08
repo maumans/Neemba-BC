@@ -17,6 +17,9 @@ Schedule::command('rapports:envoyer-quotidien')->dailyAt('07:30');
 /* Vérification SLA validations : relances et escalades automatiques (toutes les heures) */
 Schedule::command('validations:relancer-sla')->hourly();
 
+/* M12 : visas d'ordres de mission en retard, relance à l'échéance puis escalade au double du délai (§6.7) */
+Schedule::command('odm:relancer-visas')->hourly();
+
 /* Alertes d'expiration des archives légales (J-30, J-7, J-1) */
 Schedule::command('archives:alerter-expiration')->dailyAt('08:30');
 

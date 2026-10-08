@@ -131,7 +131,7 @@ final class PresentationOdm
             'bareme_fcfa_cadre' => $baremes['bareme_fcfa_cadre'],
             'bareme_fcfa_non_cadre' => $baremes['bareme_fcfa_non_cadre'],
             'taux' => $taux,
-            'fige' => isset($odm->parametres_figes['baremes']),
+            'fige' => isset($odm->parametres_figes['valide_le']),
         ];
     }
 
@@ -165,6 +165,41 @@ final class PresentationOdm
                 'date' => Format::dateHeure($h->created_at),
             ])->values()->all(),
         ];
+    }
+
+    /**
+     * Onglet « Validations » : une ligne par niveau et par version (visé, rejeté, en cours, à venir, sauté, non atteint),
+     * avec « au titre de » pour un suppléant et l'échéance de l'étape en cours (§6.7).
+     */
+    public static function etapes(OrdreMission $odm): array
+    {
+        return $odm->etapes()->with(['valideur', 'auTitreDe'])->get()
+            ->map(function (\App\Models\EtapeOdm $etape) use ($odm) {
+                $echeance = $etape->statut === 'en_attente' ? CircuitOdm::echeance($etape) : null;
+
+                return [
+                    'id' => $etape->id,
+                    'version' => $etape->version,
+                    'niveau' => $etape->niveau,
+                    'libelle' => $etape->libelle,
+                    'statut' => $etape->statut,
+                    'statut_label' => \App\Models\EtapeOdm::STATUTS[$etape->statut] ?? $etape->statut,
+                    'valideur' => $etape->valideur?->nom_complet,
+                    'au_titre_de' => $etape->auTitreDe?->nom_complet,
+                    'date_attribution' => $etape->date_attribution ? Format::dateHeure($etape->date_attribution) : null,
+                    'date_decision' => $etape->date_decision ? Format::dateHeure($etape->date_decision) : null,
+                    'duree' => $etape->date_attribution && $etape->date_decision && $etape->statut !== 'sautee'
+                        ? Format::dureeEntre($etape->date_attribution, $etape->date_decision) : null,
+                    'attente' => $etape->statut === 'en_attente' && $etape->date_attribution ? Format::dureeEntre($etape->date_attribution) : null,
+                    'echeance' => $echeance ? Format::dateHeure($echeance) : null,
+                    'en_retard' => $echeance?->isPast() ?? false,
+                    'valideurs_possibles' => $etape->statut === 'en_attente' && $etape->version === $odm->version
+                        ? CircuitOdm::valideursEffectifs($odm, $etape->role)->map(fn ($v) => $v['user']->nom_complet
+                            . ($v['au_titre_de'] ? " (suppléant de {$v['au_titre_de']->nom_complet})" : ''))->values()->all()
+                        : [],
+                    'commentaire' => $etape->commentaire,
+                ];
+            })->values()->all();
     }
 
     /** Référentiels du formulaire */
