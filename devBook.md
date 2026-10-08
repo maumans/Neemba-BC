@@ -3246,3 +3246,83 @@ npm run build
 ```
 
 Le planificateur (cron `schedule:run`) lance `odm:relancer-visas` toutes les heures.
+
+## 30. Version v30 — Module M12, lot M12-4 : génération des bons de caisse et paiement (8 Octobre 2026)
+
+Branche `m12-odm`. US-08 et US-15 de la spec v2.2 (§7.3) ; RG-M12-10, RG-M12-13 à RG-M12-15, RG-M12-21, RG-M12-29 ; RG-M03-15 et RG-M03-22.
+
+### 30.1 Génération (`App\Services\Odm\GenererBonsOdm`)
+
+Depuis la fiche d'un ODM **Validé**, son demandeur clique sur **Générer les bons de caisse**.
+
+| Mode (paramètre `odm_mode_generation`) | Bons créés |
+|-----------------------------------------|------------|
+| Un bon par participant (défaut, PO-03) | Un BD par participant, du montant de ses indemnités ; le bon est relié au participant |
+| Bon groupé | Un BD du total de l'ODM, versé au participant désigné ; tous les participants sont reliés à ce bon |
+
+- **Champs repris de l'ODM et verrouillés** (RG-M03-22) :
+  - bénéficiaire (le participant), son n° Orange Money en téléphone de retrait ;
+  - montant, site, service, code analytique, OR ;
+  - motif « Indemnités de mission — ODM N°…, destinations, du … au … — participant » ;
+  - catégorie **mission**, mode souhaité **Orange Money** (le caissier décide au paiement).
+
+  L'assistant refuse de modifier un bon généré : la policy `modifier` et `EnregistrementBon` lèvent MSG-APP-025.
+- **Pas de justificatif** : l'ODM en tient lieu (RG-M03-15, RG-M12-29). Le contrôle 4 l'indique ; la catégorie « mission », non proposée dans l'assistant, est admise pour un bon généré.
+- **Circuit complet** : chaque bon est soumis aussitôt (`SoumettreBon`) et suit le circuit des bons : chef de service, CDG, Finance, puis DP au-delà du seuil de 1 500 000 GNF (annexe B.1 : le bon de 3 250 000 GNF aura aussi le visa du DP).
+- **BP d'avance pour frais réels** (paramètre `odm_genere_bp`, SC-37) :
+  - en option à la génération : montant, motif et participant bénéficiaire ;
+  - le BP est lié à la mission : retour = retour prévu de l'ODM, échéance 3 jours ouvrés après (RG-M07-02) ;
+  - un seul BP actif par ODM (MSG-APP-032) ; refusé si le paramètre est désactivé (MSG-APP-031).
+- **Tout ou rien** : si un bon est refusé par les contrôles, aucun bon n'est créé.
+- **Regénération** : un participant dont le bon a été annulé reçoit un nouveau bon à la génération suivante ; sinon, MSG-APP-030.
+- L'ODM passe **Bons générés**, et la génération est notée dans son journal avec les numéros des bons.
+
+### 30.2 Prise en charge client (RG-M12-15, SC-28)
+
+- Un ODM à la charge du client est marqué **« à refacturer »** dès sa validation finale, avec ses OR.
+- Variante A (défaut, PO-04) : bons générés normalement.
+- Variante B : aucun bon (MSG-APP-028) ; la fiche l'indique.
+
+### 30.3 ODM extérieur (RG-M12-10, SC-29)
+
+- **À la génération**, le montant est estimé au **dernier taux saisi**. Sans aucun taux, la génération est refusée (MSG-APP-029). Le bon garde sa part en FCFA, sa part fixe en GNF (hébergement, nuitée de rattrapage), le taux estimé et le montant estimé : nouvelles colonnes de `bons_caisse`.
+- **Au paiement**, le montant est recalculé avec le **taux du jour** : part FCFA × taux + part fixe. Sans taux du jour, le paiement est bloqué avant toute consommation de l'OTP (**MSG-M12-05**).
+- Le taux appliqué est enregistré, et l'écart est journalisé sur le bon, par exemple : « estimé 1 595 000 GNF au taux 14,5, payé 1 650 000 GNF (écart +55 000 GNF) ».
+- Les frais OM portent sur le montant recalculé.
+- Dans l'onglet Bons de l'ODM, la Trésorerie voit le taux estimé et le taux appliqué (US-15).
+
+### 30.4 Suivi du paiement (RG-M12-21)
+
+`PaiementOdm::apresPaiement`, appelé à la fin de `BonCaisse::marquerCommePaye` : quand tous les bons actifs de l'ODM sont payés (payé, en attente de régularisation, régularisé, archivé), l'ODM passe **Payé**, avec une entrée de journal.
+
+### 30.5 Écrans
+
+- **Fiche de l'ODM** :
+  - encadré « Bons de caisse de l'ordre de mission » : mode de génération, participants avec leur montant et leur n° OM, choix du bénéficiaire d'un bon groupé, option BP ; alerte si aucun taux n'existe pour un ODM extérieur ;
+  - onglet **Bons** : numéro (lien vers la fiche du bon), bénéficiaire, montant, taux estimé et appliqué, statut, montant versé et frais OM.
+- **Fiche du bon** : le bloc « Ordre de mission » montre le numéro, les destinations et les dates de l'ODM.
+
+### 30.6 Tests
+
+- **`tests/Feature/M12/GenerationBonsOdmTest.php`** (10 tests) :
+  - un BD par participant (champs repris, circuit avec DP, sans pièce) ; bons verrouillés ; regénération après annulation ;
+  - bon groupé et frais OM de 52 000 (B.2) ;
+  - BP d'avance (tout ou rien, échéance en jours ouvrés, un seul) et paramètre désactivé ;
+  - ODM non validé ou autre utilisateur ;
+  - prise en charge client, variantes A et B ;
+  - ODM extérieur : sans taux, estimation à 14,5, paiement bloqué sans taux du jour, puis recalculé à 15 (1 650 000 GNF, frais 16 500 GNF) avec l'écart journalisé ;
+  - ODM « Payé » quand tous ses bons le sont.
+- **Total** : **247 tests PHP** et 66 tests JavaScript passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 13 vérifications.
+  1. Philippe KOLIE crée un ODM à deux participants : 6 500 000 GNF.
+  2. L'ODM est visé par le chef d'atelier, le DAF et le DP.
+  3. Philippe génère deux BD et un BP de 500 000 GNF ; l'onglet Bons les montre en validation chez le chef de service.
+  4. Un BD approuvé est payé en Orange Money par Youssouf TOURE (frais de 32 500 GNF) ; l'ODM reste « Bons générés », car deux bons restent à payer.
+
+### 30.7 Déploiement
+
+```bash
+php artisan migrate        # bons_caisse : montant_fcfa, montant_gnf_fixe, taux_change_estime, taux_change_applique, montant_estime
+php artisan optimize:clear
+npm run build
+```

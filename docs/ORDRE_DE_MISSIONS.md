@@ -199,12 +199,12 @@ Statut :
 | RG-M12-07 | Calcul par participant, barèmes en vigueur à la soumission | C | M12-1 | ☑ |
 | RG-M12-08 | Libellés des 2 lignes de 125 000 paramétrables (Repas / Déplacement) | D | M12-0 | ☑ |
 | RG-M12-09 | Base vie : hébergement à 0 pour le participant | C | M12-1 | ☑ |
-| RG-M12-10 | Extérieur : estimation au dernier taux, recalcul au taux du jour au paiement, blocage sans taux | C | M12-4 | ☐ |
+| RG-M12-10 | Extérieur : estimation au dernier taux, recalcul au taux du jour au paiement, blocage sans taux | C | M12-4 | ☑ |
 | RG-M12-11 | Circuit chef d'atelier → DAF → DP ; pas de CDG ni de RH ; étape RH en paramètre inactif | C | M12-3 | ☑ |
 | RG-M12-12 | Rejet motivé ; même numéro ; modifiable et resoumis | C | M12-3 | ☑ |
-| RG-M12-13 | Génération depuis un ODM validé : BD, plus BP facultatif ; circuit complet ; OM souhaité | C | M12-4 | ☐ |
-| RG-M12-14 | Un bon par participant (défaut) ou bon groupé | O | M12-4 | ☐ |
-| RG-M12-15 | Prise en charge client : variante A (bons et « à refacturer », défaut) ou B (aucun bon) | O | M12-4 | ☐ |
+| RG-M12-13 | Génération depuis un ODM validé : BD, plus BP facultatif ; circuit complet ; OM souhaité | C | M12-4 | ☑ |
+| RG-M12-14 | Un bon par participant (défaut) ou bon groupé | O | M12-4 | ☑ |
+| RG-M12-15 | Prise en charge client : variante A (bons et « à refacturer », défaut) ou B (aucun bon) | O | M12-4 | ☑ |
 | RG-M12-16 | Chevauchement bloqué ; dérogation du DAF motivée | C | M12-2 | ☑ |
 | RG-M12-17 | Prolongation : segment lié, départ = retour + 1, participants repris (pas d'ajout) | C | M12-5 | ☐ |
 | RG-M12-18 | Nuitée de rattrapage pour chaque participant non logé sur base vie | C | M12-5 | ☐ |
@@ -218,7 +218,7 @@ Statut :
 | RG-M12-26 | Hébergement extérieur, 3 modes | C | M12-6 | ☐ |
 | RG-M12-27 | Référence billet / bon de commande Wanda (facultatif) | C | M12-6 | ☐ |
 | RG-M12-28 | Rappel avant la fin d'un segment (2 jours ouvrés) | C | M12-5 | ☐ |
-| RG-M12-29 | Aucun justificatif exigé au retour pour les indemnités forfaitaires | C | M12-4 | ☐ |
+| RG-M12-29 | Aucun justificatif exigé au retour pour les indemnités forfaitaires | C | M12-4 | ☑ |
 
 Règles d'autres modules utilisées par M12 :
 - **RG-M03-09** : frais OM sur tous les bons ;
@@ -322,15 +322,15 @@ Pour chaque lot :
 
 ### M12-4 — Génération des bons et paiement (≈ 3 j)
 
-- [ ] `GenererBonsOdm` :
-  - [ ] un BD par participant, ou groupé ;
-  - [ ] champs verrouillés et catégorie « mission » ;
-  - [ ] pas de justificatif exigé ;
-  - [ ] soumission automatique.
-- [ ] BP « frais réels » facultatif, échéance de 3 jours ouvrés après le retour
-- [ ] Prise en charge client : variantes A et B ; ODM « à refacturer »
-- [ ] Extérieur : estimation au dernier taux ; recalcul au paiement ; blocage sans taux du jour (MSG-M12-05)
-- [ ] Statuts « Bons générés » puis « Payé »
+- [x] `GenererBonsOdm` :
+  - [x] un BD par participant, ou groupé ;
+  - [x] champs verrouillés et catégorie « mission » ;
+  - [x] pas de justificatif exigé ;
+  - [x] soumission automatique.
+- [x] BP « frais réels » facultatif, échéance de 3 jours ouvrés après le retour
+- [x] Prise en charge client : variantes A et B ; ODM « à refacturer »
+- [x] Extérieur : estimation au dernier taux ; recalcul au paiement ; blocage sans taux du jour (MSG-M12-05)
+- [x] Statuts « Bons générés » puis « Payé »
 
 ### M12-5 — Prolongations et vue mission (≈ 2 j)
 
@@ -409,14 +409,14 @@ Ces questions ne sont pas tranchées par la spécification. Elles seront report�
 | SC-20 | ODM intérieur, une personne (exemple B.1) | M12-2 / M12-3 | `SaisieOdmTest`, `CircuitOdmTest` | ☑ |
 | SC-21 | ODM à plusieurs personnes | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-22 | ODM technique avec OR liés | M12-2 | `SaisieOdmTest` | ☑ |
-| SC-23 | Génération des bons (individuels / groupé, exemple B.2) | M12-4 | | ☐ |
+| SC-23 | Génération des bons (individuels / groupé, exemple B.2) | M12-4 | `GenerationBonsOdmTest` | ☑ |
 | SC-24 | Prolongation d'une mission longue, nuitée de rattrapage (exemple B.3) | M12-5 | | ☐ |
 | SC-25 | Ajustement au réel et clôture | M12-6 | | ☐ |
 | SC-26 | Chevauchement de périodes (anti-doublon) | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-27 | Mission sur base vie | M12-1 / M12-2 | `CalculOdmTest, SaisieOdmTest` | ☑ |
-| SC-28 | ODM à la charge du client | M12-4 / M12-7 | | ☐ |
-| SC-29 | ODM extérieur | M12-4 / M12-6 | | ☐ |
-| SC-37 | ODM générant un BP (avance pour frais réels) | M12-4 | | ☐ |
+| SC-28 | ODM à la charge du client | M12-4 / M12-7 | `GenerationBonsOdmTest` (reporting : M12-7) | ☐ |
+| SC-29 | ODM extérieur | M12-4 / M12-6 | `CalculOdmTest`, `SaisieOdmTest`, `GenerationBonsOdmTest` (hébergement au retour : M12-6) | ☐ |
+| SC-37 | ODM générant un BP (avance pour frais réels) | M12-4 | `GenerationBonsOdmTest` | ☑ |
 
 ---
 
@@ -455,3 +455,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 08/10/2026 | M12-1 | 88cfbcd, b569a0b | Tables des ODM, modèles, CalculOdm (annexes B.1 à B.4 vérifiées), NumeroteurOdm ; 211 tests PHP. La numérotation sera attribuée à la soumission (M12-2) : RG-M12-03 cochée avec M12-2 |
 | 08/10/2026 | M12-2 | 61b52eb, e051c9f | Formulaire (brouillon automatique, calcul du serveur), soumission, chevauchement et dérogation du DAF, liste, fiche, paramétrage des services ; 227 tests PHP, 66 JS ; parcours navigateur (23 vérifications). Décisions Q33 à Q35 |
 | 08/10/2026 | M12-3 | d5d14f9, 2356246 | Circuit chef d'atelier → DAF → DP (RH en option), suppléants « au titre de », étapes sautées (RG-M01-04), rejet et resoumission, calcul figé, relances et escalade ; 237 tests PHP ; parcours navigateur (16 vérifications). Décisions Q36 à Q39 |
+| 08/10/2026 | M12-4 | fe25dde, 79c6f97 | Génération des bons (par participant ou groupé, BP d'avance), champs verrouillés, prise en charge client, ODM extérieur recalculé au taux du jour, ODM « Payé » ; 247 tests PHP ; parcours navigateur (13 vérifications). Décisions Q40 à Q43. Incident : la migration 000004 a été appliquée à la base de dev par un `migrate --env=testing` lancé par erreur (sans `.env.testing`, Laravel lit `.env`) ; ajout de colonnes sans effet sur les données, aller-retour vérifié ensuite sur une copie |
