@@ -196,9 +196,9 @@ Statut :
 | RG-M12-04 | 1 à 10 participants (paramètre), salariés ; statut cadre, service et n° OM repris | C | M12-2 | ☐ |
 | RG-M12-05 | Obligatoires : service, au moins une destination, but (10 caractères), dates, prise en charge | C | M12-2 | ☐ |
 | RG-M12-06 | Retour ≥ départ ; départ passé admis avec motif | C | M12-2 | ☐ |
-| RG-M12-07 | Calcul par participant, barèmes en vigueur à la soumission | C | M12-1 | ☐ |
+| RG-M12-07 | Calcul par participant, barèmes en vigueur à la soumission | C | M12-1 | ☑ |
 | RG-M12-08 | Libellés des 2 lignes de 125 000 paramétrables (Repas / Déplacement) | D | M12-0 | ☑ |
-| RG-M12-09 | Base vie : hébergement à 0 pour le participant | C | M12-1 | ☐ |
+| RG-M12-09 | Base vie : hébergement à 0 pour le participant | C | M12-1 | ☑ |
 | RG-M12-10 | Extérieur : estimation au dernier taux, recalcul au taux du jour au paiement, blocage sans taux | C | M12-4 | ☐ |
 | RG-M12-11 | Circuit chef d'atelier → DAF → DP ; pas de CDG ni de RH ; étape RH en paramètre inactif | C | M12-3 | ☐ |
 | RG-M12-12 | Rejet motivé ; même numéro ; modifiable et resoumis | C | M12-3 | ☐ |
@@ -210,7 +210,7 @@ Statut :
 | RG-M12-18 | Nuitée de rattrapage pour chaque participant non logé sur base vie | C | M12-5 | ☐ |
 | RG-M12-19 | Vue mission : cumuls et contrôle nuits = jours − 1, signalé au DAF | C | M12-5 | ☐ |
 | RG-M12-20 | Clôture : retour réel ; anticipé → trop-perçu ; tardif → prolongation | D | M12-6 | ☐ |
-| RG-M12-21 | 9 statuts | C | M12-1 | ☐ |
+| RG-M12-21 | 9 statuts | C | M12-1 | ☑ |
 | RG-M12-22 | Annulation : demandeur avant génération, DAF ensuite ; un bon payé interdit l'annulation | D | M12-6 | ☐ |
 | RG-M12-23 | PDF fiche d'indemnités et ordre de mission, visas horodatés | C | M12-7 | ☐ |
 | RG-M12-24 | Notifications à la liste de diffusion du service émetteur | C | M12-2 | ☐ |
@@ -295,12 +295,12 @@ Pour chaque lot :
 
 ### M12-1 — Modèle de données et calcul (≈ 2 j)
 
-- [ ] Migration : `ordres_mission` remplacée ; `odm_participants`, `odm_ordres_reparation`, `odm_etapes`, `odm_historique`, `compteurs_odm`
-- [ ] Ajouts : `services.prefixe_odm` et `services.diffusion_odm` ; `bons_caisse.odm_participant_id` et `bons_caisse.genere_par_odm`
-- [ ] Modèles `OrdreMission`, `ParticipantOdm`, `OrdreReparationOdm`, `EtapeOdm` ; relation `BonCaisse::ordreMission()`
-- [ ] `CalculOdm` : jours, nuits, rattrapage, indemnités intérieures et extérieures, hébergement, totaux, contrôle de chaîne
-- [ ] Tests unitaires sur les annexes B.1, B.2, B.3 et B.4
-- [ ] `NumeroteurOdm` : N°[séq]/[préfixe]/[AA], compteur verrouillé, numéro de départ repris des carnets
+- [x] Migration : `ordres_mission` remplacée ; `odm_participants`, `odm_ordres_reparation`, `odm_etapes`, `odm_historique`, `compteurs_odm`
+- [x] Ajouts : `services.prefixe_odm` et `services.diffusion_odm` ; `bons_caisse.odm_participant_id` et `bons_caisse.genere_par_odm`
+- [x] Modèles `OrdreMission`, `ParticipantOdm`, `OrdreReparationOdm`, `EtapeOdm` ; relation `BonCaisse::ordreMission()`
+- [x] `CalculOdm` : jours, nuits, rattrapage, indemnités intérieures et extérieures, hébergement, totaux, contrôle de chaîne
+- [x] Tests unitaires sur les annexes B.1, B.2, B.3 et B.4
+- [x] `NumeroteurOdm` : N°[séq]/[préfixe]/[AA], compteur verrouillé, numéro de départ repris des carnets
 
 ### M12-2 — Saisie et soumission (≈ 3 j)
 
@@ -451,3 +451,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 |------|-----|--------|-----------|
 | 08/10/2026 | — | — | Analyse de la spec v2.2 et du comité du 06/10 ; plan approuvé ; création de ce fichier |
 | 08/10/2026 | M12-0 | 6449cf2, ae3bdbf | Frais OM au paiement, taux du jour, jours ouvrés, paramètres ODM, rôles et n° OM ; 193 tests PHP ; parcours navigateur (19 vérifications). Corrections : OTP sans service SMS, matricule facultatif. Visa DAF de l'ODM reporté à M12-3 |
+| 08/10/2026 | M12-1 | 88cfbcd, b569a0b | Tables des ODM, modèles, CalculOdm (annexes B.1 à B.4 vérifiées), NumeroteurOdm ; 211 tests PHP. La numérotation sera attribuée à la soumission (M12-2) : RG-M12-03 cochée avec M12-2 |

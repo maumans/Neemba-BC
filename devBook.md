@@ -3002,3 +3002,74 @@ Après le déploiement :
 - l'administrateur complète `jours_feries` avec les fêtes mobiles de l'année ;
 - la Trésorerie saisit le taux du jour avant le premier paiement d'un ODM extérieur ;
 - les n° Orange Money et le statut cadre des salariés sont à renseigner (fiche utilisateur ou prochain classeur des référentiels).
+
+## 27. Version v27 — Module M12, lot M12-1 : modèle de données, calcul et numérotation des ODM (8 Octobre 2026)
+
+Branche `m12-odm`. Ce lot n'a pas d'écran : il pose les tables, le calcul des indemnités et la numérotation utilisés par les lots suivants.
+
+### 27.1 Modèle de données
+
+La table `ordres_mission` d'origine n'était qu'une ébauche (un collaborateur, un seul bon) et n'avait jamais été alimentée : la migration la remplace, après avoir vérifié qu'elle est vide. La clé étrangère `bons_caisse.odm_id` (lot 3) est reconstruite vers la nouvelle table.
+
+| Table | Contenu |
+|-------|---------|
+| `ordres_mission` | Un **segment** de mission : l'ODM initial (rang 1) ou une prolongation, liée au segment précédent (`segment_precedent_id`) et à l'ODM initial (`mission_id`). Numéro, préfixe, séquence, année ; type, nature technique ; site, service, code analytique (Q22) ; demandeur, initiateur ; but, clients, destinations, véhicule ; dates de départ, de retour prévue et réelle, motif d'un départ passé ; prise en charge, « à refacturer » ; hébergement extérieur, référence billet ; statut, version, clé de soumission, total ; barèmes figés (RG-M12-25) ; dérogation au chevauchement ; dates de soumission, validation, clôture, annulation, rappel |
+| `odm_participants` | Un salarié et ce qui est repris du référentiel (nom, matricule, service, statut cadre, n° OM), base vie, calcul (jours, nuits, nuitée de rattrapage, indemnité FCFA et GNF, hébergement, rattrapage, facture d'hébergement, total), retrait d'une prolongation, trop-perçu et sa régularisation, bon généré |
+| `odm_ordres_reparation` | OR liés : 8 chiffres commençant par 110, VENTE ou GARANTIE |
+| `odm_etapes` | Circuit propre à l'ODM, par version : niveau, rôle, statut, valideur, « au titre de », dates, commentaire, relance, escalade |
+| `odm_historique` | Journal de l'ODM (remplace le fil d'e-mails « Neemba Service_Mission ») |
+| `compteurs_odm` | Dernier numéro par préfixe et par année |
+
+Ajouts :
+- `services.prefixe_odm` (« AT » pour Technique, décision Q28) et `services.diffusion_odm` (liste de diffusion, RG-M12-24) ;
+- `bons_caisse.odm_participant_id` et `bons_caisse.genere_par_odm`.
+
+Modèles : `OrdreMission`, `ParticipantOdm`, `OrdreReparationOdm`, `EtapeOdm`, `HistoriqueOdm`. `BonCaisse::ordreMission()` devient un BelongsTo via `odm_id` ; `BonCaisse::participantOdm()` est ajouté. Les blocs « Ordre de mission » de la fiche du bon et de l'archivage affichent les nouveaux champs.
+
+- **Statuts** (RG-M12-21) : Brouillon, Soumis, En validation, Rejeté, Validé, Bons générés, Payé, Clôturé, Annulé.
+- **Circuit** (`OrdreMission::NIVEAUX`, RG-M12-11) : chef d'atelier ou chef d'équipe, puis DAF (DAF, DAF adjoint ou chef comptable, décision Q27), puis DP (ou DP adjoint). L'étape RH n'est insérée que si le paramètre `odm_etape_rh` est actif.
+- **Prolongation** : libellé « Prolongation n de N°xxx » (décision Q23) ; `segmentsDeLaMission()` donne la chaîne.
+
+### 27.2 Calcul des indemnités (`App\Services\Odm\CalculOdm`)
+
+Calcul pur : il reçoit les barèmes et ne lit rien en base. Il peut ainsi être rejoué à l'identique avec les barèmes figés à la validation (RG-M12-25). `CalculOdm::baremesEnVigueur()` lit les paramètres du groupe « Ordres de mission » et la grille des frais OM.
+
+| Élément | Intérieur | Extérieur |
+|---------|-----------|-----------|
+| Jours | retour − départ + 1 | idem |
+| Nuits | jours − 1 ; 0 sur base vie | jours − 1 ; 0 si la filiale d'accueil héberge |
+| Nuitée de rattrapage | prolongation, participant non logé sur base vie au segment précédent : 1 nuit, sur une ligne distincte | comptée ; l'hébergement suit la facture |
+| Indemnité | jours × 250 000, en 2 lignes égales | jours × 22 000 ou 34 000 FCFA × taux, arrondi au franc ; sans taux ou sans statut cadre : non calculée |
+| Hébergement | nuits × 500 000 | filiale : 0 ; facture payée avant le départ : son montant (Q24) ; au retour : 0 (bon complémentaire à la clôture) |
+
+- Le calcul donne aussi, pour information, les frais OM et le montant versé si le caissier retient Orange Money.
+- **Contrôle de mission** (RG-M12-19) : sur la chaîne des segments, nuits payées (nuits + nuitées de rattrapage) = jours − 1.
+- `FraisOrangeMoney::calculer()` accepte une grille figée.
+
+### 27.3 Numérotation (`App\Services\Odm\NumeroteurOdm`, RG-M12-03)
+
+- Format `N°[séquence]/[préfixe]/[AA]`, ex. N°285/AT/26. Une séquence par préfixe et par année, compteur verrouillé ; un numéro déjà attribué n'est jamais réutilisé.
+- Préfixe : celui du service ; à défaut, les trois premières lettres du nom du service (« LOG » pour Logistique).
+- `definirDepart()` reprend la numérotation des carnets papier (ex. dernier numéro 285 → prochain ODM N°286/AT/26).
+
+### 27.4 Tests
+
+- **`tests/Unit/CalculOdmTest.php`** (9 tests), sur les exemples de l'annexe B :
+  - B.1 : 5 jours, 4 nuits, 1 250 000 en deux lignes de 625 000, 2 000 000 d'hébergement, total 3 250 000, frais OM 32 500, versé 3 282 500 ;
+  - B.2 : 6 565 000 versés en deux bons, 6 552 000 en un bon groupé ;
+  - B.3 : prolongation à 7 jours, 6 nuits et 1 nuitée de rattrapage, total 5 250 000, versé 5 292 000 ; mission cohérente (12 jours, 11 nuits) ;
+  - B.4 : mission KOUROUMA, 57 nuits payées pour 59 jours (écart − 1), 58 selon la règle ;
+  - base vie, ODM extérieur (cadre, non-cadre, 3 modes d'hébergement, sans taux, sans statut), barèmes paramétrés.
+- **`tests/Feature/M12/ModeleOdmTest.php`** (9 tests) : numérotation par préfixe et par année, reprise des carnets, numéro jamais réutilisé, préfixe du service, barèmes en vigueur, relations (participants, bons, OR, segments), circuit avec ou sans RH, journal, statuts.
+- **Total** : **211 tests PHP** et 59 tests JavaScript passent.
+- La migration a été vérifiée sur une copie de la base de développement (aller, retour, aller), puis appliquée.
+
+### 27.5 Déploiement
+
+```bash
+php artisan migrate        # ordres_mission remplacée (la migration s'arrête si la table contient des données)
+php artisan optimize:clear
+npm run build
+```
+
+Après le déploiement, renseigner les préfixes des services émetteurs d'ODM et le dernier numéro de chaque carnet (écran prévu au lot M12-2).
