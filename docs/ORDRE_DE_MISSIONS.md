@@ -212,7 +212,7 @@ Statut :
 | RG-M12-20 | Clôture : retour réel ; anticipé → trop-perçu ; tardif → prolongation | D | M12-6 | ☑ |
 | RG-M12-21 | 9 statuts | C | M12-1 | ☑ |
 | RG-M12-22 | Annulation : demandeur avant génération, DAF ensuite ; un bon payé interdit l'annulation | D | M12-6 | ☑ |
-| RG-M12-23 | PDF fiche d'indemnités et ordre de mission, visas horodatés | C | M12-7 | ☐ |
+| RG-M12-23 | PDF fiche d'indemnités et ordre de mission, visas horodatés | C | M12-7 | ☑ |
 | RG-M12-24 | Notifications à la liste de diffusion du service émetteur | C | M12-2 | ☑ |
 | RG-M12-25 | Calcul figé à la validation finale | C | M12-3 | ☑ |
 | RG-M12-26 | Hébergement extérieur, 3 modes | C | M12-6 | ☑ |
@@ -346,9 +346,9 @@ Pour chaque lot :
 
 ### M12-7 — Impression et tableaux de bord (≈ 2 j)
 
-- [ ] PDF fiche d'indemnités et ordre de mission (autorisation de circuler), visas horodatés
-- [ ] Tableau de bord du DAF : missions en cours (durée, coût), chevauchements, « à refacturer » ; export Excel
-- [ ] Taux appliqué visible par la Trésorerie
+- [x] PDF fiche d'indemnités et ordre de mission (autorisation de circuler), visas horodatés (mise en page à aligner sur les fiches N°282 et N°285/AT/26, à obtenir)
+- [x] Tableau de bord du DAF : missions en cours (durée, coût), chevauchements, « à refacturer » ; export Excel
+- [x] Taux appliqué visible par la Trésorerie (onglet Bons, M12-4)
 
 ### M12-8 — Recette (≈ 1,5 j)
 
@@ -414,7 +414,7 @@ Ces questions ne sont pas tranchées par la spécification. Elles seront report�
 | SC-25 | Ajustement au réel et clôture | M12-6 | `ClotureOdmTest` | ☑ |
 | SC-26 | Chevauchement de périodes (anti-doublon) | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-27 | Mission sur base vie | M12-1 / M12-2 | `CalculOdmTest, SaisieOdmTest` | ☑ |
-| SC-28 | ODM à la charge du client | M12-4 / M12-7 | `GenerationBonsOdmTest` (reporting : M12-7) | ☐ |
+| SC-28 | ODM à la charge du client | M12-4 / M12-7 | `GenerationBonsOdmTest`, `ImpressionTableauOdmTest` | ☑ |
 | SC-29 | ODM extérieur | M12-4 / M12-6 | `CalculOdmTest`, `SaisieOdmTest`, `GenerationBonsOdmTest`, `ClotureOdmTest` | ☑ |
 | SC-37 | ODM générant un BP (avance pour frais réels) | M12-4 | `GenerationBonsOdmTest` | ☑ |
 
@@ -458,3 +458,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 08/10/2026 | M12-4 | fe25dde, 79c6f97 | Génération des bons (par participant ou groupé, BP d'avance), champs verrouillés, prise en charge client, ODM extérieur recalculé au taux du jour, ODM « Payé » ; 247 tests PHP ; parcours navigateur (13 vérifications). Décisions Q40 à Q43. Incident : la migration 000004 a été appliquée à la base de dev par un `migrate --env=testing` lancé par erreur (sans `.env.testing`, Laravel lit `.env`) ; ajout de colonnes sans effet sur les données, aller-retour vérifié ensuite sur une copie |
 | 08/10/2026 | M12-5 | bb6eec5, 2556f1c | Prolongations (départ figé, retrait sans ajout, nuitée de rattrapage, numéro propre), vue mission et alerte au DAF, rappel 2 jours ouvrés avant la fin ; 254 tests PHP ; parcours navigateur (12 vérifications). Décisions Q44, Q45 |
 | 08/10/2026 | M12-6 | 2460f9f, 738e1d5 | Clôture (retour anticipé, trop-perçu, bons remplacés au réel), régularisation par le caissier ou les RH, annulation par le DAF, hébergement payé au retour ; correction : brouillon créé en double par l'enregistrement automatique ; 261 tests PHP ; parcours navigateur (11 vérifications). Décisions Q46, Q47 |
+| 08/10/2026 | M12-7 | 34f972d, c52e2f9 | PDF (ordre de mission et fiche d'indemnités, visas horodatés), tableau de bord du DAF (missions en cours, dérogations, à refacturer) et export Excel ; 264 tests PHP ; parcours navigateur (8 vérifications) |

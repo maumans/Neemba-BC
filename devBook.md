@@ -3462,3 +3462,53 @@ php artisan migrate        # odm_participants : regularise_le, regularise_par_id
 php artisan optimize:clear
 npm run build
 ```
+
+## 33. Version v33 — Module M12, lot M12-7 : impression et tableau de bord (8 Octobre 2026)
+
+Branche `m12-odm`. US-13, US-14 et US-15 de la spec v2.2 (§7.3) ; RG-M12-23 ; scénario SC-28 (reporting).
+
+### 33.1 Impression (RG-M12-23)
+
+Le bouton **Imprimer (PDF)** de la fiche d'un ODM numéroté (route `odm.pdf`, gabarit `resources/views/exports/odm-pdf.blade.php`, dompdf) produit deux pages :
+
+1. **Ordre de mission — autorisation de circuler** :
+   - en-tête : entité, site, service, numéro, mention « Prolongation n de N°… » ;
+   - type, destinations, clients, but, période (retour réel s'il est saisi), véhicule, OR, prise en charge (« à refacturer »), hébergement et billet à l'étranger, code analytique, demandeur ;
+   - personnel autorisé à circuler : nom, matricule, service, statut, base vie.
+2. **Fiche d'indemnités** :
+   - calcul par participant : jours, nuits et rattrapage, les deux lignes d'indemnité (ou FCFA et GNF à l'étranger), hébergement, total ;
+   - total de l'ODM, avec le montant en lettres et le taux utilisé à l'étranger ;
+   - la mention « Indemnités forfaitaires : aucun justificatif d'utilisation n'est exigé au retour » (RG-M12-29).
+
+Chaque page reprend les **visas électroniques horodatés** de la version en cours : niveau, valideur, « au titre de », décision, date et heure.
+
+La mise en page est sobre et fonctionnelle. Elle sera alignée sur les fiches papier N°282 et N°285/AT/26 dès qu'elles seront transmises (voir `docs/ORDRE_DE_MISSIONS.md`, « À obtenir »).
+
+### 33.2 Tableau de bord (US-14)
+
+Menu **Ordres de mission** → **Tableau de bord** (`Pages/Odm/TableauDeBord.jsx`, `App\Services\Odm\TableauBordOdm`). Accès : DAF, DAF adjoint, chef comptable, DP, DP adjoint, administrateur.
+
+- **Indicateurs** : missions en cours, salariés en mission, coût des missions en cours, montant et nombre d'ODM à refacturer, missions aux nuits incohérentes (en rouge).
+- **Missions en cours** : une ligne par mission, sur son dernier segment validé. On y lit le nombre de segments, le service, les destinations, les participants, la période, la durée cumulée, le coût cumulé (vue mission), le statut et une alerte d'incohérence.
+  - Une prolongation encore en circuit ne retire pas la mission de la liste.
+  - Une mission dont un segment est clôturé n'y figure plus.
+- **Dérogations au chevauchement** demandées ou accordées : motif, décision, auteur, date.
+- **ODM à refacturer** (à la charge du client, RG-M12-15) : clients, OR avec leur type, période, total, statut.
+- **Export Excel** en trois onglets : missions en cours, dérogations, à refacturer (`App\Exports\TableauBordOdmExport`).
+
+La Trésorerie voit le taux estimé et le taux appliqué de chaque bon dans l'onglet Bons de la fiche (US-15, depuis M12-4).
+
+### 33.3 Tests
+
+- **`tests/Feature/M12/ImpressionTableauOdmTest.php`** (2 tests) :
+  - PDF : réponse `application/pdf`, accès refusé hors périmètre, contenu du gabarit (numéro, participant, OR, libellés, calcul figé, montant en lettres, visas des trois niveaux) ;
+  - tableau de bord : droits, indicateurs, missions en cours (prolongation en brouillon sans effet, mission clôturée retirée), à refacturer, export Excel.
+- **Total** : **264 tests PHP** et 66 tests JavaScript passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 8 vérifications.
+  - Un ODM à la charge du client est validé, puis son PDF est produit.
+  - Mohamed DIAKITE ouvre le tableau de bord : mission en cours, ODM à refacturer avec son OR, export Excel.
+  - Le demandeur n'a pas accès au tableau de bord.
+
+### 33.4 Déploiement
+
+Aucune migration. `php artisan optimize:clear`, puis `npm run build`.
