@@ -39,5 +39,15 @@
     "MSG-APP-007": "Les litres doivent être supérieurs à 0 et au plus 500.",
     "MSG-APP-008": "Confirmez chaque valeur (case cochée) avant de valider la lecture.",
     "MSG-APP-009": "Cochez la case pour confirmer que cette pièce concerne une autre dépense.",
-    "MSG-APP-010": "Le nom de la station doit comporter entre 2 et 80 caractères."
+    "MSG-APP-010": "Le nom de la station doit comporter entre 2 et 80 caractères.",
+    "MSG-M03-06": "Si le caissier retient Orange Money : frais estimés :frais GNF (:taux %), montant versé :montant_verse GNF.",
+    "MSG-M12-01": "Mission technique : rattachez au moins un OR.",
+    "MSG-M12-02": "La date de retour doit être postérieure ou égale à la date de départ.",
+    "MSG-M12-03": ":participant est déjà en mission du :debut au :fin (ODM :numero).",
+    "MSG-M12-04": ":participant n'a pas de statut cadre / non-cadre : contactez les RH.",
+    "MSG-M12-05": "Aucun taux de change FCFA → GNF saisi aujourd'hui : paiement impossible. Contactez la Trésorerie.",
+    "MSG-M12-06": "Prolongation : une nuitée de rattrapage du segment :segment est ajoutée pour :nombre participant(s).",
+    "MSG-M12-07": "Incohérence sur la mission :numero : :nuits nuits payées pour :jours jours.",
+    "MSG-M12-08": "ODM :numero validé. Vous pouvez générer le ou les bons de caisse.",
+    "MSG-M12-09": "Retour anticipé : trop-perçu de :montant GNF pour :participant, à régulariser."
 }

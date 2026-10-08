@@ -33,6 +33,7 @@ class User extends Authenticatable
         'password',
         'matricule',
         'telephone',
+        'numero_om',
         'role',
         'service',
         'site',
@@ -59,9 +60,36 @@ class User extends Authenticatable
         'chef_comptable' => 'Chef comptable',
         'tresorerie' => 'Trésorerie',
         'rh' => 'Ressources humaines',
+        /* Module M12 « Ordres de mission » (spec v2.2) : visa de l'ODM par le chef d'atelier ou chef d'équipe, puis le DAF,
+         * puis le DP ou son adjoint ; la logistique fixera les avances carburant de mission (M13) */
+        'chef_atelier' => "Chef d'atelier / chef d'équipe",
+        'dp_adjoint' => 'DP adjoint',
+        'logistique' => 'Logistique',
     ];
 
-    public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh'];
+    public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh', 'logistique'];
+
+    /** Rôle principal proposé à l'écran Utilisateurs ; les autres rôles s'ajoutent en rôles complémentaires */
+    public const ROLES_PRINCIPAUX = ['demandeur', 'responsable_service', 'controle_gestion', 'daf', 'directeur_pays', 'caissier', 'administrateur'];
+
+    /** RG-M02-05 : n° Orange Money au format guinéen, 9 chiffres commençant par 6 */
+    public const FORMAT_NUMERO_OM = '/^6\d{8}$/';
+
+    /** N° Orange Money saisi avec espaces, indicatif +224 ou 00224 : ramené à 9 chiffres */
+    public static function normaliserNumeroOm(?string $numero): ?string
+    {
+        $chiffres = preg_replace('/\D/', '', (string) $numero);
+        if ($chiffres === '') {
+            return null;
+        }
+        if (strlen($chiffres) === 14 && str_starts_with($chiffres, '00224')) {
+            $chiffres = substr($chiffres, 5);
+        } elseif (strlen($chiffres) === 12 && str_starts_with($chiffres, '224')) {
+            $chiffres = substr($chiffres, 3);
+        }
+
+        return $chiffres;
+    }
 
     public function responsable(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {

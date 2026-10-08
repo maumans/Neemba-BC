@@ -52,6 +52,7 @@ class ModificationEnAttente extends Model
     const TYPES_CRITIQUES = [
         'parametre' => 'Paramètre système',
         'utilisateur_role' => 'Changement de rôle utilisateur',
+        'utilisateur_roles' => 'Rôles complémentaires d\'un utilisateur',
         'site_caisse' => 'Modification caisse site',
         'caisse' => 'Caisse : plafond, seuil, avance ou solde',
         'code_analytique' => 'Code analytique',
@@ -116,6 +117,13 @@ class ModificationEnAttente extends Model
                     }
                 } elseif ($caisse && in_array($this->champ, Caisse::CHAMPS_SENSIBLES, true)) {
                     $caisse->update([$this->champ => $this->nouvelle_valeur === '' ? null : $this->nouvelle_valeur]);
+                }
+            } elseif ($this->type_entite === 'utilisateur_roles') {
+                /* Le rôle principal est conservé ; les rôles complémentaires deviennent ceux de la demande */
+                $user = User::find($this->entite_id);
+                if ($user) {
+                    $complementaires = array_filter(array_map('trim', explode(',', (string) $this->nouvelle_valeur)));
+                    $user->definirRoles([$user->role, ...$complementaires]);
                 }
             } elseif ($this->type_entite === 'utilisateur_role') {
                 $user = User::find($this->entite_id);

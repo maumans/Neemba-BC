@@ -118,7 +118,9 @@ class RapportJournalierService
         $entreesEspeces = $mouvementsDe('especes', false);
         $entreesOm = $mouvementsDe('om', false);
         $sortiesEspeces = (float) $bonsPaye->where('mode_paiement_effectif', 'especes')->sum('montant') + $mouvementsDe('especes', true);
-        $sortiesOm = (float) $bonsPaye->where('mode_paiement_effectif', 'orange_money')->sum('montant') + $mouvementsDe('om', true);
+        /* Orange Money : la caisse décaisse le montant versé, frais compris (spec v2.2 §6.6) */
+        $sortiesOm = (float) $bonsPaye->where('mode_paiement_effectif', 'orange_money')->sum(fn ($bon) => (float) ($bon->montant_verse ?? $bon->montant))
+            + $mouvementsDe('om', true);
 
         /* Solde d'ouverture : clôture du dernier rapport enregistré pour le site */
         $ouverture = $site ? RapportCaisse::soldePrecedent($site, $date) : ['total' => 0, 'especes' => 0, 'om' => 0];

@@ -26,6 +26,7 @@ import {
     Wallet,
     ClipboardList,
     ShieldAlert,
+    Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/Components/NotificationBell";
@@ -96,6 +97,12 @@ const navigationItems = [
         roles: ["caissier", "daf", "directeur_pays", "administrateur"],
     },
     {
+        label: "Taux du jour",
+        href: "tresorerie.taux.index",
+        icon: Landmark,
+        roles: ["tresorerie", "daf", "daf_adjoint", "chef_comptable", "directeur_pays", "caissier", "administrateur"],
+    },
+    {
         label: "Délégations",
         href: "delegations.index",
         icon: Handshake,
@@ -155,6 +162,10 @@ const rolesLabels = {
     chef_comptable: "Chef comptable",
     tresorerie: "Trésorerie",
     rh: "Ressources humaines",
+    /* Module M12 « Ordres de mission » */
+    chef_atelier: "Chef d'atelier / chef d'équipe",
+    dp_adjoint: "DP adjoint",
+    logistique: "Logistique",
 };
 
 export default function AuthenticatedLayout({ header, children }) {

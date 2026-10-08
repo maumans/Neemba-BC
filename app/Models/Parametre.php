@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Paiement\FraisOrangeMoney;
+use App\Support\JoursOuvres;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
 
@@ -40,9 +42,49 @@ class Parametre extends Model
             return match ($parametre->type) {
                 'number' => is_numeric($parametre->valeur) ? (float) $parametre->valeur : $defaut,
                 'boolean' => in_array(strtolower($parametre->valeur), ['true', '1', 'oui']),
+                'json' => json_decode($parametre->valeur, true) ?? $defaut,
                 default => $parametre->valeur,
             };
         });
+    }
+
+    /**
+     * Valeurs admises des paramètres de type « choix » (points ouverts de la spec v2.2, réglables sans toucher au code)
+     */
+    public const CHOIX = [
+        /* RG-M12-14 (PO-03) */
+        'odm_mode_generation' => [
+            'par_participant' => 'Un bon par participant',
+            'groupe' => "Un bon groupé, versé au n° OM d'un participant désigné",
+        ],
+        /* RG-M12-15 (PO-04) */
+        'odm_prise_en_charge_client' => [
+            'variante_a' => 'Variante A : bons générés, ODM « à refacturer »',
+            'variante_b' => 'Variante B : aucun bon de caisse',
+        ],
+    ];
+
+    /**
+     * Contrôle d'une nouvelle valeur selon le type du paramètre : message d'erreur, ou null si elle est valable.
+     */
+    public function erreurValeur(string $valeur): ?string
+    {
+        $valeur = trim($valeur);
+
+        return match ($this->type) {
+            'number' => is_numeric($valeur) && (float) $valeur >= 0 ? null : 'Saisissez un nombre positif.',
+            'boolean' => in_array(strtolower($valeur), ['true', 'false', '1', '0', 'oui', 'non'], true) ? null : 'Valeur attendue : oui ou non.',
+            'choix' => array_key_exists($valeur, self::CHOIX[$this->cle] ?? [])
+                ? null
+                : 'Valeur attendue : ' . implode(', ', array_keys(self::CHOIX[$this->cle] ?? [])) . '.',
+            'dates' => ($invalides = JoursOuvres::entreesInvalides($valeur)) === []
+                ? null
+                : 'Dates invalides : ' . implode(', ', $invalides) . ' (format MM-JJ ou AAAA-MM-JJ).',
+            'json' => json_decode($valeur, true) === null
+                ? "Le texte saisi n'est pas une liste JSON valable."
+                : ($this->cle === 'frais_om_paliers' ? FraisOrangeMoney::erreurPaliers(json_decode($valeur, true)) : null),
+            default => $valeur === '' ? 'La valeur est obligatoire.' : null,
+        };
     }
 
     /**

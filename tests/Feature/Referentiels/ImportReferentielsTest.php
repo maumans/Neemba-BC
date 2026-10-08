@@ -79,6 +79,18 @@ class ImportReferentielsTest extends TestCase
     }
 
     /** Décision Q11 : « Saoudou » → « Souadou », rapproché malgré l'orthographe ; l'adresse de connexion suit le référentiel */
+    /** M12 : le chef d'atelier ou chef d'équipe de l'onglet 5 reçoit le rôle qui vise les ODM de son service */
+    public function test_le_chef_d_atelier_de_l_onglet_5_recoit_le_role_chef_atelier(): void
+    {
+        $rapport = $this->importer();
+
+        $this->assertTrue(User::where('email', 'thomas.bangoura@neemba.com')->sole()->aLeRole('chef_atelier'));
+        $this->assertTrue(User::where('email', 'fanta.camara@neemba.com')->sole()->aLeRole('logistique'));
+        $this->assertFalse(User::where('email', 'saliou.boiro@neemba.com')->sole()->aLeRole('chef_atelier'));
+        $this->assertStringContainsString("Désigné chef d'atelier Technique à Conakry, mais son compte est rattaché à DAF", $rapport);
+        $this->assertStringContainsString("Suppléant du chef d'atelier (Conakry, Technique (Atelier))", $rapport);
+    }
+
     public function test_un_compte_existant_est_rapproche_et_mis_a_jour(): void
     {
         $rapport = $this->importer();
@@ -229,6 +241,8 @@ class ImportReferentielsTest extends TestCase
                 ['TOURE', 'Youssouf', '', 'youssouf.toure@neemba.com', '', 'Neemba Guinée', 'Conakry', 'DAF', 'Assistant trésorier', '', '', 'Trésorerie, Caissier (à confirmer)', 'O', 'Caisse principale Conakry ?'],
                 ['TOUNKARA', 'Raby', '', 'raby.tounkara@neemba.com', '', 'Neemba Guinée', 'Conakry', 'Technique', 'Responsable Atelier', '', '', 'Caissier — caisse Atelier, Demandeur', 'O', ''],
                 ['BARRY', 'Souadou', '', 'souadou.barry@neemba.com', '', 'Neemba Guinée', 'Conakry', '(à confirmer)', '(à confirmer)', '', '', 'Demandeur', 'O', ''],
+                ['BANGOURA', 'Thomas', '', 'thomas.bangoura@neemba.com', '', 'Neemba Guinée', 'Conakry', 'Technique', 'Chef Atelier Énergie', '', '', 'Demandeur', 'O', ''],
+                ['CAMARA', 'Fanta', '', 'fanta.camara@neemba.com', '', 'Neemba Guinée', 'Conakry', 'Logistique', 'Responsable logistique', '', '', 'Logistique, Demandeur', 'O', ''],
             ],
             '2-Codes analytiques' => [
                 ['Radical analytique (6 caractères)', 'Statut', 'Code service (liste de référence CDG)', 'Libellé du code', 'Services réellement imputés',
@@ -259,6 +273,8 @@ class ImportReferentielsTest extends TestCase
                 ['Tous', 'Tous', 'Finance (visa)', 'DIAKITE Mohamed (DAF)', 'CISS Mor (DAF adjoint)', 'BAH Mamadou Alpha (chef comptable)', 'Un seul des trois suffit'],
                 ['Tous', 'Tous', 'Trésorerie (réapprovisionnements, arrêtés)', 'TOURE Youssouf', '', '', ''],
                 ['Tous', 'Tous', 'Contrôle de gestion (CDG)', 'TOURE Youssouf', '', '', 'Ligne d\'essai : rôle à privilèges sur un compte existant'],
+                ['Conakry', 'Technique (Atelier)', "Chef d'atelier / chef d'équipe (ODM)", 'BANGOURA Thomas', 'TOUNKARA Raby', '', ''],
+                ['Conakry', 'Technique', "Chef d'atelier / chef d'équipe (ODM)", 'BOIRO Saliou', '', '', 'Ligne d\'essai : compte rattaché à un autre service'],
             ],
         ];
 

@@ -29,6 +29,8 @@ export default function Create({ sites = [], services = [] }) {
         password_confirmation: '',
         matricule: '',
         telephone: '',
+        numero_om: '',
+        statut_cadre: '',
         role: 'demandeur',
         service: '',
         site: '',
@@ -115,6 +117,39 @@ export default function Create({ sites = [], services = [] }) {
                                             className="mt-1"
                                         />
                                         {errors.telephone && <p className="text-sm text-red-500 mt-1">{errors.telephone}</p>}
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor="numero_om">N° Orange Money</Label>
+                                        <Input
+                                            id="numero_om"
+                                            value={data.numero_om}
+                                            onChange={(e) => setData('numero_om', e.target.value)}
+                                            placeholder="6XX XX XX XX"
+                                            inputMode="numeric"
+                                            className="mt-1"
+                                        />
+                                        {errors.numero_om && <p className="text-sm text-red-500 mt-1">{errors.numero_om}</p>}
+                                    </div>
+                                    <div>
+                                        <Label>Statut</Label>
+                                        <Select
+                                            value={data.statut_cadre || 'non_renseigne'}
+                                            onValueChange={(val) => setData('statut_cadre', val === 'non_renseigne' ? '' : val)}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="non_renseigne">Non renseigné</SelectItem>
+                                                <SelectItem value="cadre">Cadre</SelectItem>
+                                                <SelectItem value="non_cadre">Non-cadre</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-gray-500 mt-1">Renseigné par les RH ; obligatoire pour un ordre de mission à l'étranger.</p>
+                                        {errors.statut_cadre && <p className="text-sm text-red-500 mt-1">{errors.statut_cadre}</p>}
                                     </div>
                                 </div>
 

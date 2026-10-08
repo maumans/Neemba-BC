@@ -28,7 +28,7 @@ use Illuminate\Support\Str;
 class ImportReferentiels
 {
     /** Rôles qui donnent des droits de validation, de paiement ou d'administration */
-    private const ROLES_PRIVILEGIES = ['administrateur', 'directeur_pays', 'daf', 'controle_gestion', 'responsable_service', 'caissier'];
+    private const ROLES_PRIVILEGIES = ['administrateur', 'directeur_pays', 'dp_adjoint', 'daf', 'controle_gestion', 'responsable_service', 'chef_atelier', 'caissier'];
 
     /** Rôle principal (users.role) d'un compte créé : le plus élevé de ses rôles */
     private const PRIORITE = ['administrateur', 'directeur_pays', 'daf', 'controle_gestion', 'responsable_service', 'caissier', 'demandeur'];
@@ -419,7 +419,10 @@ class ImportReferentiels
             $cle = Normalisation::cle($morceau);
             $role = match (true) {
                 str_starts_with($cle, 'FINANCE') => str_contains($cle, 'VISA DAF') ? 'daf' : $this->roleFinance($fonction),
+                str_starts_with($cle, 'DP ADJOINT'), str_starts_with($cle, 'DIRECTEUR PAYS ADJOINT') => 'dp_adjoint',
                 str_starts_with($cle, 'DIRECTEUR PAYS') => 'directeur_pays',
+                str_starts_with($cle, 'CHEF D ATELIER'), str_starts_with($cle, 'CHEF D EQUIPE') => 'chef_atelier',
+                str_starts_with($cle, 'LOGISTIQUE') => 'logistique',
                 $cle === 'CDG', str_starts_with($cle, 'CONTROLE DE GESTION') => 'controle_gestion',
                 str_starts_with($cle, 'TRESORERIE') => 'tresorerie',
                 str_starts_with($cle, 'CAISSIER') => 'caissier',
@@ -439,6 +442,8 @@ class ImportReferentiels
                     . 'gestion par caisse (M07).');
             } elseif ($role === 'responsable_service') {
                 $this->rapport->aConfirmer($onglet, $numero, $element, 'Chef de service', "{$morceau} : à désigner dans l'onglet 5 (site et service)");
+            } elseif ($role === 'chef_atelier') {
+                $this->rapport->aConfirmer($onglet, $numero, $element, "Chef d'atelier (ODM)", "{$morceau} : à désigner dans l'onglet 5 (site et service)");
             } else {
                 $roles[] = $role;
             }
@@ -529,17 +534,26 @@ class ImportReferentiels
                         : $this->rapport->action($nomComplet, "Suppléant du chef de service ({$site}, {$service}) : à mettre en place par une délégation lors des absences du titulaire.");
                     continue;
                 }
+                /* M12 : le chef d'atelier ou chef d'équipe vise les ODM de son service (premier niveau du circuit) */
+                if (str_starts_with($cleNiveau, 'CHEF D ATELIER') || str_starts_with($cleNiveau, 'CHEF D EQUIPE')) {
+                    $qualite === 'Titulaire'
+                        ? $this->chefDeService($valeur['valeur'], $site, $service, $onglet, $numero, 'chef_atelier')
+                        : $this->rapport->action($nomComplet, "Suppléant du chef d'atelier ({$site}, {$service}) : à mettre en place par une délégation lors des absences du titulaire.");
+                    continue;
+                }
 
                 $role = match (true) {
                     str_starts_with($cleNiveau, 'CONTROLE DE GESTION') => 'controle_gestion',
                     str_starts_with($cleNiveau, 'FINANCE') => $precision ? $this->roleFinance($precision) : 'daf',
-                    str_starts_with($cleNiveau, 'DIRECTEUR PAYS') => 'directeur_pays',
+                    str_starts_with($cleNiveau, 'DIRECTEUR PAYS ADJOINT'), str_starts_with($cleNiveau, 'DP ADJOINT') => 'dp_adjoint',
+                    str_starts_with($cleNiveau, 'DIRECTEUR PAYS') => str_contains(Normalisation::cle((string) $precision), 'ADJOINT') ? 'dp_adjoint' : 'directeur_pays',
+                    str_starts_with($cleNiveau, 'LOGISTIQUE') => 'logistique',
                     str_starts_with($cleNiveau, 'TRESORERIE') => 'tresorerie',
                     str_starts_with($cleNiveau, 'RH') => 'rh',
                     default => null,
                 };
                 if ($role === null) {
-                    $this->rapport->aTrancher($onglet, $nomComplet, "Niveau « {$niveau} » : concerne les ordres de mission (M12), noté sans effet pour l'instant.");
+                    $this->rapport->aTrancher($onglet, $nomComplet, "Niveau « {$niveau} » non reconnu : noté sans effet.");
                     continue;
                 }
 
@@ -559,13 +573,17 @@ class ImportReferentiels
         }
     }
 
-    /** Chef de service d'un site et d'un service : rôle responsable_service, si le compte est bien rattaché à ce site et ce service */
-    private function chefDeService(string $texte, string $site, string $service, string $onglet, int $numero): void
+    /**
+     * Chef de service (rôle responsable_service) ou chef d'atelier / chef d'équipe (rôle chef_atelier, M12) d'un site et
+     * d'un service, si le compte est bien rattaché à ce site et ce service
+     */
+    private function chefDeService(string $texte, string $site, string $service, string $onglet, int $numero, string $role = 'responsable_service'): void
     {
+        $fonction = $role === 'chef_atelier' ? "Chef d'atelier" : 'Chef de service';
         [$nomComplet] = Normalisation::personne($texte);
         $personne = $this->personne($nomComplet);
         if (!$personne) {
-            $this->rapport->anomalie($onglet, $numero, $nomComplet, "Chef de service ({$site}, {$service}) introuvable parmi les comptes.");
+            $this->rapport->anomalie($onglet, $numero, $nomComplet, "{$fonction} ({$site}, {$service}) introuvable parmi les comptes.");
 
             return;
         }
@@ -573,12 +591,12 @@ class ImportReferentiels
         $siteVoulu = $this->site($site);
         $serviceVoulu = Normalisation::cle(Normalisation::personne($service)[0]);
         if (($siteVoulu && $personne->site !== $siteVoulu->nom) || Normalisation::cle($personne->service) !== $serviceVoulu) {
-            $this->rapport->anomalie($onglet, $numero, self::libelle($personne), "Désigné chef de service {$service} à {$site}, mais son compte est rattaché à "
+            $this->rapport->anomalie($onglet, $numero, self::libelle($personne), 'Désigné ' . mb_strtolower($fonction) . " {$service} à {$site}, mais son compte est rattaché à "
                 . ($personne->service ?: 'aucun service') . ' à ' . ($personne->site ?: 'aucun site') . ' : corriger le compte ou la désignation.');
 
             return;
         }
-        $this->attribuerRoles($personne, ['responsable_service'], $onglet);
+        $this->attribuerRoles($personne, [$role], $onglet);
     }
 
     /* ------------------------------------------------------------------

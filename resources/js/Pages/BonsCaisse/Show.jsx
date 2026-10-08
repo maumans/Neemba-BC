@@ -81,7 +81,7 @@ import { Input } from '@/Components/ui/input';
 import { Combobox } from '@/Components/ui/combobox';
 import BadgeStatut from '@/Components/BadgeStatut';
 import BandeauPiecesDejaUtilisees from '@/Components/BandeauPiecesDejaUtilisees';
-import { msgErreur } from '@/utils/messages';
+import { msg, msgErreur } from '@/utils/messages';
 
 /** Dates au format SFD §1.4 (JJ/MM/AAAA, JJ/MM/AAAA HH:MM, fuseau Africa/Conakry) */
 const formatDateTime = formaterDateHeure;
@@ -162,6 +162,7 @@ export default function Show({
     peutPreRegulariser = false,
     aDesPiecesRegularisation = false,
     motifsRejet = {},
+    fraisOrangeMoney = null,
     etapesValidation = [],
     rejet = null,
     ageBon = null,
@@ -171,6 +172,9 @@ export default function Show({
 
     /* État pour le mode de paiement lors du décaissement */
     const [modePaiement, setModePaiement] = useState('especes');
+    /* Frais Orange Money saisis par le caissier quand le montant est hors paliers (spec v2.2 §6.6, PO-01) */
+    const [fraisOmSaisis, setFraisOmSaisis] = useState('');
+    const fraisOmASaisir = modePaiement === 'orange_money' && !fraisOrangeMoney;
     const [showPaiementForm, setShowPaiementForm] = useState(false);
     const [showRejetDialog, setShowRejetDialog] = useState(false);
     const [showComplementDialog, setShowComplementDialog] = useState(false);
@@ -296,7 +300,10 @@ export default function Show({
         if (!otpVerifie) {
             return;
         }
-        executerAction('bons-caisse.payer', { mode_paiement_effectif: modePaiement });
+        executerAction('bons-caisse.payer', {
+            mode_paiement_effectif: modePaiement,
+            ...(fraisOmASaisir ? { frais_om: fraisOmSaisis } : {}),
+        });
     };
 
     /** Approuver le bon */
@@ -806,6 +813,18 @@ export default function Show({
                                                                 <p className="font-medium">
                                                                     {modesPaiement[bonCaisse.mode_paiement_effectif] || bonCaisse.mode_paiement_effectif}
                                                                 </p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {bonCaisse.frais_om !== null && bonCaisse.frais_om !== undefined && (
+                                                        <div className="flex items-start gap-3">
+                                                            <Banknote className="h-5 w-5 text-gray-400 mt-0.5" />
+                                                            <div>
+                                                                <p className="text-xs text-gray-500">
+                                                                    Frais Orange Money{bonCaisse.frais_om_saisis ? ' (saisis au paiement)' : ''}
+                                                                </p>
+                                                                <p className="font-medium">{formatMontant(bonCaisse.frais_om)}</p>
+                                                                <p className="text-xs text-gray-500 mt-0.5">Montant versé : {formatMontant(bonCaisse.montant_verse)}</p>
                                                             </div>
                                                         </div>
                                                     )}
@@ -1528,10 +1547,38 @@ export default function Show({
                                                                         </SelectContent>
                                                                     </Select>
                                                                 </div>
+                                                                {/* Frais Orange Money ajoutés au montant versé (spec v2.2 §6.6, MSG-M03-06) */}
+                                                                {modePaiement === 'orange_money' && fraisOrangeMoney && (
+                                                                    <p className="rounded-md border border-orange-200 bg-orange-50 p-2 text-xs text-orange-800" data-testid="frais-om">
+                                                                        {msg('MSG-M03-06', {
+                                                                            frais: fraisOrangeMoney.frais,
+                                                                            taux: fraisOrangeMoney.taux_texte,
+                                                                            montant_verse: fraisOrangeMoney.montant_verse,
+                                                                        })}
+                                                                    </p>
+                                                                )}
+                                                                {fraisOmASaisir && (
+                                                                    <div>
+                                                                        <Label htmlFor="frais_om" className="text-sm font-medium text-gray-700 mb-1 block">
+                                                                            Frais Orange Money (GNF)
+                                                                        </Label>
+                                                                        <Input
+                                                                            id="frais_om"
+                                                                            inputMode="numeric"
+                                                                            value={fraisOmSaisis}
+                                                                            onChange={(e) => setFraisOmSaisis(e.target.value.replace(/\D/g, ''))}
+                                                                            className="bg-white"
+                                                                        />
+                                                                        <p className="text-xs text-gray-500 mt-1">
+                                                                            Montant hors des paliers de la grille : saisissez les frais, ajoutés au montant versé.
+                                                                        </p>
+                                                                    </div>
+                                                                )}
                                                                 <div className="flex flex-col gap-2 pt-2">
                                                                     <Button
                                                                         className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg text-sm"
                                                                         onClick={effectuerPaiement}
+                                                                        disabled={fraisOmASaisir && fraisOmSaisis === ''}
                                                                     >
                                                                         <Banknote className="mr-2 h-4 w-4 flex-shrink-0" />
                                                                         Confirmer le paiement

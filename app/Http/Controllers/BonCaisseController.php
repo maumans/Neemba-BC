@@ -17,6 +17,7 @@ use App\Models\Site;
 use App\Models\Validation;
 use App\Services\NimbaSmsService;
 use App\Services\NotificationService;
+use App\Services\Paiement\FraisOrangeMoney;
 use App\Support\Format;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -586,6 +587,10 @@ class BonCaisseController extends Controller
             'peutPreRegulariser' => $estProprietaire && $bonCaisse->peutPreRegulariser(),
             'aDesPiecesRegularisation' => $bonCaisse->aDesPiecesRegularisation(),
             'motifsRejet' => BonCaisse::MOTIFS_REJET,
+            /* Spec v2.2 §6.6 : frais si le caissier retient Orange Money (MSG-M03-06) ; null hors paliers (frais saisis) */
+            'fraisOrangeMoney' => ($frais = FraisOrangeMoney::calculer((float) $bonCaisse->montant))
+                ? $frais + ['taux_texte' => str_replace('.', ',', (string) $frais['taux'])]
+                : null,
         ]);
     }
 
@@ -631,9 +636,9 @@ class BonCaisseController extends Controller
 
         if (!$resultat['success']) {
 
-            $message = is_array($resultat['message'])
-                ? json_encode($resultat['message'])
-                : $resultat['message'];
+            /* Service non configuré : seule la clé « error » est renseignée */
+            $message = $resultat['message'] ?? $resultat['error'] ?? 'erreur inconnue';
+            $message = is_array($message) ? json_encode($message) : $message;
 
             return back()->with('error', "Erreur SMS : $message");
         }   
@@ -692,7 +697,17 @@ class BonCaisseController extends Controller
 
         $request->validate([
             'mode_paiement_effectif' => ['required', Rule::in(array_keys(BonCaisse::MODES_PAIEMENT))],
+            'frais_om' => ['nullable', 'numeric', 'min:0', 'max:1000000000'],
+        ], [
+            'frais_om.numeric' => 'Les frais Orange Money doivent être un montant en GNF.',
+            'frais_om.min' => 'Les frais Orange Money ne peuvent pas être négatifs.',
         ]);
+
+        /* Frais Orange Money (spec v2.2, §6.6) : calculés par paliers ; hors paliers, saisis par le caissier (PO-01) */
+        $frais = $bonCaisse->fraisPaiement($request->mode_paiement_effectif, $request->frais_om);
+        if ($frais === null) {
+            return back()->with('error', 'Montant hors des paliers Orange Money : saisissez les frais à ajouter au montant versé.');
+        }
 
         /* Vérifier qu'un code OTP a été validé pour ce bon */
         $otpVerifie = OtpValidation::where('bon_caisse_id', $bonCaisse->id)
@@ -710,6 +725,8 @@ class BonCaisseController extends Controller
          * Orange Money → caisse OM de Conakry ; virement et autre → paiement hors caisse, rien n'est débité. */
         $caisse = Caisse::payeusePour($bonCaisse->site, $request->mode_paiement_effectif);
         $montant = (float) $bonCaisse->montant;
+        /* La caisse décaisse le montant versé : montant du bon, plus les frais Orange Money */
+        $montantVerse = (float) $frais['montant_verse'];
 
         /* Contrôles faits avant de consommer l'OTP, pour que le caissier n'ait pas à en régénérer un. */
         if (in_array($request->mode_paiement_effectif, BonCaisse::MODES_PAIEMENT_CAISSE, true) && !$caisse) {
@@ -722,11 +739,11 @@ class BonCaisseController extends Controller
                 'caisse' => mb_strtolower(mb_substr($caisse->libelle, 0, 1)) . mb_substr($caisse->libelle, 1),
             ]));
         }
-        if ($caisse && !$caisse->peutPayer($montant)) {
+        if ($caisse && !$caisse->peutPayer($montantVerse)) {
             return back()->with('error',
                 "Solde insuffisant sur la {$caisse->libelle}."
                 . " Disponible : {$caisse->solde_format},"
-                . " Montant demandé : {$bonCaisse->montant_format}."
+                . ' Montant demandé : ' . \App\Support\Format::montant($montantVerse) . '.'
             );
         }
 
@@ -735,7 +752,8 @@ class BonCaisseController extends Controller
         $paye = DB::transaction(function () use ($bonCaisse, $caissier, $request, $otpVerifie, $caisse) {
             $bon = BonCaisse::whereKey($bonCaisse->id)->lockForUpdate()->first();
 
-            if (!$bon || !$bon->marquerCommePaye($caissier, $request->mode_paiement_effectif)) {
+            $fraisSaisis = $request->filled('frais_om') ? (float) $request->frais_om : null;
+            if (!$bon || !$bon->marquerCommePaye($caissier, $request->mode_paiement_effectif, $fraisSaisis)) {
                 return false;
             }
 
@@ -743,7 +761,7 @@ class BonCaisseController extends Controller
 
             if ($caisse) {
                 $bon->update(['caisse_id' => $caisse->id]);
-                $caisse->debiter((float) $bon->montant, 'paiement_bon', [
+                $caisse->debiter((float) $bon->montant_verse, 'paiement_bon', [
                     'bon_caisse_id' => $bon->id,
                     'utilisateur_id' => $caissier->id,
                     'libelle' => "Paiement du bon {$bon->numero} — {$bon->beneficiaire}",

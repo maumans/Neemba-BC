@@ -10,6 +10,7 @@ use App\Http\Controllers\OcrAnalyseController;
 use App\Http\Controllers\OcrController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RapportCaisseController;
+use App\Http\Controllers\TauxChangeController;
 use App\Http\Controllers\UtilisateurController;
 use App\Http\Controllers\ParametrageController;
 use App\Http\Controllers\NotificationController;
@@ -167,6 +168,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/mouvements-caisse/{mouvement}/rejeter', [MouvementCaisseController::class, 'rejeter'])
             ->middleware('role:daf,directeur_pays')
             ->name('mouvements-caisse.rejeter');
+    });
+
+    /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */
+    Route::middleware('role:tresorerie,daf,daf_adjoint,chef_comptable,directeur_pays,caissier,administrateur')->group(function () {
+        Route::get('/tresorerie/taux-du-jour', [TauxChangeController::class, 'index'])->name('tresorerie.taux.index');
+        Route::post('/tresorerie/taux-du-jour', [TauxChangeController::class, 'store'])
+            ->middleware('role:tresorerie,daf,daf_adjoint')
+            ->name('tresorerie.taux.store');
     });
 
     /* --- Gestion des Utilisateurs (Administrateur uniquement) --- */

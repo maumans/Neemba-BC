@@ -142,7 +142,7 @@ function FormDialog({ open, onClose, title, children, onSubmit, processing }) {
 }
 
 /* ─── Composant pour un paramètre éditable inline ─── */
-function ParametreRow({ parametre }) {
+function ParametreRow({ parametre, choix = null }) {
     const form = useForm({ valeur: parametre.valeur });
     const [editing, setEditing] = useState(false);
     const [confirmToggle, setConfirmToggle] = useState(false);
@@ -168,6 +168,26 @@ function ParametreRow({ parametre }) {
     };
 
     const renderValeur = (val, type) => {
+        /* Paramètre à choix (points ouverts de la spec v2.2) : libellé de la valeur retenue */
+        if (type === 'choix' && choix) {
+            return <span className="text-sm bg-gray-100 px-2 py-1 rounded text-right inline-block max-w-sm">{choix[val] ?? val}</span>;
+        }
+        /* Grille des frais Orange Money : un badge par palier */
+        if (parametre.cle === 'frais_om_paliers') {
+            try {
+                return (
+                    <div className="flex flex-wrap gap-1 justify-end">
+                        {JSON.parse(val).map((palier, idx) => (
+                            <Badge key={idx} variant="secondary" className="text-[11px] font-normal">
+                                {formaterNombre(palier.de)} – {formaterNombre(palier.a)} GNF : {String(palier.taux).replace('.', ',')} %
+                            </Badge>
+                        ))}
+                    </div>
+                );
+            } catch (e) {
+                // Valeur illisible : affichée telle quelle plus bas
+            }
+        }
         if (type === 'number' && !isNaN(val)) {
             return <span className="text-sm font-mono bg-gray-100 px-2 py-1 rounded">{formaterNombre(val)}</span>;
         }
@@ -184,7 +204,7 @@ function ParametreRow({ parametre }) {
                         <div className="flex flex-wrap gap-1 justify-end">
                             {parsed.map((item, idx) => (
                                 <Badge key={idx} variant="secondary" className="text-[10px] font-normal leading-tight px-1.5 py-0.5">
-                                    {item}
+                                    {typeof item === 'object' ? JSON.stringify(item) : item}
                                 </Badge>
                             ))}
                         </div>
@@ -225,7 +245,18 @@ function ParametreRow({ parametre }) {
                 </div>
             ) : editing ? (
                 <form onSubmit={submit} className="flex items-start gap-2 max-w-[60%]">
-                    {parametre.valeur && parametre.valeur.length > 50 ? (
+                    <div>
+                    {choix ? (
+                        <select
+                            value={form.data.valeur}
+                            onChange={(e) => form.setData('valeur', e.target.value)}
+                            className="w-64 h-8 text-sm border rounded-md px-2"
+                        >
+                            {Object.entries(choix).map(([valeur, libelle]) => (
+                                <option key={valeur} value={valeur}>{libelle}</option>
+                            ))}
+                        </select>
+                    ) : parametre.valeur && parametre.valeur.length > 50 ? (
                         <textarea
                             value={form.data.valeur}
                             onChange={(e) => form.setData('valeur', e.target.value)}
@@ -240,6 +271,8 @@ function ParametreRow({ parametre }) {
                             type={parametre.type === 'number' ? 'number' : 'text'}
                         />
                     )}
+                    {form.errors.valeur && <p className="text-xs text-red-600 mt-1 max-w-xs">{form.errors.valeur}</p>}
+                    </div>
                     <Button type="submit" size="sm" variant="ghost" disabled={form.processing}>
                         <Check className="h-4 w-4 text-green-600" />
                     </Button>
@@ -290,9 +323,11 @@ const LIBELLES_GROUPES_PARAMETRES = {
     securite: 'Sécurité',
     bons_caisse: 'Bons de caisse',
     carburant: 'Carburant',
+    orange_money: 'Orange Money',
+    odm: 'Ordres de mission',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
     /* ─── SITES ─── */
     const [siteDialog, setSiteDialog] = useState({ open: false, item: null });
     const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '' });
@@ -665,7 +700,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                             </h4>
                                             <div className="space-y-2">
                                                 {params.map((p) => (
-                                                    <ParametreRow key={p.id} parametre={p} />
+                                                    <ParametreRow key={p.id} parametre={p} choix={choixParametres[p.cle] ?? null} />
                                                 ))}
                                             </div>
                                         </div>

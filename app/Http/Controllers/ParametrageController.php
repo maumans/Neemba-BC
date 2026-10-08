@@ -38,6 +38,7 @@ class ParametrageController extends Controller
             'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
             'typesDocument' => TypeDocument::orderBy('nom')->get(),
             'parametres' => Parametre::orderBy('groupe')->orderBy('libelle')->get(),
+            'choixParametres' => Parametre::CHOIX,
             /* Gestionnaire, suppléant et destinataires du rapport d'une caisse (référentiel Neemba, point 14) */
             'utilisateursActifs' => User::where('actif', true)->orderBy('name')->orderBy('prenom')->get(['id', 'name', 'prenom'])
                 ->map(fn (User $u) => ['id' => $u->id, 'libelle' => trim(mb_strtoupper($u->name) . ' ' . $u->prenom)]),
@@ -321,8 +322,13 @@ class ParametrageController extends Controller
     public function updateParametre(Request $request, Parametre $parametre)
     {
         $request->validate([
-            'valeur' => ['required', 'string', 'max:255'],
+            'valeur' => ['required', 'string', 'max:2000'],
         ]);
+
+        /* Valeur contrôlée selon le type (choix, dates, grille JSON…) avant la double validation */
+        if ($erreur = $parametre->erreurValeur($request->valeur)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['valeur' => $erreur]);
+        }
 
         if ($request->valeur != $parametre->valeur) {
             \App\Models\ModificationEnAttente::create([

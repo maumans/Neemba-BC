@@ -21,7 +21,7 @@ import {
 } from '@/Components/ui/select';
 import { Combobox } from '@/Components/ui/combobox';
 
-export default function Edit({ utilisateur, sites = [], services = [] }) {
+export default function Edit({ utilisateur, sites = [], services = [], roles = {}, rolesComplementaires = [] }) {
     const { data, setData, put, processing, errors } = useForm({
         name: utilisateur.name || '',
         prenom: utilisateur.prenom || '',
@@ -29,7 +29,10 @@ export default function Edit({ utilisateur, sites = [], services = [] }) {
         password: '',
         matricule: utilisateur.matricule || '',
         telephone: utilisateur.telephone || '',
+        numero_om: utilisateur.numero_om || '',
+        statut_cadre: utilisateur.statut_cadre || '',
         role: utilisateur.role || 'demandeur',
+        roles_complementaires: rolesComplementaires,
         service: utilisateur.service || '',
         site: utilisateur.site || '',
         poste: utilisateur.poste || '',
@@ -39,6 +42,14 @@ export default function Edit({ utilisateur, sites = [], services = [] }) {
     const handleSubmit = (e) => {
         e.preventDefault();
         put(route('utilisateurs.update', utilisateur.id));
+    };
+
+    /* Rôles complémentaires : tous les rôles sauf le rôle principal choisi */
+    const basculerRole = (role) => {
+        const liste = data.roles_complementaires.includes(role)
+            ? data.roles_complementaires.filter((r) => r !== role)
+            : [...data.roles_complementaires, role];
+        setData('roles_complementaires', liste);
     };
 
     return (
@@ -118,6 +129,39 @@ export default function Edit({ utilisateur, sites = [], services = [] }) {
                                     </div>
                                 </div>
 
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor="numero_om">N° Orange Money</Label>
+                                        <Input
+                                            id="numero_om"
+                                            value={data.numero_om}
+                                            onChange={(e) => setData('numero_om', e.target.value)}
+                                            placeholder="6XX XX XX XX"
+                                            inputMode="numeric"
+                                            className="mt-1"
+                                        />
+                                        {errors.numero_om && <p className="text-sm text-red-500 mt-1">{errors.numero_om}</p>}
+                                    </div>
+                                    <div>
+                                        <Label>Statut</Label>
+                                        <Select
+                                            value={data.statut_cadre || 'non_renseigne'}
+                                            onValueChange={(val) => setData('statut_cadre', val === 'non_renseigne' ? '' : val)}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="non_renseigne">Non renseigné</SelectItem>
+                                                <SelectItem value="cadre">Cadre</SelectItem>
+                                                <SelectItem value="non_cadre">Non-cadre</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-gray-500 mt-1">Renseigné par les RH ; obligatoire pour un ordre de mission à l'étranger.</p>
+                                        {errors.statut_cadre && <p className="text-sm text-red-500 mt-1">{errors.statut_cadre}</p>}
+                                    </div>
+                                </div>
+
                                 {/* Mot de passe optionnel */}
                                 <div>
                                     <Label htmlFor="password">
@@ -150,13 +194,12 @@ export default function Edit({ utilisateur, sites = [], services = [] }) {
                             <CardContent className="space-y-4">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
-                                        <Label htmlFor="matricule">Matricule *</Label>
+                                        <Label htmlFor="matricule">Matricule</Label>
                                         <Input
                                             id="matricule"
                                             value={data.matricule}
                                             onChange={(e) => setData('matricule', e.target.value)}
                                             className="mt-1"
-                                            required
                                         />
                                         {errors.matricule && <p className="text-sm text-red-500 mt-1">{errors.matricule}</p>}
                                     </div>
@@ -220,6 +263,27 @@ export default function Edit({ utilisateur, sites = [], services = [] }) {
                                         />
                                     </div>
                                 </div>
+
+                                <fieldset>
+                                    <legend className="text-sm font-medium">Rôles complémentaires</legend>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                        En plus du rôle principal (chef d'atelier, DP adjoint, Trésorerie…). Toute modification est soumise à une double validation.
+                                    </p>
+                                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                        {Object.entries(roles).filter(([role]) => role !== data.role).map(([role, libelle]) => (
+                                            <label key={role} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-gray-50">
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 rounded border-gray-300 text-neemba-600 focus:ring-neemba-500"
+                                                    checked={data.roles_complementaires.includes(role)}
+                                                    onChange={() => basculerRole(role)}
+                                                />
+                                                {libelle}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    {errors.roles_complementaires && <p className="text-sm text-red-500 mt-1">{errors.roles_complementaires}</p>}
+                                </fieldset>
                             </CardContent>
                         </Card>
                     </motion.div>

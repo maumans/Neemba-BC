@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Services\Paiement\FraisOrangeMoney;
 use App\Support\Format;
+use App\Support\JoursOuvres;
 use App\Support\MontantEnLettres;
 
 /**
@@ -52,6 +54,10 @@ class BonCaisse extends Model
         'demandeur_id',
         'caissier_id',
         'mode_paiement_effectif',
+        'frais_om',
+        'frais_om_taux',
+        'frais_om_saisis',
+        'montant_verse',
         'caisse_id',
         'version',
         'initiateur_id',
@@ -99,6 +105,10 @@ class BonCaisse extends Model
             'date_demande' => 'date',
             'date_soumission' => 'datetime',
             'date_paiement' => 'datetime',
+            'frais_om' => 'decimal:2',
+            'frais_om_taux' => 'decimal:2',
+            'frais_om_saisis' => 'boolean',
+            'montant_verse' => 'decimal:2',
             'date_regularisation' => 'datetime',
             'date_limite_regularisation' => 'date',
         ];
@@ -672,14 +682,44 @@ class BonCaisse extends Model
     }
 
     /**
+     * Montant versé selon le mode retenu par le caissier (spec v2.2, §6.6 et RG-M06-07) : en Orange Money,
+     * frais par paliers ajoutés au montant du bon ; hors paliers, frais saisis au paiement.
+     * Le seuil du visa DP porte sur la dépense, hors frais : le circuit n'est pas relancé.
+     *
+     * @return array{frais: ?float, taux: ?float, saisis: bool, montant_verse: float}|null null : frais hors paliers non saisis
+     */
+    public function fraisPaiement(string $modePaiement, float|int|string|null $fraisSaisis = null): ?array
+    {
+        $montant = (float) $this->montant;
+        if ($modePaiement !== 'orange_money') {
+            return ['frais' => null, 'taux' => null, 'saisis' => false, 'montant_verse' => $montant];
+        }
+
+        if ($calcul = FraisOrangeMoney::calculer($montant)) {
+            return ['frais' => (float) $calcul['frais'], 'taux' => $calcul['taux'], 'saisis' => false, 'montant_verse' => $calcul['montant_verse']];
+        }
+        if ($fraisSaisis === null || $fraisSaisis === '' || !is_numeric($fraisSaisis) || (float) $fraisSaisis < 0) {
+            return null;
+        }
+
+        return ['frais' => (float) $fraisSaisis, 'taux' => null, 'saisis' => true, 'montant_verse' => $montant + (float) $fraisSaisis];
+    }
+
+    /**
      * Marquer le bon comme payé par le caissier
-     * 
+     *
      * @param User $caissier L'utilisateur caissier effectuant le paiement
      * @param string $modePaiement Mode de paiement effectif (especes, orange_money, virement, autre)
+     * @param float|null $fraisSaisis Frais Orange Money saisis au paiement, pour un montant hors paliers
      */
-    public function marquerCommePaye(User $caissier, string $modePaiement = 'especes'): bool
+    public function marquerCommePaye(User $caissier, string $modePaiement = 'especes', ?float $fraisSaisis = null): bool
     {
         if ($this->statut !== 'APPROUVE') {
+            return false;
+        }
+
+        $frais = $this->fraisPaiement($modePaiement, $fraisSaisis);
+        if ($frais === null) {
             return false;
         }
 
@@ -688,6 +728,22 @@ class BonCaisse extends Model
         $this->date_paiement = now();
         $this->caissier_id = $caissier->id;
         $this->mode_paiement_effectif = $modePaiement;
+        $this->frais_om = $frais['frais'];
+        $this->frais_om_taux = $frais['taux'];
+        $this->frais_om_saisis = $frais['saisis'];
+        $this->montant_verse = $frais['montant_verse'];
+
+        /* Frais OM tracés dans le journal : calculés (taux du palier) ou saisis au paiement (PO-01) */
+        $textePaiement = 'Paiement effectué par ' . $caissier->nom_complet . ' en ' . self::MODES_PAIEMENT[$modePaiement]
+            . ($frais['frais'] !== null
+                ? ' : frais Orange Money ' . Format::montant($frais['frais'])
+                    . ($frais['saisis'] ? ' (saisis au paiement, montant hors paliers)' : ' (' . str_replace('.', ',', (string) $frais['taux']) . ' %)')
+                    . ', montant versé ' . Format::montant($frais['montant_verse'])
+                : '')
+            . '.';
+        $metaFrais = $frais['frais'] !== null
+            ? ['frais_om' => $frais['frais'], 'frais_om_taux' => $frais['taux'], 'frais_om_saisis' => $frais['saisis'], 'montant_verse' => $frais['montant_verse']]
+            : [];
 
         if ($this->type_bon === 'BP') {
             /* BP : vérifier si des pièces de régularisation ont été pré-uploadées */
@@ -698,8 +754,8 @@ class BonCaisse extends Model
                 $this->save();
 
                 HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'PAYE', $caissier->id,
-                    'Paiement effectué par ' . $caissier->nom_complet . ' en ' . self::MODES_PAIEMENT[$modePaiement] . '.',
-                    ['mode_paiement' => $modePaiement, 'date_paiement' => $this->date_paiement->toIso8601String()],
+                    $textePaiement,
+                    [...$metaFrais, 'mode_paiement' => $modePaiement, 'date_paiement' => $this->date_paiement->toIso8601String()],
                 );
 
                 /* Auto-régularisation */
@@ -716,8 +772,9 @@ class BonCaisse extends Model
                 $this->save();
 
                 HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'EN_ATTENTE_REGULARISATION', $caissier->id,
-                    'Paiement effectué par ' . $caissier->nom_complet . ' en ' . self::MODES_PAIEMENT[$modePaiement] . '.',
+                    $textePaiement,
                     [
+                        ...$metaFrais,
                         'mode_paiement' => $modePaiement,
                         'date_paiement' => $this->date_paiement->toIso8601String(),
                         'date_limite_regularisation' => $this->date_limite_regularisation?->format('Y-m-d'),
@@ -730,8 +787,8 @@ class BonCaisse extends Model
             $this->save();
 
             HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'PAYE', $caissier->id,
-                'Paiement effectué par ' . $caissier->nom_complet . ' en ' . self::MODES_PAIEMENT[$modePaiement] . '.',
-                ['mode_paiement' => $modePaiement, 'date_paiement' => $this->date_paiement->toIso8601String()],
+                $textePaiement,
+                [...$metaFrais, 'mode_paiement' => $modePaiement, 'date_paiement' => $this->date_paiement->toIso8601String()],
             );
         }
 
@@ -859,14 +916,15 @@ class BonCaisse extends Model
     {
         $paiement = ($paiement ?? now())->copy()->startOfDay();
 
+        /* RG-M07-02 (spec v2.2) : 3 jours ouvrés après le retour de mission, 2 jours ouvrés après le décaissement sinon */
         if ($this->lie_mission && $this->date_retour_mission) {
             $retour = $this->date_retour_mission->copy()->startOfDay();
             $depart = $retour->greaterThan($paiement) ? $retour : $paiement;
 
-            return $depart->addDays((int) Parametre::valeur('delai_regularisation_mission', self::DELAI_REGULARISATION_MISSION));
+            return JoursOuvres::ajouter($depart, (int) Parametre::valeur('delai_regularisation_mission', self::DELAI_REGULARISATION_MISSION))->toMutable();
         }
 
-        return $paiement->addDays((int) Parametre::valeur('delai_regularisation_autre', self::DELAI_REGULARISATION_AUTRE));
+        return JoursOuvres::ajouter($paiement, (int) Parametre::valeur('delai_regularisation_autre', self::DELAI_REGULARISATION_AUTRE))->toMutable();
     }
 
     /**

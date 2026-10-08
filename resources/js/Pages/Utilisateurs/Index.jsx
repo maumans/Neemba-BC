@@ -41,6 +41,9 @@ const rolesLabels = {
     chef_comptable: 'Chef comptable',
     tresorerie: 'Trésorerie',
     rh: 'Ressources humaines',
+    chef_atelier: "Chef d'atelier / chef d'équipe",
+    dp_adjoint: 'DP adjoint',
+    logistique: 'Logistique',
 };
 
 export default function Index({ utilisateurs, filtres = {}, roles = {} }) {

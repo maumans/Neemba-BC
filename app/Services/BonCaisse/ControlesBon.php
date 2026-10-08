@@ -285,7 +285,7 @@ class ControlesBon
         $delai = (int) Parametre::valeur('delai_regularisation_autre', BonCaisse::DELAI_REGULARISATION_AUTRE);
 
         return self::controle(11, 'SUIVI', 'Suivi après paiement', self::OK,
-            "À régulariser dans les {$delai} jours suivant le paiement");
+            "À régulariser dans les {$delai} jours ouvrés suivant le paiement");
     }
 
     /** US-BC-13 (lot 5) : bon saisi pour le compte d'un collègue absent */
