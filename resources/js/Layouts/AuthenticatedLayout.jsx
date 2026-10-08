@@ -27,6 +27,7 @@ import {
     ClipboardList,
     ShieldAlert,
     Landmark,
+    Plane,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/Components/NotificationBell";
@@ -71,6 +72,16 @@ const navigationItems = [
             "directeur_pays",
             "caissier",
             "administrateur",
+        ],
+    },
+    {
+        /* M12 : tout salarié peut établir un ODM ; chacun y voit ce qui le concerne */
+        label: "Ordres de mission",
+        href: "odm.index",
+        icon: Plane,
+        roles: [
+            "demandeur", "responsable_service", "controle_gestion", "daf", "directeur_pays", "caissier", "administrateur",
+            "daf_adjoint", "chef_comptable", "tresorerie", "rh", "chef_atelier", "dp_adjoint", "logistique",
         ],
     },
     {

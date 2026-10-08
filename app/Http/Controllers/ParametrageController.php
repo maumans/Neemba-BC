@@ -33,7 +33,9 @@ class ParametrageController extends Controller
                 ->map(fn (Caisse $caisse) => $caisse->append(['solde_format', 'type_label'])),
             'typesCaisse' => Caisse::TYPES,
             'modesCaisse' => Caisse::MODES,
-            'services' => Service::orderBy('nom')->get(),
+            'services' => Service::orderBy('nom')->get()->map(fn (Service $s) => $s->setAttribute(
+                'dernier_numero_odm', \App\Services\Odm\NumeroteurOdm::dernier(\App\Services\Odm\NumeroteurOdm::prefixePour($s->nom), (int) now()->year),
+            )),
             'codesAnalytiques' => CodeAnalytique::with('service')->orderBy('code')->get(),
             'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
             'typesDocument' => TypeDocument::orderBy('nom')->get(),
@@ -185,9 +187,13 @@ class ParametrageController extends Controller
             'nom' => ['required', 'string', 'max:255', 'unique:services'],
             'code' => ['nullable', 'string', 'max:50'],
             'equivalent_odm' => ['nullable', 'string', 'max:40'],
-        ]);
+        ] + self::reglesOdmService());
 
-        Service::create($validated);
+        /* Une reprise de carnet refusée annule tout l'enregistrement */
+        \Illuminate\Support\Facades\DB::transaction(function () use ($validated) {
+            $service = Service::create(collect($validated)->except('reprise_carnet')->all());
+            $this->repriseCarnet($service, $validated);
+        });
 
         return back()->with('success', 'Service ajouté avec succès.');
     }
@@ -199,11 +205,47 @@ class ParametrageController extends Controller
             'code' => ['nullable', 'string', 'max:50'],
             'equivalent_odm' => ['nullable', 'string', 'max:40'],
             'actif' => ['boolean'],
-        ]);
+        ] + self::reglesOdmService());
 
-        $service->update($validated);
+        \Illuminate\Support\Facades\DB::transaction(function () use ($service, $validated) {
+            $service->update(collect($validated)->except('reprise_carnet')->all());
+            $this->repriseCarnet($service, $validated);
+        });
 
         return back()->with('success', 'Service mis à jour.');
+    }
+
+    /** M12 (Q28, RG-M12-24) : préfixe de numérotation des ODM, liste de diffusion, reprise du carnet papier */
+    private static function reglesOdmService(): array
+    {
+        return [
+            'prefixe_odm' => ['nullable', 'string', 'max:10', 'regex:/^[A-Za-z0-9]+$/'],
+            'diffusion_odm' => ['nullable', 'array'],
+            'diffusion_odm.*' => ['integer', 'exists:users,id'],
+            'reprise_carnet' => ['nullable', 'integer', 'min:0', 'max:999999'],
+        ];
+    }
+
+    /**
+     * Reprise du carnet papier : le prochain ODM du service portera le n° suivant (année en cours).
+     * Le compteur ne recule jamais, pour ne pas réattribuer un numéro.
+     */
+    private function repriseCarnet(Service $service, array $donnees): void
+    {
+        if (isset($donnees['prefixe_odm'])) {
+            $service->update(['prefixe_odm' => mb_strtoupper($donnees['prefixe_odm'])]);
+        }
+        if (!isset($donnees['reprise_carnet'])) {
+            return;
+        }
+        $prefixe = \App\Services\Odm\NumeroteurOdm::prefixePour($service->nom);
+        $actuel = \App\Services\Odm\NumeroteurOdm::dernier($prefixe, (int) now()->year);
+        if ((int) $donnees['reprise_carnet'] < $actuel) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'reprise_carnet' => "Le compteur {$prefixe} est déjà au n° {$actuel} : il ne peut pas reculer.",
+            ]);
+        }
+        \App\Services\Odm\NumeroteurOdm::definirDepart($prefixe, (int) now()->year, (int) $donnees['reprise_carnet']);
     }
 
     public function toggleService(Service $service)

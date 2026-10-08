@@ -49,5 +49,18 @@
     "MSG-M12-06": "Prolongation : une nuitée de rattrapage du segment :segment est ajoutée pour :nombre participant(s).",
     "MSG-M12-07": "Incohérence sur la mission :numero : :nuits nuits payées pour :jours jours.",
     "MSG-M12-08": "ODM :numero validé. Vous pouvez générer le ou les bons de caisse.",
-    "MSG-M12-09": "Retour anticipé : trop-perçu de :montant GNF pour :participant, à régulariser."
+    "MSG-M12-09": "Retour anticipé : trop-perçu de :montant GNF pour :participant, à régulariser.",
+    "MSG-M03-07": "Numéro d'OR invalide : 8 chiffres commençant par 110.",
+    "MSG-APP-011": "Le but de la mission doit comporter au moins 10 caractères.",
+    "MSG-APP-012": "Indiquez au moins une destination.",
+    "MSG-APP-013": "Ajoutez au moins un participant.",
+    "MSG-APP-014": "Un ordre de mission compte au plus :max participants.",
+    "MSG-APP-015": "Départ dans le passé : indiquez le motif de la régularisation.",
+    "MSG-APP-016": "Choisissez le mode d'hébergement à l'étranger.",
+    "MSG-APP-017": ":participant n'est pas un salarié actif : il ne peut pas partir en mission.",
+    "MSG-APP-018": "Indiquez le montant de la facture d'hébergement de :participant.",
+    "MSG-APP-019": "Cet ordre de mission a déjà été soumis : il ne peut plus être modifié ni soumis à nouveau.",
+    "MSG-APP-020": "Vous ne pouvez pas modifier cet ordre de mission.",
+    "MSG-APP-021": "Le code analytique choisi n'existe pas ou n'est plus actif.",
+    "MSG-APP-022": "Indiquez le motif de la dérogation (10 caractères minimum)."
 }

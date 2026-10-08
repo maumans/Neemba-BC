@@ -14,6 +14,8 @@ use App\Http\Controllers\TauxChangeController;
 use App\Http\Controllers\UtilisateurController;
 use App\Http\Controllers\ParametrageController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OdmApiController;
+use App\Http\Controllers\OrdreMissionController;
 use App\Http\Controllers\ValidationController;
 use Illuminate\Support\Facades\Route;
 
@@ -79,7 +81,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::patch('/bons/{bonCaisse}/pieces/{piece}/doublon', [AssistantBonController::class, 'confirmerDoublon'])->name('bons.pieces.doublon');
         Route::get('/bons/{bonCaisse}/pieces/{piece}/lecture', [AssistantBonController::class, 'lecture'])->name('bons.pieces.lecture');
         Route::post('/bons/{bonCaisse}/pieces/{piece}/lecture', [AssistantBonController::class, 'validerLecture'])->name('bons.pieces.lecture.valider');
+
+        /* M12 « Ordres de mission » : formulaire (brouillon, calcul renvoyé par le serveur), soumission */
+        Route::get('/odm/employes', [OdmApiController::class, 'employes'])->name('odm.employes');
+        Route::post('/odm', [OdmApiController::class, 'creer'])->name('odm.creer');
+        Route::put('/odm/{odm}', [OdmApiController::class, 'enregistrer'])->name('odm.enregistrer');
+        Route::post('/odm/{odm}/soumettre', [OdmApiController::class, 'soumettre'])->name('odm.soumettre');
+        Route::post('/odm/{odm}/derogation', [OdmApiController::class, 'demanderDerogation'])->name('odm.derogation');
+        Route::post('/odm/{odm}/annuler', [OdmApiController::class, 'annuler'])->name('odm.annuler');
     });
+
+    /* --- Ordres de mission (M12) : liste, formulaire, fiche, dérogation du DAF --- */
+    Route::get('/ordres-mission', [OrdreMissionController::class, 'index'])->name('odm.index');
+    Route::get('/ordres-mission/create', [OrdreMissionController::class, 'create'])->name('odm.create');
+    Route::get('/ordres-mission/{odm}', [OrdreMissionController::class, 'show'])->name('odm.show');
+    Route::get('/ordres-mission/{odm}/edit', [OrdreMissionController::class, 'edit'])->name('odm.edit');
+    Route::post('/ordres-mission/{odm}/derogation', [OrdreMissionController::class, 'deciderDerogation'])->name('odm.derogation');
 
     /* Actions spécifiques sur les bons de caisse (toutes paramétrées → pas de conflit) */
     Route::post('/bons-caisse/{bonCaisse}/otp/generer', [BonCaisseController::class, 'genererOtp'])

@@ -247,6 +247,28 @@ class OrdreMission extends Model
     }
 
     /* ----------------------------------------------------------------
+     * DROITS
+     * ---------------------------------------------------------------- */
+
+    /** Rôles qui voient tous les ODM : circuit (DAF, DP), Trésorerie (taux, US-15), RH (retenues), administration */
+    public const ROLES_VISION_GLOBALE = ['daf', 'daf_adjoint', 'chef_comptable', 'directeur_pays', 'dp_adjoint', 'tresorerie', 'rh', 'administrateur'];
+
+    /** Rôles qui décident d'une dérogation au chevauchement (RG-M12-16) */
+    public const ROLES_DEROGATION = ['daf', 'daf_adjoint'];
+
+    public function estVisiblePar(User $utilisateur): bool
+    {
+        return static::visiblesPar($utilisateur)->whereKey($this->id)->exists();
+    }
+
+    /** Demandeur et initiateur, tant que l'ODM est en brouillon ou rejeté */
+    public function estModifiablePar(User $utilisateur): bool
+    {
+        return in_array($this->statut, ['BROUILLON', 'REJETE'], true)
+            && in_array($utilisateur->id, [$this->demandeur_id, $this->initiateur_id], true);
+    }
+
+    /* ----------------------------------------------------------------
      * SCOPES
      * ---------------------------------------------------------------- */
 
@@ -254,5 +276,31 @@ class OrdreMission extends Model
     public function scopePourChevauchement($query)
     {
         return $query->whereIn('statut', self::STATUTS_CHEVAUCHEMENT);
+    }
+
+    /**
+     * ODM visibles : les siens (demandeur, initiateur, participant), ceux de son service pour un chef d'atelier,
+     * ceux qu'on a visés, et tous pour les rôles de vision globale. Les brouillons ne sont visibles que de leurs auteurs.
+     */
+    public function scopeVisiblesPar($query, User $utilisateur)
+    {
+        $roles = $utilisateur->listeRoles();
+
+        return $query->where(function ($q) use ($utilisateur, $roles) {
+            $q->where('demandeur_id', $utilisateur->id)
+                ->orWhere('initiateur_id', $utilisateur->id)
+                /* Dérogation au chevauchement demandée sur un brouillon : le DAF doit pouvoir l'examiner */
+                ->when(array_intersect($roles, self::ROLES_DEROGATION), fn ($d) => $d->orWhere('derogation_statut', 'demandee'))
+                ->orWhere(fn ($soumis) => $soumis->where('statut', '!=', 'BROUILLON')->where(function ($s) use ($utilisateur, $roles) {
+                    $s->whereHas('participants', fn ($p) => $p->where('user_id', $utilisateur->id))
+                        ->orWhereHas('etapes', fn ($e) => $e->where('valideur_id', $utilisateur->id));
+                    if (array_intersect($roles, self::ROLES_VISION_GLOBALE)) {
+                        $s->orWhereRaw('1 = 1');
+                    }
+                    if (in_array('chef_atelier', $roles, true) && $utilisateur->service) {
+                        $s->orWhere('service', $utilisateur->service);
+                    }
+                }));
+        });
     }
 }

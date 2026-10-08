@@ -26,7 +26,7 @@ export default function TauxChange({ tauxDuJour = null, dernierTaux = null, hist
     };
 
     return (
-        <AuthenticatedLayout header={<h2 className="text-xl font-semibold leading-tight text-gray-800">Taux du jour</h2>}>
+        <AuthenticatedLayout header="Taux du jour">
             <Head title="Taux du jour" />
 
             <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">

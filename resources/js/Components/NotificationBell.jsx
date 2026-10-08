@@ -148,7 +148,9 @@ export default function NotificationBell() {
                         label: 'Voir',
                         onClick: () => router.visit(route('bons-caisse.show', data.bon_caisse_id)),
                     }
-                    : undefined,
+                    : data.metadata?.odm_id
+                        ? { label: 'Voir', onClick: () => router.visit(route('odm.show', data.metadata.odm_id)) }
+                        : undefined,
             });
         });
 
@@ -204,6 +206,8 @@ export default function NotificationBell() {
         setOuvert(false);
         if (notification.bon_caisse_id) {
             router.visit(route('bons-caisse.show', notification.bon_caisse_id));
+        } else if (notification.metadata?.odm_id) {
+            router.visit(route('odm.show', notification.metadata.odm_id));
         } else if (notification.type === 'delegation') {
             router.visit(route('delegations.index'));
         }

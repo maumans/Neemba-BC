@@ -414,14 +414,17 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
 
     /* ─── SERVICES ─── */
     const [serviceDialog, setServiceDialog] = useState({ open: false, item: null });
-    const serviceForm = useForm({ nom: '', code: '', equivalent_odm: '' });
+    const serviceForm = useForm({ nom: '', code: '', equivalent_odm: '', prefixe_odm: '', diffusion_odm: [], reprise_carnet: '' });
 
     const openServiceAdd = () => {
         serviceForm.reset();
         setServiceDialog({ open: true, item: null });
     };
     const openServiceEdit = (item) => {
-        serviceForm.setData({ nom: item.nom, code: item.code || '', equivalent_odm: item.equivalent_odm || '' });
+        serviceForm.setData({
+            nom: item.nom, code: item.code || '', equivalent_odm: item.equivalent_odm || '',
+            prefixe_odm: item.prefixe_odm || '', diffusion_odm: item.diffusion_odm || [], reprise_carnet: '',
+        });
         setServiceDialog({ open: true, item });
     };
     const submitService = (e) => {
@@ -619,6 +622,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                         { key: 'nom', label: 'Nom du service' },
                                         { key: 'code', label: 'Code' },
                                         { key: 'equivalent_odm', label: 'Équivalent ODM' },
+                                        { key: 'prefixe_odm', label: 'Préfixe ODM' },
                                     ]}
                                     onAdd={openServiceAdd}
                                     onEdit={openServiceEdit}
@@ -901,6 +905,40 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <Label>Équivalent sur la fiche d'ordre de mission</Label>
                     <Input value={serviceForm.data.equivalent_odm} onChange={(e) => serviceForm.setData('equivalent_odm', e.target.value.toUpperCase())} placeholder="Ex : SERVICE, LOCATION, ADMINISTRATION" className="mt-1" />
                     {serviceForm.errors.equivalent_odm && <p className="text-sm text-red-500 mt-1">{serviceForm.errors.equivalent_odm}</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <Label>Préfixe des ODM</Label>
+                        <Input value={serviceForm.data.prefixe_odm} onChange={(e) => serviceForm.setData('prefixe_odm', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="Ex : AT" maxLength={10} className="mt-1" />
+                        <p className="text-xs text-gray-500 mt-1">N°285/<strong>AT</strong>/26</p>
+                        {serviceForm.errors.prefixe_odm && <p className="text-sm text-red-500 mt-1">{serviceForm.errors.prefixe_odm}</p>}
+                    </div>
+                    <div>
+                        <Label>Dernier n° du carnet papier ({new Date().getFullYear()})</Label>
+                        <Input type="number" min={0} value={serviceForm.data.reprise_carnet} onChange={(e) => serviceForm.setData('reprise_carnet', e.target.value)}
+                            placeholder={serviceDialog.item?.dernier_numero_odm ? `Actuel : ${serviceDialog.item.dernier_numero_odm}` : 'Ex : 285'} className="mt-1" />
+                        <p className="text-xs text-gray-500 mt-1">Le prochain ODM prendra le numéro suivant.</p>
+                        {serviceForm.errors.reprise_carnet && <p className="text-sm text-red-500 mt-1">{serviceForm.errors.reprise_carnet}</p>}
+                    </div>
+                </div>
+                <div>
+                    <Label>Liste de diffusion des ODM</Label>
+                    <p className="text-xs text-gray-500">Notifiée de chaque création, validation, prolongation et clôture (chef d'atelier, logistique, assistante…).</p>
+                    <div className="mt-1 max-h-40 overflow-y-auto rounded-md border p-2 space-y-1">
+                        {utilisateursActifs.map((u) => (
+                            <label key={u.id} className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={serviceForm.data.diffusion_odm.includes(u.id)}
+                                    onChange={(e) => serviceForm.setData('diffusion_odm', e.target.checked
+                                        ? [...serviceForm.data.diffusion_odm, u.id]
+                                        : serviceForm.data.diffusion_odm.filter((id) => id !== u.id))}
+                                />
+                                {u.libelle}
+                            </label>
+                        ))}
+                    </div>
+                    {serviceForm.errors.diffusion_odm && <p className="text-sm text-red-500 mt-1">{serviceForm.errors.diffusion_odm}</p>}
                 </div>
             </FormDialog>
 

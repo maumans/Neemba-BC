@@ -876,7 +876,7 @@ class NotificationService
      * Créer une notification simple (sans bon de caisse) et la diffuser via Reverb
      * Utilisée pour les mouvements de caisse, délégations, etc.
      */
-    private static function creerEtDiffuserSimple(
+    public static function creerEtDiffuserSimple(
         User $destinataire,
         ?User $expediteur,
         string $type,
