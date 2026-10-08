@@ -3512,3 +3512,93 @@ La Trésorerie voit le taux estimé et le taux appliqué de chaque bon dans l'on
 ### 33.4 Déploiement
 
 Aucune migration. `php artisan optimize:clear`, puis `npm run build`.
+
+## 34. Version v34 — Module M12, lot M12-8 : recette et bilan du module « Ordres de mission » (8 Octobre 2026)
+
+Branche `m12-odm`, partie de `lot5-suivi`. Commits locaux, non poussés, non déployés.
+
+### 34.1 Scénarios de la spec (annexe A) et tests
+
+| Scénario | Sujet | Tests |
+|----------|-------|-------|
+| SC-20 | ODM intérieur, une personne (B.1) | `CalculOdmTest`, `SaisieOdmTest`, `CircuitOdmTest` |
+| SC-21 | ODM à plusieurs personnes | `SaisieOdmTest` |
+| SC-22 | ODM technique avec OR | `SaisieOdmTest` |
+| SC-23 | Génération des bons, individuels ou groupé (B.2) | `GenerationBonsOdmTest` |
+| SC-24 | Prolongation, nuitée de rattrapage (B.3) | `CalculOdmTest`, `ProlongationOdmTest` |
+| SC-25 | Ajustement au réel et clôture | `ClotureOdmTest` |
+| SC-26 | Chevauchement de périodes | `SaisieOdmTest` |
+| SC-27 | Mission sur base vie | `CalculOdmTest`, `SaisieOdmTest` |
+| SC-28 | ODM à la charge du client | `GenerationBonsOdmTest`, `ImpressionTableauOdmTest` |
+| SC-29 | ODM extérieur | `CalculOdmTest`, `SaisieOdmTest`, `GenerationBonsOdmTest`, `ClotureOdmTest` |
+| SC-37 | ODM générant un BP | `GenerationBonsOdmTest` |
+
+L'annexe B est vérifiée au franc près, dans `CalculOdmTest` (calcul) et dans les tests de génération et de paiement (frais OM et montants versés) :
+- B.1 : 3 250 000 + 32 500 = 3 282 500 ;
+- B.2 : 6 565 000 en deux bons, 6 552 000 en un bon groupé ;
+- B.3 : prolongation à 5 250 000 et 5 292 000 versés ;
+- B.4 : écart de la mission KOUROUMA signalé.
+
+**Total** : **264 tests PHP** (88 pour M12) et **66 tests JavaScript** (7 pour M12) passent.
+
+### 34.2 Parcours complet dans un navigateur (Edge)
+
+Le parcours est rejoué sur une copie jetable de la base de développement (`.env.e2e`, port 8001, SMS et OpenAI désactivés). 15 vérifications, aucune erreur JavaScript :
+
+1. Philippe KOLIE crée un ODM pour deux techniciens, dont un logé sur base vie. Le serveur calcule 4 500 000 GNF ; l'ODM est soumis en N°1/AT/26.
+2. Thomas BANGOURA (chef d'atelier), Mohamed DIAKITE (DAF) et Mamadou LO (DP) visent : MSG-M12-08.
+3. Philippe génère deux BD et un BP d'avance pour frais réels ; les trois partent dans leur circuit.
+4. Youssouf TOURE paie le BD de Yacouba BARRY en Orange Money : 3 282 500 GNF versés.
+5. Philippe prolonge la mission jusqu'au 31/10. MSG-M12-06 s'affiche : la nuitée de rattrapage ne concerne que le participant hors base vie. La prolongation est validée en N°2/AT/26.
+6. Retour anticipé le 28/10 : la prolongation est clôturée et ses bons sont générés au montant réel.
+7. Vue mission : 9 jours du 20/10 au 28/10 ; « Cohérent (8 = 9 − 1) » pour Yacouba ; contrôle sans objet pour le participant sur base vie.
+8. Le PDF est produit ; le tableau de bord du DAF ne compte plus la mission parmi celles en cours.
+
+Chaque lot a en outre été parcouru séparément (§26 à §33), soit au total 116 vérifications dans le navigateur. Ces parcours ont révélé et fait corriger plusieurs défauts : l'OTP sans service SMS, le matricule obligatoire à la modification d'un compte importé, et le brouillon d'ODM créé en double.
+
+### 34.3 Bilan du module M12
+
+Les 29 règles RG-M12, les 9 messages MSG-M12 et les 11 scénarios sont couverts. Le suivi détaillé est dans `docs/ORDRE_DE_MISSIONS.md`, entièrement coché, et les décisions provisoires Q22 à Q47 sont dans `docs/questions.md`.
+
+| Lot | Contenu | devBook |
+|-----|---------|---------|
+| M12-0 | Frais Orange Money au paiement, taux du jour, jours ouvrés, paramètres ODM, rôles, n° OM | §26 |
+| M12-1 | Modèle de données, calcul (annexe B), numérotation | §27 |
+| M12-2 | Formulaire, soumission, chevauchement et dérogation | §28 |
+| M12-3 | Circuit chef d'atelier → DAF → DP, suppléants, rejet, calcul figé, relances | §29 |
+| M12-4 | Génération des bons, BP, prise en charge client, ODM extérieur au taux du jour | §30 |
+| M12-5 | Prolongations, vue mission, rappel | §31 |
+| M12-6 | Clôture, trop-perçu, annulation par le DAF, hébergement payé au retour | §32 |
+| M12-7 | PDF, tableau de bord du DAF, export Excel | §33 |
+
+**Migrations M12** : `2026_10_12_000001` à `000005`, appliquées à la base de développement après vérification sur une copie. La 000004 a d'abord été appliquée par erreur ; son aller-retour a été vérifié ensuite.
+
+**Commandes planifiées ajoutées** :
+- `odm:relancer-visas` (toutes les heures) ;
+- `odm:rappeler-fin-segment` (chaque jour à 7 h).
+
+### 34.4 Ce qui reste hors de ce chantier
+
+| Point | Où / attendu de |
+|-------|-----------------|
+| Mise en page du PDF alignée sur les fiches papier N°282 et N°285/AT/26 | Fiches à transmettre par Neemba |
+| Listes de diffusion, préfixes et derniers numéros des carnets de chaque service ; chefs d'atelier de chaque service | Neemba, puis Paramétrage → Services et Utilisateurs |
+| Jours fériés mobiles de l'année (Q29) | Administrateur |
+| Archivage des pièces et des PDF de l'ODM | Avec le module d'archivage (M15) |
+| Avance carburant du véhicule de mission (US-12) | M13 |
+| Délais de validation en heures ouvrées, DP adjoint sur les bons, numérotation des bons par caisse, et les autres écarts de la v2.2 sur M03 | Plan dédié (`docs/ORDRE_DE_MISSIONS.md`, §11) |
+| Points ouverts PO-02 à PO-09 et PO-21 | Paramètres en place ; réponses de Neemba attendues |
+
+### 34.5 Déploiement du module
+
+```bash
+php artisan migrate        # 5 migrations M12
+php artisan optimize:clear
+npm run build
+```
+
+Ensuite :
+1. saisir le taux du jour (Trésorerie) ;
+2. compléter les jours fériés ;
+3. renseigner les services (préfixe, diffusion, carnet), les rôles « chef d'atelier » et les n° Orange Money des salariés ;
+4. vérifier que le planificateur Laravel tourne (`schedule:run`).

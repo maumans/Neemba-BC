@@ -5,6 +5,8 @@
 > - comité de suivi du 06/10/2026.
 >
 > **Branche** : `m12-odm`. Fichier mis à jour à chaque lot : cases à cocher et journal en fin de document.
+>
+> **État au 08/10/2026** : module terminé (lots M12-0 à M12-8). Les 29 règles et les 11 scénarios sont couverts, et 264 tests PHP et 66 tests JavaScript passent. Restent les éléments « À obtenir » de Neemba (section 9.3) et les points hors du chantier (devBook §34.4).
 
 ---
 
@@ -352,9 +354,9 @@ Pour chaque lot :
 
 ### M12-8 — Recette (≈ 1,5 j)
 
-- [ ] Tests des scénarios SC-20 à SC-29 et SC-37
-- [ ] Parcours complet dans le navigateur
-- [ ] devBook, `docs/questions.md`, ce fichier entièrement coché
+- [x] Tests des scénarios SC-20 à SC-29 et SC-37 (section 10)
+- [x] Parcours complet dans le navigateur (15 vérifications, devBook §34)
+- [x] devBook (§26 à §34), `docs/questions.md` (Q22 à Q47), ce fichier entièrement coché
 
 **Total estimé : environ 19,5 jours**, dans la fenêtre « évolutions + module ODM » du 12/10 au 20/11 fixée en comité.
 
@@ -459,3 +461,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 08/10/2026 | M12-5 | bb6eec5, 2556f1c | Prolongations (départ figé, retrait sans ajout, nuitée de rattrapage, numéro propre), vue mission et alerte au DAF, rappel 2 jours ouvrés avant la fin ; 254 tests PHP ; parcours navigateur (12 vérifications). Décisions Q44, Q45 |
 | 08/10/2026 | M12-6 | 2460f9f, 738e1d5 | Clôture (retour anticipé, trop-perçu, bons remplacés au réel), régularisation par le caissier ou les RH, annulation par le DAF, hébergement payé au retour ; correction : brouillon créé en double par l'enregistrement automatique ; 261 tests PHP ; parcours navigateur (11 vérifications). Décisions Q46, Q47 |
 | 08/10/2026 | M12-7 | 34f972d, c52e2f9 | PDF (ordre de mission et fiche d'indemnités, visas horodatés), tableau de bord du DAF (missions en cours, dérogations, à refacturer) et export Excel ; 264 tests PHP ; parcours navigateur (8 vérifications) |
+| 08/10/2026 | M12-8 | (ce commit) | Recette : scénarios SC-20 à SC-29 et SC-37 couverts, parcours complet dans le navigateur (15 vérifications, sans échec), devBook §34 et bilan du module |
