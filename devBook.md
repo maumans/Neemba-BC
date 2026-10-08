@@ -3326,3 +3326,67 @@ php artisan migrate        # bons_caisse : montant_fcfa, montant_gnf_fixe, taux_
 php artisan optimize:clear
 npm run build
 ```
+
+## 31. Version v31 — Module M12, lot M12-5 : prolongations, vue mission, rappel (8 Octobre 2026)
+
+Branche `m12-odm`. US-09 de la spec v2.2 (§7.3) ; RG-M12-17, RG-M12-18, RG-M12-19 et RG-M12-28 ; scénario SC-24, annexes B.3 et B.4.
+
+### 31.1 Prolongation (`App\Services\Odm\ProlongerOdm`)
+
+Sur la fiche du **dernier segment validé** d'une mission (statuts Validé, Bons générés ou Payé), son demandeur clique sur **Prolonger la mission** et indique la nouvelle date de retour.
+
+- Un nouveau segment est créé **en brouillon**, lié au précédent et à l'ODM initial. Son rang est 2, 3…
+- **Départ = retour du segment précédent + 1 jour**. Le départ et le type d'ODM sont figés.
+- En-tête, OR et participants sont repris :
+  - un participant peut être **retiré** : il reste sur le segment, marqué « retiré » ;
+  - aucun participant ne peut être **ajouté** (MSG-APP-033).
+- **Nuitée de rattrapage** (RG-M12-18) : une nuit d'hébergement du segment précédent, sur une ligne distincte, pour chaque participant qui n'y était pas logé sur base vie. Le message MSG-M12-06 s'affiche à la création et dans le bandeau du formulaire.
+- Même circuit que l'ODM initial. **Numéro propre** à la soumission, et libellé « Prolongation n de N°xxx » (Q23). La liste de diffusion est notifiée de la prolongation (RG-M12-24).
+- Refus (MSG-APP-034) :
+  - le segment n'est pas encore validé ;
+  - une prolongation est déjà en cours ;
+  - l'utilisateur n'est pas le demandeur ;
+  - le retour est antérieur au départ (MSG-M12-02).
+- Exemple B.3 : le segment 1, du 22/09 au 26/09, est prolongé du 27/09 au 03/10. Le calcul donne 7 jours, 6 nuits et 1 nuitée de rattrapage, soit 5 250 000 GNF.
+
+### 31.2 Vue mission (`App\Services\Odm\VueMission`, RG-M12-19)
+
+L'onglet **Mission** de la fiche montre :
+- les **segments** de la mission, du premier au dernier : numéro, libellé de prolongation, période, jours, total, statut ;
+- les **cumuls par participant** : jours, nuits payées (nuits + nuitées de rattrapage), montant ;
+- le **contrôle** nuits = jours − 1, hors jours où le participant n'est pas hébergé aux frais de Neemba (base vie, ou filiale d'accueil à l'étranger) ;
+- le coût total de la mission.
+
+Les brouillons, les segments rejetés et les segments annulés ne comptent pas.
+
+**Signalement au DAF** : après la validation finale d'un segment, une incohérence sur la mission est notifiée au DAF et au DAF adjoint, par exemple « Incohérence sur la mission N°… : x nuits payées pour y jours. (participant) » (MSG-M12-07). Elle est aussi notée dans le journal de l'ODM initial.
+
+Le calcul de la plateforme ne produit pas d'écart. Le contrôle repère une donnée faussée, ou une reprise de l'historique comme la mission KOUROUMA (annexe B.4) : 57 nuits payées pour 59 jours, signalées. Le calcul n'est pas adapté pour reproduire cet écart (PO-21).
+
+### 31.3 Rappel avant la fin d'un segment (RG-M12-28)
+
+La commande **`odm:rappeler-fin-segment`** est planifiée chaque jour à 7 h.
+- Pour le dernier segment d'une mission en cours, elle envoie au demandeur, **2 jours ouvrés** avant le retour prévu (paramètre `odm_delai_rappel`), une notification : « La mission N°… se termine le … : prolongez-la si elle continue, ou clôturez-la au retour. »
+- Le rappel n'est envoyé qu'une fois ; c'est tracé dans le journal.
+- Un segment déjà prolongé ne reçoit pas de rappel.
+
+### 31.4 Tests
+
+- **`tests/Feature/M12/ProlongationOdmTest.php`** (7 tests) :
+  - SC-24 / B.3 : prolongation, nuitée de rattrapage, numéro N°2/AT/26 et libellé, notification de la diffusion ;
+  - vue mission (12 jours, 11 nuits, 8 500 000 GNF) ; seconde prolongation ;
+  - participants : retrait, ajout refusé, base vie sans rattrapage ; type et départ figés ;
+  - refus de prolongation ;
+  - mission KOUROUMA (B.4) : écart signalé ;
+  - incohérence signalée au DAF à la validation ;
+  - rappel le jeudi 24/09 pour un retour le samedi 26/09, une seule fois ; pas de rappel pour un segment déjà prolongé.
+- **Total** : **254 tests PHP** et 66 tests JavaScript passent.
+- **Parcours dans un navigateur (Edge)**, sur une copie jetable de la base : 12 vérifications. Un ODM du 20/10 au 24/10 est validé, puis prolongé jusqu'au 28/10 :
+  - le formulaire montre MSG-M12-06, le départ figé au 25/10, aucune recherche de participant et la ligne de rattrapage ;
+  - le total du segment est de 3 000 000 GNF ;
+  - la prolongation part en N°2/AT/26, puis est visée ;
+  - l'onglet Mission indique 9 jours, « Cohérent (8 = 9 − 1) » et un coût de 6 250 000 GNF.
+
+### 31.5 Déploiement
+
+Aucune migration. `php artisan optimize:clear`, puis `npm run build`. Le planificateur lance `odm:rappeler-fin-segment` chaque jour à 7 h.

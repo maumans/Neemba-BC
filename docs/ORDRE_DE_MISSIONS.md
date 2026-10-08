@@ -206,9 +206,9 @@ Statut :
 | RG-M12-14 | Un bon par participant (défaut) ou bon groupé | O | M12-4 | ☑ |
 | RG-M12-15 | Prise en charge client : variante A (bons et « à refacturer », défaut) ou B (aucun bon) | O | M12-4 | ☑ |
 | RG-M12-16 | Chevauchement bloqué ; dérogation du DAF motivée | C | M12-2 | ☑ |
-| RG-M12-17 | Prolongation : segment lié, départ = retour + 1, participants repris (pas d'ajout) | C | M12-5 | ☐ |
-| RG-M12-18 | Nuitée de rattrapage pour chaque participant non logé sur base vie | C | M12-5 | ☐ |
-| RG-M12-19 | Vue mission : cumuls et contrôle nuits = jours − 1, signalé au DAF | C | M12-5 | ☐ |
+| RG-M12-17 | Prolongation : segment lié, départ = retour + 1, participants repris (pas d'ajout) | C | M12-5 | ☑ |
+| RG-M12-18 | Nuitée de rattrapage pour chaque participant non logé sur base vie | C | M12-5 | ☑ |
+| RG-M12-19 | Vue mission : cumuls et contrôle nuits = jours − 1, signalé au DAF | C | M12-5 | ☑ |
 | RG-M12-20 | Clôture : retour réel ; anticipé → trop-perçu ; tardif → prolongation | D | M12-6 | ☐ |
 | RG-M12-21 | 9 statuts | C | M12-1 | ☑ |
 | RG-M12-22 | Annulation : demandeur avant génération, DAF ensuite ; un bon payé interdit l'annulation | D | M12-6 | ☐ |
@@ -217,7 +217,7 @@ Statut :
 | RG-M12-25 | Calcul figé à la validation finale | C | M12-3 | ☑ |
 | RG-M12-26 | Hébergement extérieur, 3 modes | C | M12-6 | ☐ |
 | RG-M12-27 | Référence billet / bon de commande Wanda (facultatif) | C | M12-6 | ☐ |
-| RG-M12-28 | Rappel avant la fin d'un segment (2 jours ouvrés) | C | M12-5 | ☐ |
+| RG-M12-28 | Rappel avant la fin d'un segment (2 jours ouvrés) | C | M12-5 | ☑ |
 | RG-M12-29 | Aucun justificatif exigé au retour pour les indemnités forfaitaires | C | M12-4 | ☑ |
 
 Règles d'autres modules utilisées par M12 :
@@ -334,9 +334,9 @@ Pour chaque lot :
 
 ### M12-5 — Prolongations et vue mission (≈ 2 j)
 
-- [ ] `ProlongerOdm` : segment lié, participants repris, nuitée de rattrapage (MSG-M12-06), libellé « Prolongation n de N°xxx »
-- [ ] Vue mission : cumuls et contrôle nuits = jours − 1 (MSG-M12-07, alerte au DAF)
-- [ ] Commande de rappel des missions longues (2 jours ouvrés avant la fin)
+- [x] `ProlongerOdm` : segment lié, participants repris, nuitée de rattrapage (MSG-M12-06), libellé « Prolongation n de N°xxx »
+- [x] Vue mission : cumuls et contrôle nuits = jours − 1 (MSG-M12-07, alerte au DAF)
+- [x] Commande de rappel des missions longues (2 jours ouvrés avant la fin)
 
 ### M12-6 — Clôture, annulation, extérieur (≈ 2 j)
 
@@ -410,7 +410,7 @@ Ces questions ne sont pas tranchées par la spécification. Elles seront report�
 | SC-21 | ODM à plusieurs personnes | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-22 | ODM technique avec OR liés | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-23 | Génération des bons (individuels / groupé, exemple B.2) | M12-4 | `GenerationBonsOdmTest` | ☑ |
-| SC-24 | Prolongation d'une mission longue, nuitée de rattrapage (exemple B.3) | M12-5 | | ☐ |
+| SC-24 | Prolongation d'une mission longue, nuitée de rattrapage (exemple B.3) | M12-5 | `CalculOdmTest`, `ProlongationOdmTest` | ☑ |
 | SC-25 | Ajustement au réel et clôture | M12-6 | | ☐ |
 | SC-26 | Chevauchement de périodes (anti-doublon) | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-27 | Mission sur base vie | M12-1 / M12-2 | `CalculOdmTest, SaisieOdmTest` | ☑ |
@@ -456,3 +456,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 08/10/2026 | M12-2 | 61b52eb, e051c9f | Formulaire (brouillon automatique, calcul du serveur), soumission, chevauchement et dérogation du DAF, liste, fiche, paramétrage des services ; 227 tests PHP, 66 JS ; parcours navigateur (23 vérifications). Décisions Q33 à Q35 |
 | 08/10/2026 | M12-3 | d5d14f9, 2356246 | Circuit chef d'atelier → DAF → DP (RH en option), suppléants « au titre de », étapes sautées (RG-M01-04), rejet et resoumission, calcul figé, relances et escalade ; 237 tests PHP ; parcours navigateur (16 vérifications). Décisions Q36 à Q39 |
 | 08/10/2026 | M12-4 | fe25dde, 79c6f97 | Génération des bons (par participant ou groupé, BP d'avance), champs verrouillés, prise en charge client, ODM extérieur recalculé au taux du jour, ODM « Payé » ; 247 tests PHP ; parcours navigateur (13 vérifications). Décisions Q40 à Q43. Incident : la migration 000004 a été appliquée à la base de dev par un `migrate --env=testing` lancé par erreur (sans `.env.testing`, Laravel lit `.env`) ; ajout de colonnes sans effet sur les données, aller-retour vérifié ensuite sur une copie |
+| 08/10/2026 | M12-5 | bb6eec5, 2556f1c | Prolongations (départ figé, retrait sans ajout, nuitée de rattrapage, numéro propre), vue mission et alerte au DAF, rappel 2 jours ouvrés avant la fin ; 254 tests PHP ; parcours navigateur (12 vérifications). Décisions Q44, Q45 |
