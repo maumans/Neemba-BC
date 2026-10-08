@@ -66,6 +66,8 @@ class BonCaisse extends Model
         'references_or',
         'lie_mission',
         'odm_id',
+        'odm_participant_id',
+        'genere_par_odm',
         'date_retour_mission',
         'motif_annulation',
         'date_annulation',
@@ -99,6 +101,7 @@ class BonCaisse extends Model
         return [
             'references_or' => 'array',
             'lie_mission' => 'boolean',
+            'genere_par_odm' => 'boolean',
             'date_retour_mission' => 'date',
             'date_annulation' => 'datetime',
             'montant' => 'decimal:2',
@@ -266,11 +269,17 @@ class BonCaisse extends Model
     }
 
     /**
-     * Ordre de mission associé (le cas échéant)
+     * Ordre de mission dont le bon est issu, ou auquel un BP de mission est rattaché (M12)
      */
-    public function ordreMission(): HasOne
+    public function ordreMission(): BelongsTo
     {
-        return $this->hasOne(OrdreMission::class, 'bon_caisse_id');
+        return $this->belongsTo(OrdreMission::class, 'odm_id');
+    }
+
+    /** Participant de l'ODM payé par ce bon (bon généré « un par participant », RG-M12-14) */
+    public function participantOdm(): BelongsTo
+    {
+        return $this->belongsTo(ParticipantOdm::class, 'odm_participant_id');
     }
 
     /**

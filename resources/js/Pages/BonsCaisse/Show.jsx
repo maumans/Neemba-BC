@@ -857,12 +857,12 @@ export default function Show({
                                                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ordre de Mission</p>
                                                 <div className="grid grid-cols-2 gap-3 text-sm">
                                                     <div>
-                                                        <p className="text-gray-500">Référence</p>
-                                                        <p>{bonCaisse.ordre_mission.reference}</p>
+                                                        <p className="text-gray-500">Numéro</p>
+                                                        <p>{bonCaisse.ordre_mission.numero ?? 'Brouillon'}</p>
                                                     </div>
                                                     <div>
-                                                        <p className="text-gray-500">Destination</p>
-                                                        <p>{bonCaisse.ordre_mission.destination}</p>
+                                                        <p className="text-gray-500">Destination(s)</p>
+                                                        <p>{(bonCaisse.ordre_mission.destinations ?? []).join(', ') || '—'}</p>
                                                     </div>
                                                     <div>
                                                         <p className="text-gray-500">Départ</p>
@@ -870,7 +870,7 @@ export default function Show({
                                                     </div>
                                                     <div>
                                                         <p className="text-gray-500">Retour</p>
-                                                        <p>{formatDate(bonCaisse.ordre_mission.date_retour)}</p>
+                                                        <p>{formatDate(bonCaisse.ordre_mission.date_retour_reelle ?? bonCaisse.ordre_mission.date_retour_prevue)}</p>
                                                     </div>
                                                 </div>
                                             </>

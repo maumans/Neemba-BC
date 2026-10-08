@@ -15,10 +15,12 @@ class Service extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['nom', 'code', 'equivalent_odm', 'actif'];
+    protected $fillable = ['nom', 'code', 'equivalent_odm', 'prefixe_odm', 'diffusion_odm', 'actif'];
 
     protected $casts = [
         'actif' => 'boolean',
+        /* M12 (RG-M12-24) : identifiants des utilisateurs notifiés des événements des ODM du service */
+        'diffusion_odm' => 'array',
     ];
 
     public function scopeActifs($query)

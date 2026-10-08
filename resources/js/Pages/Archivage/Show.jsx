@@ -37,6 +37,7 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { formaterMontant } from '@/utils/nombreEnLettres';
+import { formaterDate } from '@/utils/format';
 import { useState } from 'react';
 
 export default function Show({ piece, classificationsIa = {}, typesDocuments = {} }) {
@@ -226,20 +227,20 @@ export default function Show({ piece, classificationsIa = {}, typesDocuments = {
                                 <CardContent>
                                     <div className="grid grid-cols-2 gap-4 text-sm">
                                         <div>
-                                            <p className="text-gray-500">Destination</p>
-                                            <p className="font-medium">{ordreMission.destination || '—'}</p>
+                                            <p className="text-gray-500">Destination(s)</p>
+                                            <p className="font-medium">{(ordreMission.destinations ?? []).join(', ') || '—'}</p>
                                         </div>
                                         <div>
-                                            <p className="text-gray-500">Objet</p>
-                                            <p className="font-medium">{ordreMission.objet || '—'}</p>
+                                            <p className="text-gray-500">But</p>
+                                            <p className="font-medium">{ordreMission.but || '—'}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Date départ</p>
-                                            <p>{ordreMission.date_depart ? new Date(ordreMission.date_depart).toLocaleDateString('fr-FR') : '—'}</p>
+                                            <p>{formaterDate(ordreMission.date_depart)}</p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Date retour</p>
-                                            <p>{ordreMission.date_retour ? new Date(ordreMission.date_retour).toLocaleDateString('fr-FR') : '—'}</p>
+                                            <p>{formaterDate(ordreMission.date_retour_reelle ?? ordreMission.date_retour_prevue)}</p>
                                         </div>
                                     </div>
                                 </CardContent>

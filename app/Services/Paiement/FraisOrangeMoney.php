@@ -22,12 +22,13 @@ final class FraisOrangeMoney
 
     /**
      * Frais calculés pour ce total, ou null hors paliers (frais à saisir au paiement).
+     * $paliers : grille figée (ODM validé, RG-M12-25) ; à défaut, celle du paramètre.
      *
      * @return array{frais: int, taux: float, montant_verse: float}|null
      */
-    public static function calculer(float $total): ?array
+    public static function calculer(float $total, ?array $paliers = null): ?array
     {
-        $palier = collect(self::paliers())->first(fn (array $p) => $total >= $p['de'] && $total <= $p['a']);
+        $palier = collect($paliers ?? self::paliers())->first(fn (array $p) => $total >= $p['de'] && $total <= $p['a']);
         if (!$palier) {
             return null;
         }
