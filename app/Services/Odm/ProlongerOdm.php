@@ -55,7 +55,7 @@ final class ProlongerOdm
             $initial = $precedent->initial();
             $segment = OrdreMission::create($precedent->only([
                 'type', 'technique', 'entite', 'site', 'service', 'code_analytique', 'but', 'clients', 'destinations', 'vehicule',
-                'prise_en_charge', 'hebergement_exterieur', 'reference_billet',
+                'prise_en_charge', 'mode_client', 'hebergement_exterieur', 'reference_billet',
             ]) + [
                 'demandeur_id' => $precedent->demandeur_id,
                 'initiateur_id' => $auteur->id,
@@ -68,9 +68,12 @@ final class ProlongerOdm
             ]);
 
             foreach ($precedent->participantsActifs()->get() as $participant) {
+                /* Q49 : choix repris ; la nuitée de rattrapage suit celui de l'hébergement du segment précédent */
+                $prises = CalculOdm::prisesNormalisees($participant->prises_en_charge, $precedent->priseParDefaut());
+                $prises['rattrapage'] = $prises['hebergement'];
                 $segment->participants()->create($participant->only([
                     'user_id', 'nom', 'matricule', 'service', 'statut_cadre', 'numero_om', 'base_vie', 'hebergement_facture',
-                ]));
+                ]) + ['prises_en_charge' => $prises]);
             }
             foreach ($precedent->ordresReparation()->get() as $or) {
                 $segment->ordresReparation()->create($or->only(['numero', 'type']));

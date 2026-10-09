@@ -47,9 +47,17 @@ class OrdreMission extends Model
         'exterieur' => 'Extérieur',
     ];
 
+    /** En-tête : défaut appliqué à toutes les lignes ; « mixte » quand les lignes diffèrent (Q49) */
     public const PRISES_EN_CHARGE = [
         'neemba' => 'Neemba',
         'client' => 'Client',
+        'mixte' => 'Mixte (selon les lignes)',
+    ];
+
+    /** Lignes à la charge du client : avancées par Neemba puis refacturées, ou payées directement (Q49) */
+    public const MODES_CLIENT = [
+        'avance' => 'Avancé par Neemba, refacturé',
+        'direct' => 'Payé directement par le client',
     ];
 
     /** RG-M12-26 */
@@ -79,7 +87,7 @@ class OrdreMission extends Model
         'entite', 'site', 'service', 'code_analytique', 'demandeur_id', 'initiateur_id',
         'but', 'clients', 'destinations', 'vehicule',
         'date_depart', 'date_retour_prevue', 'date_retour_reelle', 'motif_depart_passe',
-        'prise_en_charge', 'a_refacturer',
+        'prise_en_charge', 'mode_client', 'a_refacturer', 'montant_a_refacturer',
         'hebergement_exterieur', 'reference_billet',
         'mission_id', 'segment_precedent_id', 'rang',
         'statut', 'version', 'cle_soumission', 'total', 'parametres_figes',
@@ -100,6 +108,7 @@ class OrdreMission extends Model
             'date_retour_prevue' => 'date',
             'date_retour_reelle' => 'date',
             'total' => 'decimal:2',
+            'montant_a_refacturer' => 'decimal:2',
             'derogation_le' => 'datetime',
             'date_soumission' => 'datetime',
             'date_validation' => 'datetime',
@@ -107,6 +116,12 @@ class OrdreMission extends Model
             'date_annulation' => 'datetime',
             'rappel_envoye_le' => 'datetime',
         ];
+    }
+
+    /** Prise en charge d'une ligne non encore choisie (nouveau participant) : celle de l'en-tête, Neemba si « mixte » */
+    public function priseParDefaut(): string
+    {
+        return $this->prise_en_charge === 'client' ? 'client_' . ($this->mode_client === 'direct' ? 'direct' : 'avance') : 'neemba';
     }
 
     /* ----------------------------------------------------------------

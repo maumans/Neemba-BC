@@ -64,6 +64,10 @@ final class ReglesOdm
         if (!array_key_exists($odm->prise_en_charge, OrdreMission::PRISES_EN_CHARGE)) {
             $ajouter('PRISE_EN_CHARGE_OBLIGATOIRE', 'MSG-BC-001', [], 'RG-M12-05', 'prise_en_charge');
         }
+        /* Q51 : une ligne à la charge du client exige de savoir quel client */
+        if (in_array($odm->prise_en_charge, ['client', 'mixte'], true) && empty(array_filter($odm->clients ?? [], 'filled'))) {
+            $ajouter('CLIENT_OBLIGATOIRE', 'MSG-APP-042', [], 'RG-M12-15', 'clients');
+        }
 
         /* Dates (RG-M12-06) */
         if (!$odm->date_depart) {

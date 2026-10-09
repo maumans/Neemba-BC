@@ -30,8 +30,8 @@ class TableauBordOdmExport implements WithMultipleSheets
                 ['ODM', 'Période', 'Demandeur', 'Statut', 'Motif', 'Décidée par', 'Le'],
                 array_map(fn ($d) => [$d['libelle'], $d['periode'], $d['demandeur'], $d['statut'], $d['motif'], $d['par'], $d['le']], $this->donnees['derogations'])),
             self::onglet('À refacturer',
-                ['ODM', 'Client(s)', 'OR', 'Période', 'Total (GNF)', 'Statut'],
-                array_map(fn ($r) => [$r['libelle'], $r['clients'], $r['or'], $r['periode'], $r['total'], $r['statut_label']], $this->donnees['aRefacturer'])),
+                ['ODM', 'Client(s)', 'OR', 'Période', 'À refacturer (GNF)', 'Payé directement par le client (GNF)', 'Coût de la mission (GNF)', 'Statut'],
+                array_map(fn ($r) => [$r['libelle'], $r['clients'], $r['or'], $r['periode'], $r['montant'], $r['client_direct'], $r['total'], $r['statut_label']], $this->donnees['aRefacturer'])),
         ];
     }
 

@@ -68,7 +68,7 @@
     "MSG-APP-025": "Bon généré depuis un ordre de mission : ses champs sont repris de l'ODM et ne se modifient pas.",
     "MSG-APP-026": "Ce code analytique n'est pas rattaché au service :service.",
     "MSG-APP-027": "Seul un ordre de mission validé permet de générer des bons de caisse.",
-    "MSG-APP-028": "Ordre de mission à la charge du client : aucun bon de caisse n'est généré (variante B).",
+    "MSG-APP-028": "Tous les frais de cet ordre de mission sont payés directement par le client : aucun bon de caisse n'est généré.",
     "MSG-APP-029": "Aucun taux FCFA → GNF n'a encore été saisi : le montant des bons ne peut pas être estimé. Contactez la Trésorerie.",
     "MSG-APP-030": "Tous les bons de cet ordre de mission sont déjà générés.",
     "MSG-APP-031": "Le paramétrage ne permet pas de générer un bon provisoire depuis un ordre de mission.",
@@ -81,5 +81,6 @@
     "MSG-APP-038": "Seul le DAF annule un ordre de mission dont les bons sont générés.",
     "MSG-APP-039": "Indiquez le motif de l'annulation (10 caractères minimum).",
     "MSG-APP-040": "Vous ne pouvez pas enregistrer cette régularisation.",
-    "MSG-APP-041": "Aucune caisse espèces active pour encaisser le reversement : vérifiez le paramétrage des caisses."
+    "MSG-APP-041": "Aucune caisse espèces active pour encaisser le reversement : vérifiez le paramétrage des caisses.",
+    "MSG-APP-042": "Indiquez le client qui prend en charge les frais."
 }

@@ -172,4 +172,81 @@ class CalculOdmTest extends TestCase
         $this->assertSame(400000, $calcul['hebergement']);
         $this->assertSame(1000000, $calcul['total']);
     }
+
+    /* ------------------------------------------------------------------
+     * Prise en charge par ligne (Q49)
+     * ------------------------------------------------------------------ */
+
+    public function test_par_defaut_tout_est_a_la_charge_de_neemba(): void
+    {
+        $calcul = $this->interieur('2026-09-22', '2026-09-26');
+
+        $this->assertSame(array_fill_keys(CalculOdm::LIGNES, 'neemba'), $calcul['prises_en_charge']);
+        $this->assertEquals(3250000, $calcul['montant_bon']);
+        $this->assertEquals(0, $calcul['montant_refacturable']);
+        $this->assertEquals(0, $calcul['montant_client_direct']);
+    }
+
+    public function test_hebergement_paye_directement_par_le_client(): void
+    {
+        $calcul = $this->interieur('2026-09-22', '2026-09-26', ['prises_en_charge' => ['hebergement' => 'client_direct']]);
+
+        $this->assertSame(3250000, $calcul['total']);                    // coût complet de la mission
+        $this->assertEquals(1250000, $calcul['montant_bon']);            // Neemba verse les indemnités
+        $this->assertEquals(2000000, $calcul['montant_client_direct']);
+        $this->assertSame(12500, $calcul['frais_om']);                   // frais OM sur ce que Neemba verse
+    }
+
+    public function test_indemnites_avancees_puis_refacturees(): void
+    {
+        $calcul = $this->interieur('2026-09-22', '2026-09-26', [
+            'prises_en_charge' => ['indemnite_1' => 'client_avance', 'indemnite_2' => 'client_avance'],
+        ]);
+
+        $this->assertEquals(3250000, $calcul['montant_bon']);            // tout reste dans le bon
+        $this->assertEquals(1250000, $calcul['montant_refacturable']);
+        $this->assertEquals(0, $calcul['montant_client_direct']);
+    }
+
+    public function test_tout_paye_par_le_client_et_choix_invalides(): void
+    {
+        $calcul = $this->interieur('2026-09-22', '2026-09-26', ['prise_defaut' => 'client_direct', 'prises_en_charge' => ['indemnite_1' => 'fournisseur']]);
+
+        $this->assertSame('client_direct', $calcul['prises_en_charge']['indemnite_1']);   // valeur inconnue : défaut
+        $this->assertEquals(0, $calcul['montant_bon']);
+        $this->assertEquals(3250000, $calcul['montant_client_direct']);
+        $this->assertNull($calcul['frais_om']);
+    }
+
+    public function test_odm_exterieur_avec_et_sans_taux(): void
+    {
+        $segment = ['type' => 'exterieur', 'jours' => 5, 'hebergement_exterieur' => 'avant_depart'];
+        $participant = ['statut_cadre' => 'non_cadre', 'hebergement_facture' => 900000, 'prises_en_charge' => ['indemnite' => 'client_direct']];
+
+        $sansTaux = CalculOdm::participant($participant, $segment, self::BAREMES);
+        $this->assertNull($sansTaux['montant_bon']);
+        $this->assertSame(['indemnite', 'hebergement'], array_keys($sansTaux['lignes']));
+
+        $avecTaux = CalculOdm::participant($participant, $segment + ['taux' => 15], self::BAREMES);
+        $this->assertEquals(900000, $avecTaux['montant_bon']);
+        $this->assertEquals(1650000, $avecTaux['montant_client_direct']);   // 110 000 FCFA × 15
+
+        /* Facture payée au retour : ligne présente, montant connu à la clôture, hors ventilation */
+        $auRetour = CalculOdm::participant(['statut_cadre' => 'cadre'], ['type' => 'exterieur', 'jours' => 2, 'hebergement_exterieur' => 'au_retour', 'taux' => 15], self::BAREMES);
+        $this->assertArrayHasKey('hebergement_retour', $auRetour['lignes']);
+        $this->assertEquals(1020000, $auRetour['montant_bon']);              // 68 000 FCFA × 15
+    }
+
+    public function test_entete_deduit_des_lignes(): void
+    {
+        $neemba = $this->interieur('2026-09-22', '2026-09-26');
+        $direct = $this->interieur('2026-09-22', '2026-09-26', ['prise_defaut' => 'client_direct']);
+        /* Base vie : l'hébergement (sans objet) mis au client ne rend pas l'ODM « mixte » */
+        $baseVie = $this->interieur('2026-09-22', '2026-09-26', ['base_vie' => true, 'prises_en_charge' => ['hebergement' => 'client_direct']]);
+
+        $this->assertSame(['prise_en_charge' => 'neemba', 'mode_client' => null], CalculOdm::priseEnChargeGlobale([$neemba, $baseVie]));
+        $this->assertSame(['prise_en_charge' => 'client', 'mode_client' => 'direct'], CalculOdm::priseEnChargeGlobale([$direct]));
+        $this->assertSame('mixte', CalculOdm::priseEnChargeGlobale([$neemba, $direct])['prise_en_charge']);
+        $this->assertNull(CalculOdm::priseEnChargeGlobale([]));
+    }
 }

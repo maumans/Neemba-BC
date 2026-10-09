@@ -105,8 +105,8 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                 />
 
                 <Tableau
-                    titre="Ordres de mission à refacturer (à la charge du client)"
-                    entetes={['ODM', 'Client(s)', 'OR', 'Période', 'Total', 'Statut']}
+                    titre="Ordres de mission à refacturer (frais du client avancés par Neemba)"
+                    entetes={['ODM', 'Client(s)', 'OR', 'Période', 'À refacturer', 'Payé par le client', 'Statut']}
                     vide="Aucun ODM à refacturer."
                     lignes={aRefacturer.map((r) => (
                         <tr key={r.id} className="border-b last:border-b-0">
@@ -114,7 +114,8 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                             <td className="py-2 pr-3">{r.clients || '—'}</td>
                             <td className="py-2 pr-3">{r.or || '—'}</td>
                             <td className="whitespace-nowrap py-2 pr-3">{r.periode}</td>
-                            <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums">{r.total_format}</td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums">{r.montant_format}</td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-gray-500">{r.client_direct > 0 ? r.client_direct_format : '—'}</td>
                             <td className="py-2">{r.statut_label}</td>
                         </tr>
                     ))}

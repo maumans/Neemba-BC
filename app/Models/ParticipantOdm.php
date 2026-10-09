@@ -18,6 +18,7 @@ class ParticipantOdm extends Model
         'ordre_mission_id', 'user_id',
         'nom', 'matricule', 'service', 'statut_cadre', 'numero_om', 'base_vie',
         'jours', 'nuits', 'nuit_rattrapage', 'indemnite_fcfa', 'indemnite', 'hebergement', 'rattrapage', 'hebergement_facture', 'total',
+        'prises_en_charge', 'montant_bon', 'montant_refacturable', 'montant_client_direct',
         'retire', 'trop_percu', 'regularisation', 'regularisation_statut', 'regularise_le', 'regularise_par_id',
         'bon_caisse_id', 'bon_complement_id',
     ];
@@ -41,9 +42,32 @@ class ParticipantOdm extends Model
             'rattrapage' => 'decimal:2',
             'hebergement_facture' => 'decimal:2',
             'total' => 'decimal:2',
+            'prises_en_charge' => 'array',
+            'montant_bon' => 'decimal:2',
+            'montant_refacturable' => 'decimal:2',
+            'montant_client_direct' => 'decimal:2',
             'trop_percu' => 'decimal:2',
             'regularise_le' => 'datetime',
         ];
+    }
+
+    /** Qui prend en charge une ligne de frais (Q49) */
+    public function priseEnCharge(string $ligne): string
+    {
+        return $this->prises_en_charge[$ligne] ?? $this->ordreMission?->priseParDefaut() ?? 'neemba';
+    }
+
+    /** ODM extérieur : indemnité en FCFA versée par Neemba (nulle si le client la paie directement) */
+    public function indemniteFcfaDansLeBon(): float
+    {
+        return $this->priseEnCharge('indemnite') === 'client_direct' ? 0.0 : (float) $this->indemnite_fcfa;
+    }
+
+    /** Hébergement et rattrapage versés par Neemba (part fixe en GNF du bon d'un ODM extérieur) */
+    public function fraisFixesDansLeBon(): float
+    {
+        return ($this->priseEnCharge('hebergement') === 'client_direct' ? 0.0 : (float) $this->hebergement)
+            + ($this->priseEnCharge('rattrapage') === 'client_direct' ? 0.0 : (float) $this->rattrapage);
     }
 
     public function ordreMission(): BelongsTo

@@ -97,8 +97,9 @@ final class CloturerOdm
     private static function retourAnticipe(OrdreMission $odm, User $auteur, Carbon $retour, array $regularisations): array
     {
         $participants = $odm->participantsActifs()->with('bonCaisse')->get();
+        /* Q49 : le trop-perçu porte sur ce que Neemba a versé (montant du bon), pas sur les frais payés par le client */
         $avant = $participants->mapWithKeys(fn (ParticipantOdm $p) => [$p->id => [
-            'total' => (float) $p->total, 'indemnite_fcfa' => (float) $p->indemnite_fcfa,
+            'montant_bon' => (float) $p->montant_bon, 'indemnite_fcfa' => $p->indemniteFcfaDansLeBon(),
         ]]);
 
         $odm->update(['date_retour_reelle' => $retour->toDateString()]);
@@ -139,15 +140,16 @@ final class CloturerOdm
         if ($bon->taux_change_applique !== null) {
             $taux = (float) $bon->taux_change_applique;
 
-            return max(0, round($avant['indemnite_fcfa'] * $taux) - round((float) $participant->indemnite_fcfa * $taux));
+            return max(0, round($avant['indemnite_fcfa'] * $taux) - round($participant->indemniteFcfaDansLeBon() * $taux));
         }
 
-        return max(0, round($avant['total'] - (float) $participant->total));
+        return max(0, round($avant['montant_bon'] - (float) $participant->montant_bon));
     }
 
     /**
      * Q24 : hébergement à l'étranger payé au retour, un bon complémentaire en brouillon par facture,
      * à compléter avec la facture (justificatif obligatoire) puis à soumettre.
+     * Q50 : pas de bon si le client paie directement la facture ; si Neemba l'avance, elle s'ajoute au « à refacturer ».
      *
      * @return string[]
      */
@@ -156,8 +158,13 @@ final class CloturerOdm
         $crees = [];
         foreach ($odm->participantsActifs()->with('utilisateur')->get() as $participant) {
             $montant = (int) preg_replace('/\D/', '', (string) ($factures[$participant->user_id] ?? ''));
-            if ($montant < 1) {
+            $prise = $participant->priseEnCharge(CalculOdm::LIGNE_A_LA_CLOTURE);
+            if ($montant < 1 || $prise === 'client_direct') {
                 continue;
+            }
+            if ($prise === 'client_avance') {
+                $participant->update(['montant_refacturable' => (float) $participant->montant_refacturable + $montant]);
+                $odm->update(['montant_a_refacturer' => (float) $odm->montant_a_refacturer + $montant, 'a_refacturer' => true]);
             }
             $bon = BonCaisse::create([
                 'type_bon' => 'BD',

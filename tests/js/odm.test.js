@@ -12,6 +12,11 @@ import {
     joursDeMission,
     natureTechniqueParDefaut,
     retourAvantDepart,
+    appliquerPriseEnChargeGlobale,
+    changerPriseEnCharge,
+    etatPriseEnCharge,
+    priseDeLigne,
+    toutesLesLignes,
 } from '../../resources/js/utils/odm';
 
 describe('Ordres de mission — saisie (M12-2)', () => {
@@ -82,5 +87,56 @@ describe('Ordres de mission — saisie (M12-2)', () => {
         expect(erreursOdmParChamp(erreurs)).toEqual({ participants: ['A', 'C'], but: ['B'], general: ['D'] });
         expect(infosStatutOdm('BONS_GENERES').libelle).toBe('Bons générés');
         expect(infosStatutOdm('INCONNU').variante).toBe('statut_gris');
+    });
+});
+
+describe('Ordres de mission — prise en charge par ligne (Q49)', () => {
+    const calcul = {
+        participants: [
+            { user_id: 3, lignes: [{ cle: 'indemnite_1' }, { cle: 'indemnite_2' }, { cle: 'hebergement' }, { cle: 'rattrapage', sans_objet: true }] },
+            { user_id: 4, lignes: [{ cle: 'indemnite_1' }, { cle: 'indemnite_2' }, { cle: 'hebergement', sans_objet: true }, { cle: 'rattrapage', sans_objet: true }] },
+        ],
+    };
+    const form = {
+        prise_en_charge: 'neemba', mode_client: 'avance',
+        participants: [{ user_id: 3, prises_en_charge: toutesLesLignes('neemba') }, { user_id: 4, prises_en_charge: toutesLesLignes('neemba') }],
+    };
+
+    it('traduit le choix de l\'en-tête en valeur de ligne', () => {
+        expect(priseDeLigne('neemba', 'direct')).toBe('neemba');
+        expect(priseDeLigne('client', 'avance')).toBe('client_avance');
+        expect(priseDeLigne('client', 'direct')).toBe('client_direct');
+        expect(priseDeLigne('mixte', 'direct')).toBe('neemba');
+    });
+
+    it('applique le choix de l\'en-tête à toutes les lignes de tous les participants', () => {
+        const apres = appliquerPriseEnChargeGlobale(form, 'client', 'direct');
+        expect(apres.prise_en_charge).toBe('client');
+        expect(apres.participants.every((p) => Object.values(p.prises_en_charge).every((v) => v === 'client_direct'))).toBe(true);
+        expect(form.participants[0].prises_en_charge.hebergement).toBe('neemba');   // pas de mutation
+    });
+
+    it('une ligne ajustée rend l\'en-tête « mixte » ; les lignes sans objet ne comptent pas', () => {
+        const mixte = changerPriseEnCharge(form, 3, 'hebergement', 'client_avance', calcul);
+        expect(mixte.prise_en_charge).toBe('mixte');
+        expect(mixte.participants[0].prises_en_charge.hebergement).toBe('client_avance');
+
+        /* L'hébergement de 4 est sans objet (base vie) : le mettre au client ne change rien à l'en-tête */
+        expect(changerPriseEnCharge(form, 4, 'hebergement', 'client_direct', calcul).prise_en_charge).toBe('neemba');
+    });
+
+    it('toutes les lignes d\'un participant, puis de tous : l\'en-tête suit', () => {
+        let etat = changerPriseEnCharge(form, 3, null, 'client_direct', calcul);
+        expect(etat.prise_en_charge).toBe('mixte');
+        etat = changerPriseEnCharge(etat, 4, null, 'client_direct', calcul);
+        expect(etatPriseEnCharge(etat.participants, calcul, etat)).toEqual({ prise_en_charge: 'client', mode_client: 'direct' });
+    });
+
+    it('un nouveau participant reçoit le choix de l\'en-tête et l\'envoie au serveur', () => {
+        const { liste } = ajouterParticipant([], { user_id: 7, nom: 'CAMARA Ibrahima' }, 10, 'client_avance');
+        expect(liste[0].prises_en_charge.indemnite_1).toBe('client_avance');
+        const donnees = donneesOdm({ ...form, type: 'interieur', mode_client: 'direct', participants: liste });
+        expect(donnees.mode_client).toBe('direct');
+        expect(donnees.participants[0].prises_en_charge.hebergement).toBe('client_avance');
     });
 });

@@ -238,20 +238,20 @@ class GenerationBonsOdmTest extends TestCase
         $this->assertSame(0, BonCaisse::count());
     }
 
-    /** SC-28, RG-M12-15 : à la charge du client ; variante A (bons, « à refacturer »), variante B (aucun bon) */
+    /** SC-28, RG-M12-15, Q49 : à la charge du client ; avancé par Neemba (bons, « à refacturer ») ou payé directement (aucun bon) */
     public function test_odm_a_la_charge_du_client(): void
     {
-        $odm = $this->odmValide(['prise_en_charge' => 'client']);
+        $odm = $this->odmValide(['prise_en_charge' => 'client', 'mode_client' => 'avance', 'clients' => ['SMD']]);
         $this->assertTrue($odm->a_refacturer);
+        $this->assertEquals(6500000, (float) $odm->montant_a_refacturer);   // 2 × 3 250 000 (annexe B.1)
         $this->generer($odm)->assertSessionHas('success');
         $this->assertSame(2, BonCaisse::count());
 
-        Parametre::majValeur('odm_prise_en_charge_client', 'variante_b');
-        \Illuminate\Support\Facades\Cache::flush();
-        $autre = $this->odmValide(['prise_en_charge' => 'client', 'date_depart' => '2026-10-05', 'date_retour_prevue' => '2026-10-06']);
-        $this->generer($autre)->assertSessionHas('error', 'Ordre de mission à la charge du client : aucun bon de caisse n\'est généré (variante B).');
+        $autre = $this->odmValide(['prise_en_charge' => 'client', 'mode_client' => 'direct', 'clients' => ['SMD'],
+            'date_depart' => '2026-10-05', 'date_retour_prevue' => '2026-10-06']);
+        $this->generer($autre)->assertSessionHas('error', 'Tous les frais de cet ordre de mission sont payés directement par le client : aucun bon de caisse n\'est généré.');
         $this->actingAs($this->demandeur)->get(route('odm.show', $autre))
-            ->assertInertia(fn (Assert $page) => $page->where('sansBon', true)->where('generation', null)->where('odm.a_refacturer', true));
+            ->assertInertia(fn (Assert $page) => $page->where('sansBon', true)->where('generation', null)->where('odm.a_refacturer', false));
     }
 
     /** SC-29, RG-M12-10 : ODM extérieur estimé au dernier taux, recalculé au taux du jour du paiement */

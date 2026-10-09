@@ -25,7 +25,7 @@ final class TableauBordOdm
                 'participants_en_mission' => array_sum(array_column($enCours, 'participants')),
                 'cout_en_cours' => array_sum(array_column($enCours, 'cout')),
                 'a_refacturer' => count($aRefacturer),
-                'montant_a_refacturer' => array_sum(array_column($aRefacturer, 'total')),
+                'montant_a_refacturer' => array_sum(array_column($aRefacturer, 'montant')),
                 'incoherences' => count(array_filter($enCours, fn ($m) => $m['incoherences'] > 0)),
             ],
             'missionsEnCours' => $enCours,
@@ -88,7 +88,7 @@ final class TableauBordOdm
             ])->values()->all();
     }
 
-    /** RG-M12-15 : ODM à la charge du client, à refacturer avec leurs OR */
+    /** RG-M12-15, Q49 : ODM dont des lignes du client sont avancées par Neemba, à refacturer avec leurs OR */
     public static function aRefacturer(): array
     {
         return OrdreMission::where('a_refacturer', true)->where('statut', '!=', 'ANNULE')->with('ordresReparation')
@@ -99,6 +99,10 @@ final class TableauBordOdm
                 'clients' => implode(', ', $odm->clients ?? []),
                 'or' => $odm->ordresReparation->map(fn ($or) => $or->numero . ' (' . ($or->type === 'garantie' ? 'Garantie' : 'Vente') . ')')->implode(', '),
                 'periode' => PresentationOdm::periode($odm),
+                'montant' => (float) $odm->montant_a_refacturer,
+                'montant_format' => Format::montant($odm->montant_a_refacturer),
+                'client_direct' => (float) $odm->participantsActifs()->sum('montant_client_direct'),
+                'client_direct_format' => Format::montant($odm->participantsActifs()->sum('montant_client_direct')),
                 'total' => (float) $odm->total,
                 'total_format' => $odm->total_format,
                 'statut_label' => $odm->statut_label,

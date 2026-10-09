@@ -1,18 +1,38 @@
 /**
  * Panneau « Calcul » d'un ODM (US-05, RG-M12-07) : par participant, jours, nuits, les deux lignes d'indemnité,
  * hébergement, nuitée de rattrapage et total. Les montants viennent du serveur, qui fait foi.
+ * Q49 : une ligne à la charge du client porte une étiquette ; sous chaque total, ce que Neemba verse dans le bon,
+ * ce qui sera refacturé et ce que le client paie directement.
  */
 import { Calculator, Info, Loader2 } from 'lucide-react';
-import { formaterMontant, formaterNombre } from '@/utils/format';
+import { formaterMontant } from '@/utils/format';
 import { msg } from '@/utils/messages';
+import { Ventilation } from './PriseEnChargeFrais';
 
-function Ligne({ libelle, valeur, fort = false, attenue = false }) {
+function EtiquetteClient({ prise }) {
+    if (!prise || prise === 'neemba') return null;
+
+    return (
+        <span className="ml-1.5 whitespace-nowrap rounded bg-purple-100 px-1 py-px text-[10px] font-medium uppercase tracking-wide text-purple-800">
+            {prise === 'client_direct' ? 'Client · direct' : 'Client'}
+        </span>
+    );
+}
+
+function Ligne({ libelle, valeur, fort = false, attenue = false, prise = null }) {
     return (
         <div className={`flex items-baseline justify-between gap-3 text-sm ${fort ? 'font-semibold text-gray-900' : attenue ? 'text-gray-500' : 'text-gray-700'}`}>
-            <span>{libelle}</span>
-            <span className="whitespace-nowrap tabular-nums">{valeur}</span>
+            <span>{libelle}<EtiquetteClient prise={prise} /></span>
+            <span className={`whitespace-nowrap tabular-nums ${prise === 'client_direct' ? 'text-purple-700' : ''}`}>{valeur}</span>
         </div>
     );
+}
+
+function valeurLigne(ligne) {
+    if (ligne.a_la_cloture) return 'à la clôture';
+    if (ligne.montant === null) return '—';
+
+    return formaterMontant(ligne.montant);
 }
 
 export default function PanneauCalcul({ calcul, type = 'interieur', enCours = false, titre = 'Calcul des indemnités' }) {
@@ -48,20 +68,18 @@ export default function PanneauCalcul({ calcul, type = 'interieur', enCours = fa
                                 valeur={`${p.jours} j · ${p.nuits} nuit${p.nuits > 1 ? 's' : ''}${p.nuit_rattrapage ? ' + 1 de rattrapage' : ''}${p.base_vie ? ' (base vie)' : ''}`}
                                 attenue
                             />
-                            {exterieur ? (
-                                <Ligne
-                                    libelle={`Indemnité (${p.indemnite_fcfa !== null ? formaterNombre(p.indemnite_fcfa) + ' FCFA' : 'statut cadre manquant'})`}
-                                    valeur={p.indemnite !== null ? formaterMontant(p.indemnite) : '—'}
-                                />
-                            ) : (
-                                <>
-                                    <Ligne libelle={calcul.libelle_indemnite_1} valeur={formaterMontant(p.indemnite_ligne_1)} />
-                                    <Ligne libelle={calcul.libelle_indemnite_2} valeur={formaterMontant(p.indemnite_ligne_2)} />
-                                </>
+                            {exterieur && p.indemnite_fcfa === null && (
+                                <p className="text-xs font-medium text-red-600">Statut cadre manquant : indemnité non calculable.</p>
                             )}
-                            <Ligne libelle="Hébergement" valeur={formaterMontant(p.hebergement)} />
-                            {p.nuit_rattrapage > 0 && <Ligne libelle="Nuitée de rattrapage" valeur={formaterMontant(p.rattrapage)} />}
+                            {(p.lignes ?? [])
+                                .filter((l) => !(l.sans_objet && l.cle === 'rattrapage'))
+                                .map((l) => (
+                                    <Ligne key={l.cle} libelle={l.libelle} valeur={valeurLigne(l)} attenue={l.sans_objet} prise={l.sans_objet ? null : l.prise_en_charge} />
+                                ))}
                             <Ligne libelle="Total" valeur={p.total !== null ? formaterMontant(p.total) : 'Au paiement'} fort />
+                            {(p.montant_refacturable > 0 || p.montant_client_direct > 0) && (
+                                <Ventilation bon={p.montant_bon} refacturable={p.montant_refacturable} direct={p.montant_client_direct} className="pt-1" />
+                            )}
                             {p.frais_om !== null && (
                                 <p className="text-xs text-gray-500">
                                     {msg('MSG-M03-06', { frais: p.frais_om, taux: p.frais_om_taux, montant_verse: p.montant_verse_om })}
@@ -73,6 +91,17 @@ export default function PanneauCalcul({ calcul, type = 'interieur', enCours = fa
                         <span>Total de l'ODM</span>
                         <span className="tabular-nums" data-testid="total-odm">{calcul?.total !== null && calcul?.total !== undefined ? formaterMontant(calcul.total) : '—'}</span>
                     </div>
+                    {(calcul?.montant_refacturable > 0 || calcul?.montant_client_direct > 0) && (
+                        <div className="space-y-1 rounded-md bg-purple-50/60 p-2 text-sm" data-testid="ventilation-odm">
+                            <div className="flex justify-between gap-3"><span className="text-gray-700">Bons de caisse (versé par Neemba)</span><span className="tabular-nums font-medium">{formaterMontant(calcul.montant_bon)}</span></div>
+                            {calcul.montant_refacturable > 0 && (
+                                <div className="flex justify-between gap-3 text-purple-800"><span>dont à refacturer au client</span><span className="tabular-nums font-medium">{formaterMontant(calcul.montant_refacturable)}</span></div>
+                            )}
+                            {calcul.montant_client_direct > 0 && (
+                                <div className="flex justify-between gap-3 text-purple-800"><span>Payé directement par le client</span><span className="tabular-nums font-medium">{formaterMontant(calcul.montant_client_direct)}</span></div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
         </section>

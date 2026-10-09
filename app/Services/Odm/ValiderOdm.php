@@ -114,8 +114,9 @@ final class ValiderOdm
         $odm->update(['parametres_figes' => $figes]);
         EnregistrementOdm::recalculer($odm->fresh());
 
-        /* RG-M12-15 : un ODM à la charge du client est « à refacturer », avec ses OR */
-        $odm->update(['statut' => 'VALIDE', 'date_validation' => now(), 'a_refacturer' => $odm->prise_en_charge === 'client']);
+        /* RG-M12-15, Q49 : « à refacturer » dès qu'une ligne du client est avancée par Neemba */
+        $odm->refresh();
+        $odm->update(['statut' => 'VALIDE', 'date_validation' => now(), 'a_refacturer' => (float) $odm->montant_a_refacturer > 0]);
         HistoriqueOdm::enregistrer($odm, 'validation', $statutAvant, 'VALIDE', $valideur->id,
             "Visa {$niveau} : ordre de mission validé ; calcul figé." . (filled($commentaire) ? ' ' . trim($commentaire) : ''),
             ['total' => $odm->fresh()->total, 'baremes' => $figes['baremes']]);

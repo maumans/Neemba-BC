@@ -107,7 +107,7 @@ class OrdreMissionController extends Controller
             'peutProlonger' => \App\Services\Odm\ProlongerOdm::peutProlonger($odm, $utilisateur),
             'prolongation' => ($suite = \App\Services\Odm\ProlongerOdm::prolongationEnCours($odm)) ? ['id' => $suite->id, 'libelle' => $suite->libelle, 'statut' => $suite->statut] : null,
             'mission' => \App\Services\Odm\VueMission::pour($odm),
-            /* RG-M12-15, variante B : ODM à la charge du client, sans bon */
+            /* RG-M12-15, Q49 : tous les frais payés directement par le client, sans bon */
             'sansBon' => \App\Services\Odm\GenererBonsOdm::sansBon($odm),
             /* RG-M12-11 : visa possible à l'étape en cours, « au titre de » pour un suppléant */
             'visa' => $visa ? [

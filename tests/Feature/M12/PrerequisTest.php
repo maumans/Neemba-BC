@@ -263,7 +263,7 @@ class PrerequisTest extends TestCase
         $this->actingAs(User::factory()->role('administrateur')->create())
             ->get(route('parametrage.index'))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('choixParametres.odm_prise_en_charge_client.variante_b', 'Variante B : aucun bon de caisse')
+                ->where('choixParametres.odm_prise_en_charge_client.variante_b', 'Payée directement par le client')
                 ->where('parametres', fn ($parametres) => collect($parametres)->where('groupe', 'odm')->count() === 12));
     }
 

@@ -17,13 +17,16 @@ use Illuminate\Support\Facades\DB;
  *
  * Une dérogation au chevauchement (RG-M12-16) ne vaut que pour les dates et les participants pour lesquels
  * elle a été demandée : si l'un d'eux change, elle est retirée.
+ *
+ * Prise en charge (Q49) : chaque participant porte le choix de chacune de ses lignes de frais ; l'en-tête
+ * (neemba, client ou mixte) en est déduit après le calcul. Un nouveau participant reçoit le choix de l'en-tête.
  */
 final class EnregistrementOdm
 {
     /** Champs de l'en-tête modifiables par le demandeur */
     public const CHAMPS = [
         'type', 'technique', 'site', 'service', 'code_analytique', 'but', 'clients', 'destinations', 'vehicule',
-        'date_depart', 'date_retour_prevue', 'motif_depart_passe', 'prise_en_charge', 'hebergement_exterieur', 'reference_billet',
+        'date_depart', 'date_retour_prevue', 'motif_depart_passe', 'prise_en_charge', 'mode_client', 'hebergement_exterieur', 'reference_billet',
     ];
 
     public static function creer(User $demandeur, array $donnees = []): OrdreMission
@@ -121,6 +124,8 @@ final class EnregistrementOdm
                 'statut_cadre' => $participant->statut_cadre,
                 'hebergement_facture' => $participant->hebergement_facture,
                 'rattrapage' => $precedents->has($participant->user_id) && !$precedents[$participant->user_id],
+                'prises_en_charge' => $participant->prises_en_charge,
+                'prise_defaut' => $odm->priseParDefaut(),
             ], $segment, $baremes);
             $participant->update([
                 'jours' => $calcul['jours'],
@@ -131,11 +136,26 @@ final class EnregistrementOdm
                 'hebergement' => $calcul['hebergement'],
                 'rattrapage' => $calcul['rattrapage'],
                 'total' => $calcul['total'],
+                'prises_en_charge' => $calcul['prises_en_charge'],
+                'montant_bon' => $calcul['montant_bon'],
+                'montant_refacturable' => $calcul['montant_refacturable'],
+                'montant_client_direct' => $calcul['montant_client_direct'],
             ]);
             $calculs[] = $calcul;
         }
 
-        $odm->update(['total' => $calculs === [] ? null : CalculOdm::total($calculs)]);
+        $valeurs = [
+            'total' => $calculs === [] ? null : CalculOdm::total($calculs),
+            'montant_a_refacturer' => $calculs === [] ? null : CalculOdm::total($calculs, 'montant_refacturable'),
+        ];
+        /* Q49 : en-tête déduit des lignes (neemba, client ou mixte) */
+        if ($globale = CalculOdm::priseEnChargeGlobale($calculs)) {
+            $valeurs['prise_en_charge'] = $globale['prise_en_charge'];
+            if ($globale['mode_client']) {
+                $valeurs['mode_client'] = $globale['mode_client'];
+            }
+        }
+        $odm->update($valeurs);
     }
 
     /**
@@ -174,10 +194,14 @@ final class EnregistrementOdm
                 'base_vie' => (bool) ($voulu['base_vie'] ?? false),
                 'hebergement_facture' => is_numeric($voulu['hebergement_facture'] ?? null) ? max(0, (float) $voulu['hebergement_facture']) : null,
             ];
+            /* Q49 : choix par ligne ; une ligne non précisée garde son choix, ou prend celui de l'en-tête */
+            $prises = is_array($voulu['prises_en_charge'] ?? null) ? $voulu['prises_en_charge'] : [];
             if ($existant) {
+                $valeurs['prises_en_charge'] = CalculOdm::prisesNormalisees(array_merge((array) $existant->prises_en_charge, $prises), $odm->priseParDefaut());
                 $existant->update($valeurs + ['retire' => false]);
                 continue;
             }
+            $valeurs['prises_en_charge'] = CalculOdm::prisesNormalisees($prises, $odm->priseParDefaut());
             $utilisateur = User::find($userId);
             if ($utilisateur) {
                 $odm->participants()->create(ParticipantOdm::depuisUtilisateur($utilisateur) + $valeurs);

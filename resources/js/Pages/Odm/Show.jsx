@@ -16,6 +16,7 @@ import {
 } from '@/Components/ui/dialog';
 import BadgeStatutOdm from '@/Components/Odm/BadgeStatutOdm';
 import PanneauCalcul from '@/Components/Odm/PanneauCalcul';
+import PriseEnChargeFrais from '@/Components/Odm/PriseEnChargeFrais';
 import MontantInput from '@/Components/MontantInput';
 import BadgeStatut from '@/Components/BadgeStatut';
 import { formaterMontant } from '@/utils/format';
@@ -157,8 +158,9 @@ function GenerationBons({ odm, generation }) {
                 </p>
                 <p className="text-sm text-gray-700">
                     {groupe
-                        ? 'Un bon groupé, du total de l\'ODM, versé au n° Orange Money du participant désigné.'
-                        : 'Un bon définitif par participant, du montant de ses indemnités.'}
+                        ? 'Un bon groupé, de ce que Neemba verse pour l\'ODM, au n° Orange Money du participant désigné.'
+                        : 'Un bon définitif par participant, du montant que Neemba lui verse.'}
+                    {' '}Les frais payés directement par le client n'entrent pas dans les bons.
                     {' '}Chaque bon est soumis aussitôt et suit son propre circuit (chef de service, CDG, Finance, DP au-delà du seuil).
                     L'ODM tient lieu de justificatif.
                 </p>
@@ -172,7 +174,15 @@ function GenerationBons({ odm, generation }) {
                     {generation.participants.map((p) => (
                         <li key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
                             <span>{p.nom}{p.numero_om && <span className="ml-1 font-mono text-xs text-gray-500">OM {p.numero_om}</span>}</span>
-                            <span className="tabular-nums">{p.total !== null ? formaterMontant(p.total) : '—'}{p.a_un_bon && <span className="ml-2 text-xs text-green-700">bon généré</span>}</span>
+                            {p.sans_bon ? (
+                                <span className="text-xs font-medium text-purple-800">Aucun bon : frais payés par le client</span>
+                            ) : (
+                                <span className="tabular-nums">
+                                    {p.montant_bon !== null ? formaterMontant(p.montant_bon) : '—'}
+                                    {p.montant_client_direct > 0 && <span className="ml-1 text-xs text-purple-800">(hors {formaterMontant(p.montant_client_direct)} payés par le client)</span>}
+                                    {p.a_un_bon && <span className="ml-2 text-xs text-green-700">bon généré</span>}
+                                </span>
+                            )}
                         </li>
                     ))}
                 </ul>
@@ -551,7 +561,11 @@ export default function Show({
                             <div className="flex flex-wrap items-center gap-2">
                                 <h1 className="text-xl font-semibold text-gray-900">{odm.libelle}</h1>
                                 <BadgeStatutOdm statut={odm.statut} />
-                                {odm.a_refacturer && <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">À refacturer</span>}
+                                {odm.a_refacturer && (
+                                    <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800" data-testid="badge-a-refacturer">
+                                        À refacturer · {odm.montant_a_refacturer_format}
+                                    </span>
+                                )}
                             </div>
                             {odm.libelle_prolongation && <p className="text-sm text-gray-600">{odm.libelle_prolongation}</p>}
                             <p className="text-sm text-gray-600">
@@ -614,7 +628,7 @@ export default function Show({
                 {sansBon && ['VALIDE', 'BONS_GENERES'].includes(odm.statut) && (
                     <p className="flex items-start gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
                         <IconeInfo className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                        Ordre de mission à la charge du client : aucun bon de caisse n'est généré (variante B). Il est marqué « à refacturer ».
+                        Tous les frais sont payés directement par le client : aucun bon de caisse n'est généré.
                     </p>
                 )}
 
@@ -647,7 +661,10 @@ export default function Show({
                             <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
                                 <Info libelle="Destination(s)">{odm.destinations.join(', ')}</Info>
                                 <Info libelle="Client(s)">{odm.clients.join(', ')}</Info>
-                                <Info libelle="Frais à la charge de">{odm.prise_en_charge_label}</Info>
+                                <Info libelle="Frais à la charge de">
+                                    {odm.prise_en_charge_label}{odm.mode_client_label && ` — ${odm.mode_client_label.toLowerCase()}`}
+                                    {odm.resume_prise_en_charge && <span className="block text-xs text-purple-800">{odm.resume_prise_en_charge}</span>}
+                                </Info>
                                 <Info libelle="But">{odm.but}</Info>
                                 <Info libelle="Code analytique">{odm.code_analytique && `${odm.code_analytique}${odm.code_analytique_libelle ? ' — ' + odm.code_analytique_libelle : ''}`}</Info>
                                 <Info libelle="Véhicule">{odm.vehicule}</Info>
@@ -688,8 +705,14 @@ export default function Show({
                     </TabsContent>
 
                     <TabsContent value="calcul" className="mt-4">
-                        <div className="max-w-xl">
+                        <div className="grid gap-4 lg:grid-cols-2">
                             <PanneauCalcul calcul={odm.calcul} type={odm.type} titre={odm.calcul?.fige ? 'Calcul figé à la validation' : 'Calcul des indemnités'} />
+                            <Card>
+                                <CardContent className="space-y-3 p-4">
+                                    <h2 className="text-sm font-semibold text-gray-900">Prise en charge des frais</h2>
+                                    <PriseEnChargeFrais participants={odm.participants} calcul={odm.calcul} lectureSeule />
+                                </CardContent>
+                            </Card>
                         </div>
                     </TabsContent>
 

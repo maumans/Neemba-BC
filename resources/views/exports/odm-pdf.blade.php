@@ -56,7 +56,7 @@
         <tr><td class="libelle">Période</td><td>du {{ $odm['date_depart_format'] }} au {{ $odm['date_retour_reelle_format'] ?? $odm['date_retour_prevue_format'] }}{{ $odm['date_retour_reelle_format'] ? ' (retour réel)' : '' }} — {{ $odm['calcul']['jours'] }} jour(s)</td></tr>
         @if ($odm['vehicule'])<tr><td class="libelle">Véhicule</td><td>{{ $odm['vehicule'] }}</td></tr>@endif
         @if ($odm['ordres_reparation'])<tr><td class="libelle">OR</td><td>{{ collect($odm['ordres_reparation'])->map(fn ($or) => $or['numero'] . ' (' . ($or['type'] === 'garantie' ? 'Garantie' : 'Vente') . ')')->implode(', ') }}</td></tr>@endif
-        <tr><td class="libelle">Frais à la charge de</td><td>{{ $odm['prise_en_charge_label'] }}{{ $odm['a_refacturer'] ? ' — à refacturer' : '' }}</td></tr>
+        <tr><td class="libelle">Frais à la charge de</td><td>{{ $odm['prise_en_charge_label'] }}{{ $odm['mode_client_label'] ? ' — ' . mb_strtolower($odm['mode_client_label']) : '' }}{{ $odm['a_refacturer'] ? ' — à refacturer : ' . $odm['montant_a_refacturer_format'] : '' }}</td></tr>
         @if ($odm['type'] === 'exterieur')
             <tr><td class="libelle">Hébergement</td><td>{{ $odm['hebergement_exterieur_label'] }}</td></tr>
             @if ($odm['reference_billet'])<tr><td class="libelle">Billet / bon de commande Wanda</td><td>{{ $odm['reference_billet'] }}</td></tr>@endif
@@ -92,18 +92,23 @@
             </thead>
             <tbody>
                 @foreach ($odm['calcul']['participants'] as $c)
+                    @php
+                        /* Q49 : (C) à la charge du client, avancé par Neemba et refacturé ; (CD) payé directement par le client */
+                        $prises = collect($c['lignes'] ?? [])->reject(fn ($l) => $l['sans_objet'])->pluck('prise_en_charge', 'cle');
+                        $repere = fn ($cle) => ['client_avance' => ' (C)', 'client_direct' => ' (CD)'][$prises[$cle] ?? ''] ?? '';
+                    @endphp
                     <tr>
                         <td>{{ $c['nom'] }}</td><td class="droite">{{ $c['jours'] }}</td>
                         <td class="droite">{{ $c['nuits'] }}{{ $c['nuit_rattrapage'] ? ' + 1' : '' }}</td>
                         @if ($odm['type'] === 'exterieur')
                             <td class="droite">{{ $c['indemnite_fcfa'] !== null ? \App\Support\Format::nombre($c['indemnite_fcfa']) : '—' }}</td>
-                            <td class="droite">{{ $c['indemnite'] !== null ? \App\Support\Format::nombre($c['indemnite']) : 'au paiement' }}</td>
+                            <td class="droite">{{ $c['indemnite'] !== null ? \App\Support\Format::nombre($c['indemnite']) . $repere('indemnite') : 'au paiement' }}</td>
                         @else
-                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_1']) }}</td>
-                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_2']) }}</td>
+                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_1']) }}{{ $repere('indemnite_1') }}</td>
+                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_2']) }}{{ $repere('indemnite_2') }}</td>
                         @endif
-                        <td class="droite">{{ \App\Support\Format::nombre($c['hebergement']) }}</td>
-                        <td class="droite">{{ $c['rattrapage'] ? \App\Support\Format::nombre($c['rattrapage']) : '—' }}</td>
+                        <td class="droite">{{ \App\Support\Format::nombre($c['hebergement']) }}{{ $repere('hebergement') }}</td>
+                        <td class="droite">{{ $c['rattrapage'] ? \App\Support\Format::nombre($c['rattrapage']) . $repere('rattrapage') : '—' }}</td>
                         <td class="droite total">{{ $c['total'] !== null ? \App\Support\Format::nombre($c['total']) : '—' }}</td>
                     </tr>
                 @endforeach
@@ -111,6 +116,20 @@
                     <td colspan="7" class="droite total">Total de l'ordre de mission</td>
                     <td class="droite total">{{ $odm['calcul']['total'] !== null ? \App\Support\Format::nombre($odm['calcul']['total']) : '—' }}</td>
                 </tr>
+                @if (($odm['calcul']['montant_refacturable'] ?? 0) > 0 || ($odm['calcul']['montant_client_direct'] ?? 0) > 0)
+                    <tr>
+                        <td colspan="7" class="droite">dont à la charge de Neemba</td>
+                        <td class="droite">{{ \App\Support\Format::nombre(($odm['calcul']['montant_bon'] ?? 0) - ($odm['calcul']['montant_refacturable'] ?? 0)) }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="7" class="droite">dont avancé par Neemba, à refacturer au client (C)</td>
+                        <td class="droite">{{ \App\Support\Format::nombre($odm['calcul']['montant_refacturable'] ?? 0) }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="7" class="droite">dont payé directement par le client (CD)</td>
+                        <td class="droite">{{ \App\Support\Format::nombre($odm['calcul']['montant_client_direct'] ?? 0) }}</td>
+                    </tr>
+                @endif
             </tbody>
         </table>
         @if ($odm['calcul']['total'] !== null)
@@ -118,6 +137,9 @@
         @endif
         @if ($odm['type'] === 'exterieur' && $odm['calcul']['taux'])
             <p class="mention">Indemnité estimée au taux 1 FCFA = {{ str_replace('.', ',', (string) $odm['calcul']['taux']['taux']) }} GNF ; recalculée au taux du jour du paiement.</p>
+        @endif
+        @if (($odm['calcul']['montant_refacturable'] ?? 0) > 0 || ($odm['calcul']['montant_client_direct'] ?? 0) > 0)
+            <p class="mention">(C) : à la charge du client, avancé par Neemba et refacturé. (CD) : payé directement par le client, hors bon de caisse.</p>
         @endif
         <p class="mention">Indemnités forfaitaires : aucun justificatif d'utilisation n'est exigé au retour (RG-M12-29).</p>
     @endif

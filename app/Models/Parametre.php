@@ -59,8 +59,8 @@ class Parametre extends Model
         ],
         /* RG-M12-15 (PO-04) */
         'odm_prise_en_charge_client' => [
-            'variante_a' => 'Variante A : bons générés, ODM « à refacturer »',
-            'variante_b' => 'Variante B : aucun bon de caisse',
+            'variante_a' => 'Avancée par Neemba, refacturée',
+            'variante_b' => 'Payée directement par le client',
         ],
     ];
 
