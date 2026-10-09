@@ -3602,3 +3602,54 @@ Ensuite :
 2. compléter les jours fériés ;
 3. renseigner les services (préfixe, diffusion, carnet), les rôles « chef d'atelier » et les n° Orange Money des salariés ;
 4. vérifier que le planificateur Laravel tourne (`schedule:run`).
+
+## 35. Version v35 — Visa d'un bon par son bénéficiaire : étape sautée au lieu d'une erreur 403 (9 Octobre 2026)
+
+Branche `m12-odm`. Commits locaux, non poussés, non déployés.
+
+### 35.1 Le défaut signalé
+
+Un chef de service, participant d'un ODM, recevait « 403 Forbidden » en voulant valider les bons générés pour la mission. Trois causes :
+- **règle absente** : la spec v2.2 interdit de viser un bon dont on est demandeur ou bénéficiaire (RG-M01-04, RG-M03-24), et veut que le bon passe alors au suppléant, à défaut au niveau supérieur (RG-M04-09). Rien de cela n'existait pour les bons (c'était fait pour les ODM, Q37) ;
+- **contrôle de service** : le bon relève du service émetteur de l'ODM, et le chef d'un autre service était refusé par un `abort(403)` sans explication. La fiche du bon lui montrait pourtant le bouton « Valider » ;
+- **rôle principal seul** : un chef de service désigné par un rôle complémentaire n'était reconnu ni dans les listes, ni dans les notifications.
+
+Dans la base de développement, les bons BC-2026-0011 à 0015 (ODM N°1/DIR/26, service Direction) attendaient un chef de service qui n'existe pas : la Direction n'en a aucun. Thierry GOMIS, chef de service Aftermarket et bénéficiaire de deux de ces bons, ne pouvait de toute façon pas les viser.
+
+### 35.2 Ce qui change
+
+`App\Services\BonCaisse\CircuitBon` décide désormais qui vise un bon :
+- **titulaires** de l'étape : rôle principal ou complémentaire ; pour le chef de service, celui du service du bon ;
+- **suppléants** : délégation active « validation » d'un titulaire ; le suppléant vise « au titre de » ce titulaire ;
+- **incompatibilité** : le demandeur, l'initiateur et le bénéficiaire ne visent jamais le bon ;
+- **étape sautée** (RG-M04-09) : quand personne ne peut viser l'étape, le bon passe au niveau supérieur. L'étape est notée « Sautée » (`validations.statut = saute`), avec le motif, dans la fiche et le journal. Le dernier niveau (Finance, ou DP au-delà du seuil) n'est jamais sauté : il attend un titulaire ou un suppléant.
+
+Le saut est appliqué à la soumission (`SoumettreBon`, `BonCaisse::soumettre`), après chaque visa, et toutes les heures par la commande `bons:sauter-etapes` pour les bons déjà en attente (option `--simulation`).
+
+Le même contrôle sert partout :
+- visa, rejet et demande de complément : un refus affiche son motif au lieu d'un 403 (« Vous êtes demandeur ou bénéficiaire de ce bon… », « Ce bon relève du chef de service Direction… ») ;
+- bouton « Valider » de la fiche, liste « À valider », bloc du tableau de bord ;
+- notifications de soumission, de visa et de relance (SMS compris) : elles vont aux valideurs réels de l'étape en cours ;
+- circuit prévisionnel : il nomme les suppléants (« X (suppléant de Y) ») et exclut demandeur et bénéficiaire.
+
+Les rôles reçus par délégation comprennent aussi les rôles complémentaires du titulaire, limités aux rôles de validation.
+
+### 35.3 Décision Q48
+
+Un service sans chef de service désigné (ou dont le chef est inactif) : l'étape est sautée comme en RG-M04-09, avec le motif « aucun chef de service n'est désigné pour le service … ». Sinon, ses bons resteraient bloqués sans que personne ne soit prévenu. Révisable par Thierno ; la vraie réponse reste de désigner le chef de service de chaque service.
+
+### 35.4 Tests et base de développement
+
+- `tests/Feature/M03/IncompatibilitesValidationTest.php`, 8 tests : chef bénéficiaire sauté vers le CDG, refus expliqué sans 403, commande de reprise, suppléant au titre du titulaire, saut après un visa, dernier niveau jamais sauté, service sans chef, rôle complémentaire.
+- Fixtures M12 complétées d'un chef de service et d'un CDG (sinon leurs étapes seraient sautées).
+- **Total** : **272 tests PHP** et **66 tests JavaScript** passent.
+- Migration `2026_10_13_000001_etape_bon_sautee` vérifiée sur une copie (aller, retour, aller), puis appliquée en dev. `bons:sauter-etapes` y a fait passer BC-2026-0011 à 0015 au CDG.
+
+### 35.5 Déploiement
+
+```bash
+php artisan migrate
+php artisan bons:sauter-etapes --simulation   # bons qui seront débloqués
+php artisan bons:sauter-etapes
+npm run build
+```
