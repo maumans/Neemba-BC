@@ -557,6 +557,9 @@ class BonCaisse extends Model
             'Bon soumis pour validation.',
         );
 
+        /* RG-M04-09 : étape où personne ne peut viser (seul valideur demandeur ou bénéficiaire, ou aucun) → niveau supérieur */
+        \App\Services\BonCaisse\CircuitBon::sauterEtapesSansValideur($this);
+
         return ['success' => true, 'message' => 'Bon soumis pour validation avec succès.'];
     }
 

@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Gate;
 use App\Services\BonCaisse\ReglesSaisie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Services\BonCaisse\CircuitBon;
 use Inertia\Inertia;
 
 /**
@@ -125,18 +126,7 @@ class BonCaisseController extends Controller
             }
 
             /* Services accessibles pour les chefs de service (natif + délégué) */
-            $servicesAccessibles = [];
-            if (in_array('responsable_service', $roles)) {
-                if ($utilisateur->role === 'responsable_service' && $utilisateur->service) {
-                    $servicesAccessibles[] = $utilisateur->service;
-                }
-                foreach (Delegation::delegantsActifsPour($utilisateur->id) as $delegant) {
-                    if ($delegant->role === 'responsable_service' && $delegant->service) {
-                        $servicesAccessibles[] = $delegant->service;
-                    }
-                }
-                $servicesAccessibles = array_unique($servicesAccessibles);
-            }
+            $servicesAccessibles = in_array('responsable_service', $roles) ? CircuitBon::servicesChef($utilisateur) : [];
 
             $query->where(function ($q) use ($utilisateur, $statutsEnAttenteVisibles, $bonsDejaValides, $servicesAccessibles, $roles) {
                 /* 1. Ses bons (RG-BC-32) : demandeur ou initiateur, tous statuts ; bénéficiaire, dès la soumission */
@@ -452,16 +442,7 @@ class BonCaisseController extends Controller
                     if ($bonCaisse->statut === $roleStatutMap[$r]) {
                         /* Chef de service : restreindre aux services accessibles */
                         if ($r === 'responsable_service') {
-                            $servicesAccessibles = [];
-                            if ($utilisateur->role === 'responsable_service' && $utilisateur->service) {
-                                $servicesAccessibles[] = $utilisateur->service;
-                            }
-                            foreach (Delegation::delegantsActifsPour($utilisateur->id) as $delegant) {
-                                if ($delegant->role === 'responsable_service' && $delegant->service) {
-                                    $servicesAccessibles[] = $delegant->service;
-                                }
-                            }
-                            if (in_array($bonCaisse->service, $servicesAccessibles)) {
+                            if (in_array($bonCaisse->service, CircuitBon::servicesChef($utilisateur))) {
                                 $autorise = true;
                                 break;
                             }
@@ -539,18 +520,9 @@ class BonCaisseController extends Controller
         }
 
         /* Trouver le rôle de validation actif pour l'utilisateur sur ce bon */
-        $roleValidation = null;
-        if ($utilisateur->peutValider()) {
-            $rolesEffectifs = method_exists($utilisateur, 'rolesValidationEffectifs') ? $utilisateur->rolesValidationEffectifs() : [];
-            foreach ($rolesEffectifs as $role) {
-                if ($bonCaisse->estEnAttenteDe($role)) {
-                    $roleValidation = $role;
-                    break;
-                }
-            }
-        }
-
-        /* Vérifier si l'utilisateur connecté peut valider ce bon */
+        /* RG-M01-04, RG-M04-09 : bouton « Valider » pour un valideur de l'étape en cours, ni demandeur ni bénéficiaire */
+        $droitVisa = CircuitBon::peutViser($bonCaisse, $utilisateur);
+        $roleValidation = $droitVisa['role'] ?? null;
         $peutValiderCeBon = $roleValidation !== null;
 
         /* Trouver la validation en cours correspondante */

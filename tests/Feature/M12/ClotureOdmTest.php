@@ -60,6 +60,9 @@ class ClotureOdmTest extends TestCase
         $this->yacouba = User::factory()->create(['name' => 'BARRY', 'prenom' => 'Yacouba', 'service' => 'Technique', 'statut_cadre' => 'cadre', 'numero_om' => '622112233']);
         $this->chefAtelier = User::factory()->create(['service' => 'Technique']);
         $this->chefAtelier->ajouterRoles(['chef_atelier']);
+        /* Valideurs des bons générés : sans eux, leurs étapes seraient sautées (RG-M04-09, Q48) */
+        User::factory()->role('responsable_service')->create(['service' => 'Technique']);
+        User::factory()->role('controle_gestion')->create();
         $this->daf = User::factory()->role('daf')->create();
         $this->dp = User::factory()->role('directeur_pays')->create();
         $this->caissier = User::factory()->role('caissier')->create();

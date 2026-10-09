@@ -191,11 +191,8 @@ class RelancerValidationsSLA extends Command
     {
         try {
             $smsService = app(NimbaSmsService::class);
-            $query = User::actifs()->parRole($role)->whereNotNull('telephone');
-            if ($role === 'responsable_service' && $bon->service) {
-                $query->where('service', $bon->service);
-            }
-            $validateurs = $query->get();
+            $validateurs = \App\Services\BonCaisse\CircuitBon::valideurs($bon, $role)->pluck('user')
+                ->filter(fn (User $u) => $u->telephone);
 
             foreach ($validateurs as $validateur) {
                 $smsService->envoyerRelanceSla(

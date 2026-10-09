@@ -8,6 +8,7 @@ use App\Models\Validation;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Services\BonCaisse\CircuitBon;
 use Inertia\Inertia;
 
 /**
@@ -30,49 +31,9 @@ class ValidationController extends Controller
         }
 
         $rolesEffectifs = $utilisateur->rolesValidationEffectifs();
-        $statutsAttendus = [];
-        foreach ($rolesEffectifs as $role) {
-            $statut = match ($role) {
-                'responsable_service' => 'EN_ATTENTE_CHEF_SERVICE',
-                'controle_gestion' => 'EN_ATTENTE_CDG',
-                'daf' => 'EN_ATTENTE_DAF',
-                'directeur_pays' => 'EN_ATTENTE_DP',
-                default => null,
-            };
-            if ($statut) {
-                $statutsAttendus[] = $statut;
-            }
-        }
 
-        $query = BonCaisse::with('demandeur')
-            ->whereIn('statut', $statutsAttendus);
-
-        /* Si l'utilisateur agit comme chef de service (en propre ou délégué), filtrer par ses services */
-        if (in_array('responsable_service', $rolesEffectifs)) {
-            $servicesAccessibles = [];
-            if ($utilisateur->role === 'responsable_service' && $utilisateur->service) {
-                $servicesAccessibles[] = $utilisateur->service;
-            }
-            $delegants = \App\Models\Delegation::delegantsActifsPour($utilisateur->id);
-            foreach ($delegants as $delegant) {
-                if ($delegant->role === 'responsable_service' && $delegant->service) {
-                    $servicesAccessibles[] = $delegant->service;
-                }
-            }
-            $servicesAccessibles = array_unique($servicesAccessibles);
-
-            $query->where(function ($q) use ($servicesAccessibles, $statutsAttendus) {
-                $q->where(function ($q1) use ($servicesAccessibles) {
-                    $q1->where('statut', 'EN_ATTENTE_CHEF_SERVICE')
-                       ->whereIn('service', $servicesAccessibles);
-                });
-                
-                $autresStatuts = array_diff($statutsAttendus, ['EN_ATTENTE_CHEF_SERVICE']);
-                if (!empty($autresStatuts)) {
-                    $q->orWhereIn('statut', $autresStatuts);
-                }
-            });
-        }
+        /* RG-M01-04 : ni les bons dont il est demandeur ou bénéficiaire, ni ceux d'un autre service au niveau chef de service */
+        $query = CircuitBon::requeteAViser($utilisateur)->with('demandeur');
 
         $bonsEnAttente = $query->latest('date_demande')
             ->paginate(15);
@@ -91,33 +52,9 @@ class ValidationController extends Controller
     {
         $utilisateur = Auth::user();
 
-        $rolesEffectifs = $utilisateur->rolesValidationEffectifs();
-
-        if (!$utilisateur->peutValider() || !$bonCaisse->estEnAttenteDeUnDesRoles($rolesEffectifs)) {
-            abort(403, 'Ce bon n\'est pas en attente de votre validation.');
-        }
-
-        /* Trouver le rôle de validation actif pour ce bon */
-        $roleValidation = null;
-        foreach ($rolesEffectifs as $role) {
-            if ($bonCaisse->estEnAttenteDe($role)) {
-                $roleValidation = $role;
-                break;
-            }
-        }
-
-        /* Un chef de service ne peut valider que les bons de ses services (propres + délégués) */
-        if ($roleValidation === 'responsable_service') {
-            $servicesAccessibles = [];
-            if ($utilisateur->role === 'responsable_service') $servicesAccessibles[] = $utilisateur->service;
-            foreach (\App\Models\Delegation::delegantsActifsPour($utilisateur->id) as $delegant) {
-                if ($delegant->role === 'responsable_service' && $delegant->service) {
-                    $servicesAccessibles[] = $delegant->service;
-                }
-            }
-            if (!in_array($bonCaisse->service, $servicesAccessibles)) {
-                abort(403, 'Ce bon n\'appartient pas à votre service.');
-            }
+        /* RG-M01-04, RG-M04-09 : seul un valideur de l'étape en cours, ni demandeur ni bénéficiaire, ouvre l'écran de visa */
+        if (!CircuitBon::peutViser($bonCaisse, $utilisateur)) {
+            return redirect()->route('bons-caisse.show', $bonCaisse)->with('error', CircuitBon::motifRefus($bonCaisse, $utilisateur));
         }
 
         $bonCaisse->load([
@@ -148,34 +85,12 @@ class ValidationController extends Controller
     {
         $utilisateur = Auth::user();
 
-        $rolesEffectifs = $utilisateur->rolesValidationEffectifs();
-
-        if (!$utilisateur->peutValider() || !$bonCaisse->estEnAttenteDeUnDesRoles($rolesEffectifs)) {
-            abort(403);
+        /* RG-M01-04, RG-M04-09 : valideur de l'étape en cours (titulaire ou suppléant), ni demandeur ni bénéficiaire */
+        $droit = CircuitBon::peutViser($bonCaisse, $utilisateur);
+        if (!$droit) {
+            return back()->with('error', CircuitBon::motifRefus($bonCaisse, $utilisateur));
         }
-
-        /* Trouver le rôle de validation actif pour ce bon */
-        $roleValidation = null;
-        foreach ($rolesEffectifs as $role) {
-            if ($bonCaisse->estEnAttenteDe($role)) {
-                $roleValidation = $role;
-                break;
-            }
-        }
-
-        /* Un chef de service ne peut valider que les bons de ses services (propres + délégués) */
-        if ($roleValidation === 'responsable_service') {
-            $servicesAccessibles = [];
-            if ($utilisateur->role === 'responsable_service') $servicesAccessibles[] = $utilisateur->service;
-            foreach (\App\Models\Delegation::delegantsActifsPour($utilisateur->id) as $delegant) {
-                if ($delegant->role === 'responsable_service' && $delegant->service) {
-                    $servicesAccessibles[] = $delegant->service;
-                }
-            }
-            if (!in_array($bonCaisse->service, $servicesAccessibles)) {
-                abort(403);
-            }
-        }
+        $roleValidation = $droit['role'];
 
         $regles = [
             'commentaire' => ['nullable', 'string', 'max:1000'],
@@ -232,6 +147,7 @@ class ValidationController extends Controller
 
         if ($validation) {
             $validation->approuver($utilisateur, $request->commentaire ?? $validated['commentaire'] ?? null);
+            CircuitBon::sauterEtapesSansValideur($bonCaisse->fresh());
         }
 
         /* Rafraîchir le bon pour récupérer le nouveau statut */
@@ -257,33 +173,12 @@ class ValidationController extends Controller
     {
         $utilisateur = Auth::user();
 
-        $rolesEffectifs = $utilisateur->rolesValidationEffectifs();
-
-        if (!$utilisateur->peutValider() || !$bonCaisse->estEnAttenteDeUnDesRoles($rolesEffectifs)) {
-            abort(403);
+        /* RG-M01-04, RG-M04-09 : valideur de l'étape en cours (titulaire ou suppléant), ni demandeur ni bénéficiaire */
+        $droit = CircuitBon::peutViser($bonCaisse, $utilisateur);
+        if (!$droit) {
+            return back()->with('error', CircuitBon::motifRefus($bonCaisse, $utilisateur));
         }
-
-        $roleValidation = null;
-        foreach ($rolesEffectifs as $role) {
-            if ($bonCaisse->estEnAttenteDe($role)) {
-                $roleValidation = $role;
-                break;
-            }
-        }
-
-        /* Un chef de service ne peut rejeter que les bons de ses services */
-        if ($roleValidation === 'responsable_service') {
-            $servicesAccessibles = [];
-            if ($utilisateur->role === 'responsable_service') $servicesAccessibles[] = $utilisateur->service;
-            foreach (\App\Models\Delegation::delegantsActifsPour($utilisateur->id) as $delegant) {
-                if ($delegant->role === 'responsable_service' && $delegant->service) {
-                    $servicesAccessibles[] = $delegant->service;
-                }
-            }
-            if (!in_array($bonCaisse->service, $servicesAccessibles)) {
-                abort(403);
-            }
-        }
+        $roleValidation = $droit['role'];
 
         $validated = $request->validate([
             'motif_rejet' => ['required', 'string', 'in:' . implode(',', array_keys(BonCaisse::MOTIFS_REJET))],
@@ -324,33 +219,12 @@ class ValidationController extends Controller
     {
         $utilisateur = Auth::user();
 
-        $rolesEffectifs = $utilisateur->rolesValidationEffectifs();
-
-        if (!$utilisateur->peutValider() || !$bonCaisse->estEnAttenteDeUnDesRoles($rolesEffectifs)) {
-            abort(403);
+        /* RG-M01-04, RG-M04-09 : valideur de l'étape en cours (titulaire ou suppléant), ni demandeur ni bénéficiaire */
+        $droit = CircuitBon::peutViser($bonCaisse, $utilisateur);
+        if (!$droit) {
+            return back()->with('error', CircuitBon::motifRefus($bonCaisse, $utilisateur));
         }
-
-        $roleValidation = null;
-        foreach ($rolesEffectifs as $role) {
-            if ($bonCaisse->estEnAttenteDe($role)) {
-                $roleValidation = $role;
-                break;
-            }
-        }
-
-        /* Un chef de service ne peut demander un complément que sur les bons de ses services */
-        if ($roleValidation === 'responsable_service') {
-            $servicesAccessibles = [];
-            if ($utilisateur->role === 'responsable_service') $servicesAccessibles[] = $utilisateur->service;
-            foreach (\App\Models\Delegation::delegantsActifsPour($utilisateur->id) as $delegant) {
-                if ($delegant->role === 'responsable_service' && $delegant->service) {
-                    $servicesAccessibles[] = $delegant->service;
-                }
-            }
-            if (!in_array($bonCaisse->service, $servicesAccessibles)) {
-                abort(403);
-            }
-        }
+        $roleValidation = $droit['role'];
 
         $request->validate([
             'commentaire' => ['required', 'string', 'min:10', 'max:1000'],

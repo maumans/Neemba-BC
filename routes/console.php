@@ -17,6 +17,9 @@ Schedule::command('rapports:envoyer-quotidien')->dailyAt('07:30');
 /* Vérification SLA validations : relances et escalades automatiques (toutes les heures) */
 Schedule::command('validations:relancer-sla')->hourly();
 
+/* RG-M04-09 : bons dont l'étape en cours n'a plus aucun valideur possible → niveau supérieur */
+Schedule::command('bons:sauter-etapes')->hourly();
+
 /* M12 : visas d'ordres de mission en retard, relance à l'échéance puis escalade au double du délai (§6.7) */
 Schedule::command('odm:relancer-visas')->hourly();
 

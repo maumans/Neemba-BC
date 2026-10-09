@@ -50,6 +50,7 @@ import {
     GitBranch,
     Wallet,
     Timer,
+    SkipForward,
 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Badge } from '@/Components/ui/badge';
@@ -908,6 +909,8 @@ export default function Show({
                                                                                 <CheckCircle2 className="h-8 w-8 text-green-500" />
                                                                             ) : etape.statut === 'rejete' ? (
                                                                                 <XCircle className="h-8 w-8 text-red-500" />
+                                                                            ) : etape.statut === 'saute' ? (
+                                                                                <SkipForward className="h-8 w-8 text-gray-400" />
                                                                             ) : etape.etat === 'en_cours' ? (
                                                                                 <Clock className={`h-8 w-8 ${etape.en_retard ? 'text-red-500' : 'text-neemba-500'}`} />
                                                                             ) : (
@@ -922,7 +925,7 @@ export default function Show({
                                                                                     variant={etape.statut === 'approuve' ? 'approuve' : etape.statut === 'rejete' ? 'rejete' : etape.etat === 'en_cours' ? 'en_attente' : 'brouillon'}
                                                                                     className="text-[10px]"
                                                                                 >
-                                                                                    {etape.statut === 'approuve' ? 'Approuvé' : etape.statut === 'rejete' ? 'Rejeté' : etape.etat === 'en_cours' ? 'En cours' : etape.etat === 'non_atteint' ? 'Non atteint' : 'À venir'}
+                                                                                    {etape.statut === 'approuve' ? 'Approuvé' : etape.statut === 'rejete' ? 'Rejeté' : etape.statut === 'saute' ? 'Sauté' : etape.etat === 'en_cours' ? 'En cours' : etape.etat === 'non_atteint' ? 'Non atteint' : 'À venir'}
                                                                                 </Badge>
                                                                             </div>
                                                                             {etape.etat === 'fait' && etape.valideur && (
@@ -936,7 +939,7 @@ export default function Show({
                                                                                 <p className="text-xs text-gray-500 mt-1">
                                                                                     {etape.valideurs_possibles?.length
                                                                                         ? `Valideur(s) possible(s) : ${etape.valideurs_possibles.join(', ')}`
-                                                                                        : 'Aucun valideur disponible : le bon sera transmis au niveau supérieur.'}
+                                                                                        : 'Aucun valideur disponible : le bon sera transmis au niveau supérieur, sauf au dernier niveau.'}
                                                                                 </p>
                                                                             )}
                                                                             {etape.etat === 'en_cours' && (
@@ -1978,7 +1981,7 @@ export default function Show({
                                             <span>{formatDateTime(bonCaisse.date_soumission)}</span>
                                         </div>
                                     )}
-                                    {etapesValidation.filter((e) => e.etat === 'fait' && e.date).slice().reverse().map((e) => (
+                                    {etapesValidation.filter((e) => e.etat === 'fait' && e.date && e.statut !== 'saute').slice().reverse().map((e) => (
                                         <div key={e.id} className="flex justify-between gap-2">
                                             <span className="text-gray-500">
                                                 {e.statut === 'rejete' ? 'Rejet' : 'Validation'} {e.libelle}{e.version > 1 ? ` (v${e.version})` : ''}

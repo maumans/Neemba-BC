@@ -44,11 +44,7 @@ class DashboardController extends Controller
         if (array_intersect(['controle_gestion', 'daf', 'directeur_pays', 'administrateur'], $roles)) {
             // Accès global à tous les bons
         } elseif (in_array('responsable_service', $roles)) {
-            $servicesAccessibles = [];
-            if ($utilisateur->role === 'responsable_service' && $utilisateur->service) $servicesAccessibles[] = $utilisateur->service;
-            foreach (\App\Models\Delegation::delegantsActifsPour($utilisateur->id) as $delegant) {
-                if ($delegant->role === 'responsable_service' && $delegant->service) $servicesAccessibles[] = $delegant->service;
-            }
+            $servicesAccessibles = \App\Services\BonCaisse\CircuitBon::servicesChef($utilisateur);
             $baseQuery->where(function ($q) use ($utilisateur, $servicesAccessibles) {
                 $q->parDemandeur($utilisateur->id)
                   ->orWhereIn('service', array_unique($servicesAccessibles));
@@ -97,55 +93,10 @@ class DashboardController extends Controller
         /* Bons en attente de validation par l'utilisateur connecté */
         $bonsEnAttenteValidation = [];
         if ($utilisateur->peutValider()) {
-            $rolesEffectifs = $utilisateur->rolesValidationEffectifs();
-            $statutsAttendus = [];
-            foreach ($rolesEffectifs as $role) {
-                $statut = match ($role) {
-                    'responsable_service' => 'EN_ATTENTE_CHEF_SERVICE',
-                    'controle_gestion' => 'EN_ATTENTE_CDG',
-                    'daf' => 'EN_ATTENTE_DAF',
-                    'directeur_pays' => 'EN_ATTENTE_DP',
-                    default => null,
-                };
-                if ($statut) {
-                    $statutsAttendus[] = $statut;
-                }
-            }
-
-            if (!empty($statutsAttendus)) {
-                $queryValidation = BonCaisse::with('demandeur')
-                    ->whereIn('statut', $statutsAttendus);
-
-                /* Filtrage par service pour responsable_service (en propre et délégué) */
-                if (in_array('responsable_service', $rolesEffectifs)) {
-                    $servicesAccessibles = [];
-                    if ($utilisateur->role === 'responsable_service' && $utilisateur->service) {
-                        $servicesAccessibles[] = $utilisateur->service;
-                    }
-                    $delegants = \App\Models\Delegation::delegantsActifsPour($utilisateur->id);
-                    foreach ($delegants as $delegant) {
-                        if ($delegant->role === 'responsable_service' && $delegant->service) {
-                            $servicesAccessibles[] = $delegant->service;
-                        }
-                    }
-                    $servicesAccessibles = array_unique($servicesAccessibles);
-
-                    $queryValidation->where(function ($q) use ($servicesAccessibles, $statutsAttendus) {
-                        $q->where(function ($q1) use ($servicesAccessibles) {
-                            $q1->where('statut', 'EN_ATTENTE_CHEF_SERVICE')
-                               ->whereIn('service', $servicesAccessibles);
-                        });
-                        $autresStatuts = array_diff($statutsAttendus, ['EN_ATTENTE_CHEF_SERVICE']);
-                        if (!empty($autresStatuts)) {
-                            $q->orWhereIn('statut', $autresStatuts);
-                        }
-                    });
-                }
-
-                $bonsEnAttenteValidation = $queryValidation->latest('date_demande')
-                    ->take(5)
-                    ->get();
-            }
+            $bonsEnAttenteValidation = \App\Services\BonCaisse\CircuitBon::requeteAViser($utilisateur)->with('demandeur')
+                ->latest('date_demande')
+                ->take(5)
+                ->get();
         }
 
         /* Derniers bons de l'utilisateur connecté */

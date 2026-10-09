@@ -189,6 +189,10 @@ class Validation extends Model
      */
     private function titulaireRemplacePar(User $validateur): ?int
     {
+        /* Circuit en cours : le suppléant vise au titre du titulaire de l'étape (chef de service du bon compris) */
+        if ($this->bonCaisse && ($droit = \App\Services\BonCaisse\CircuitBon::peutViser($this->bonCaisse, $validateur))) {
+            return $droit['au_titre_de']?->id;
+        }
         if ($validateur->aLeRole($this->role)) {
             return null;
         }

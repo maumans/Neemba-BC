@@ -6,6 +6,7 @@ use App\Events\NouvelleNotification;
 use App\Models\BonCaisse;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\BonCaisse\CircuitBon;
 use App\Support\Format;
 
 /**
@@ -24,8 +25,8 @@ class NotificationService
      */
     public static function notifierSoumission(BonCaisse $bon, User $demandeur): void
     {
-        /* Seuls les chefs de service du MÊME service que le demandeur (propres et délégués) */
-        $destinataires = self::destinatairesParRole('responsable_service', $bon);
+        /* Valideurs de l'étape en cours : chef de service du bon, ou niveau supérieur si son étape a été sautée (RG-M04-09) */
+        $destinataires = self::destinatairesParRole(CircuitBon::roleEnCours($bon) ?? 'responsable_service', $bon);
 
         $urgenceLabel = self::labelUrgence($bon->niveau_urgence);
 
@@ -715,6 +716,11 @@ class NotificationService
      */
     private static function destinatairesParRole(string $role, BonCaisse $bon)
     {
+        /* Étapes du circuit : titulaires et suppléants qui peuvent viser, hors demandeur et bénéficiaire (RG-M01-04) */
+        if (in_array($role, CircuitBon::ROLES_PAR_STATUT, true)) {
+            return CircuitBon::valideurs($bon, $role)->pluck('user')->unique('id')->values();
+        }
+
         $serviceRequis = null;
         if ($role === 'responsable_service') {
             $bon->loadMissing('demandeur');
@@ -789,6 +795,7 @@ class NotificationService
     private static function prochainRoleValidateur(string $statut): ?string
     {
         return match ($statut) {
+            'EN_ATTENTE_CHEF_SERVICE' => 'responsable_service',
             'EN_ATTENTE_CDG' => 'controle_gestion',
             'EN_ATTENTE_DAF' => 'daf',
             'EN_ATTENTE_DP' => 'directeur_pays',

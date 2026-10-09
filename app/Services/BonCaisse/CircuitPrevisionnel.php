@@ -3,11 +3,11 @@
 namespace App\Services\BonCaisse;
 
 use App\Models\BonCaisse;
-use App\Models\User;
 
 /**
  * Circuit de validation annoncé avant soumission (US-BC-10, contrôle 9) :
- * niveaux et noms des valideurs prévus (comptes actifs ayant le rôle du niveau).
+ * niveaux et noms des valideurs prévus : titulaires actifs du rôle (chef de service du service du bon) et suppléants,
+ * sans le demandeur ni le bénéficiaire (RG-M01-04). Un niveau sans valideur sera sauté (RG-M04-09), sauf le dernier.
  */
 class CircuitPrevisionnel
 {
@@ -28,12 +28,8 @@ class CircuitPrevisionnel
         return array_map(fn (array $niveau) => [
             'niveau' => $niveau['niveau'],
             'libelle' => $niveau['libelle'],
-            'valideurs' => User::actifs()
-                ->parRole($niveau['role'])
-                ->when($niveau['service'], fn ($q, $service) => $q->where('service', $service))
-                ->orderBy('name')
-                ->get()
-                ->map(fn (User $valideur) => $valideur->nom_complet)
+            'valideurs' => CircuitBon::valideurs($bon, $niveau['role'])
+                ->map(fn (array $v) => $v['user']->nom_complet . ($v['au_titre_de'] ? ' (suppléant de ' . $v['au_titre_de']->nom_complet . ')' : ''))
                 ->values()
                 ->all(),
         ], $niveaux);

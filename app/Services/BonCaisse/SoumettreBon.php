@@ -78,6 +78,9 @@ class SoumettreBon
                 $resoumission ? "Bon corrigé et resoumis (version {$bon->version})." : 'Bon soumis pour validation.',
             );
 
+            /* RG-M04-09 : étape où personne ne peut viser (seul valideur demandeur ou bénéficiaire, ou aucun) → niveau supérieur */
+            CircuitBon::sauterEtapesSansValideur($bon);
+
             return [$bon, $controles, true];
         });
 

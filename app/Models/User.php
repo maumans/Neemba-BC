@@ -311,11 +311,9 @@ class User extends Authenticatable
         /* Vérifier les délégations actives avec la fonctionnalité 'validation' */
         return Delegation::actives()
             ->where('delegue_id', $this->id)
-            ->whereHas('delegant', function ($q) use ($rolesValidateurs) {
-                $q->whereIn('role', $rolesValidateurs);
-            })
+            ->with('delegant')
             ->get()
-            ->contains(fn ($d) => $d->autorise('validation'));
+            ->contains(fn ($d) => $d->autorise('validation') && $d->delegant?->aLeRole($rolesValidateurs));
     }
 
     /**
@@ -334,11 +332,10 @@ class User extends Authenticatable
             ->get();
 
         foreach ($delegations as $delegation) {
-            if ($delegation->autorise('validation')) {
-                $role = $delegation->delegant->role;
-                if (!in_array($role, $roles)) {
-                    $roles[] = $role;
-                }
+            /* Seuls les rôles de validation du titulaire passent au suppléant (principal ou complémentaires) */
+            if ($delegation->autorise('validation') && $delegation->delegant) {
+                $rolesTitulaire = array_intersect($delegation->delegant->listeRoles(), ['responsable_service', 'controle_gestion', 'daf', 'directeur_pays']);
+                $roles = array_values(array_unique(array_merge($roles, $rolesTitulaire)));
             }
         }
 
