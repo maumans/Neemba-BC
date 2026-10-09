@@ -91,7 +91,7 @@ class ImportReferentiels
             }
             $commentaire = ClasseurReferentiels::colonne($ligne, 'Commentaire');
 
-            $service = Service::all()->first(fn (Service $s) => Normalisation::cle($s->nom) === Normalisation::cle($nom));
+            $service = Service::all()->first(fn(Service $s) => Normalisation::cle($s->nom) === Normalisation::cle($nom));
             if (!$service) {
                 $service = Service::create(['nom' => $nom, 'actif' => true]);
                 $this->rapport->applique($onglet, $nom, 'Service créé');
@@ -171,7 +171,7 @@ class ImportReferentiels
                 'code_service_comptable' => $serviceCdg['a_confirmer'] ? null : $serviceCdg['valeur'],
                 'actif' => $actif['a_confirmer'] ? null : self::ouiNon($actif['valeur']),
                 'valide_cdg' => $valide['a_confirmer'] ? null : self::ouiNon($valide['valeur']),
-            ], fn ($valeur) => $valeur !== null);
+            ], fn($valeur) => $valeur !== null);
 
             if (!$code) {
                 CodeAnalytique::create($voulu + [
@@ -182,7 +182,10 @@ class ImportReferentiels
                 $this->rapport->applique($onglet, $radical, 'Code créé (liste de référence du CDG)');
             } else {
                 $this->mettreAJour($code, $voulu, $onglet, $radical, [
-                    'libelle' => 'Libellé', 'code_service_comptable' => 'Code service (CDG)', 'actif' => 'Actif', 'valide_cdg' => 'Validé par le CDG',
+                    'libelle' => 'Libellé',
+                    'code_service_comptable' => 'Code service (CDG)',
+                    'actif' => 'Actif',
+                    'valide_cdg' => 'Validé par le CDG',
                 ]);
             }
 
@@ -296,11 +299,11 @@ class ImportReferentiels
             unset($attributs['matricule']);
         }
 
-        $principal = collect(self::PRIORITE)->first(fn (string $role) => in_array($role, $roles, true)) ?? 'demandeur';
+        $principal = collect(self::PRIORITE)->first(fn(string $role) => in_array($role, $roles, true)) ?? 'demandeur';
         $utilisateur = User::create($attributs + [
             'name' => $nom,
             'prenom' => $prenom,
-            'password' => Str::random(40),
+            'password' => "Neemba@2026",
             'role' => $principal,
             'actif' => true,
         ]);
@@ -330,16 +333,26 @@ class ImportReferentiels
                 $this->rapport->action($element, "Adresse de connexion modifiée : {$utilisateur->email} → {$attributs['email']}. Prévenir la personne.");
             }
         }
-        if (isset($attributs['matricule']) && $attributs['matricule'] !== $utilisateur->matricule
-            && User::where('matricule', $attributs['matricule'])->whereKeyNot($utilisateur->id)->exists()) {
+        if (
+            isset($attributs['matricule']) && $attributs['matricule'] !== $utilisateur->matricule
+            && User::where('matricule', $attributs['matricule'])->whereKeyNot($utilisateur->id)->exists()
+        ) {
             $this->rapport->anomalie($onglet, $numero, $element, "Matricule {$attributs['matricule']} déjà attribué à un autre compte : non repris.");
             unset($attributs['matricule']);
         }
 
         $this->mettreAJour($utilisateur, $identite + $attributs, $onglet, $element, [
-            'name' => 'Nom', 'prenom' => 'Prénom', 'matricule' => 'Matricule', 'email' => 'Email', 'telephone' => 'Téléphone',
-            'entite' => 'Entité', 'site' => 'Site', 'service' => 'Service', 'poste' => 'Fonction',
-            'statut_cadre' => 'Statut', 'actif' => 'Actif',
+            'name' => 'Nom',
+            'prenom' => 'Prénom',
+            'matricule' => 'Matricule',
+            'email' => 'Email',
+            'telephone' => 'Téléphone',
+            'entite' => 'Entité',
+            'site' => 'Site',
+            'service' => 'Service',
+            'poste' => 'Fonction',
+            'statut_cadre' => 'Statut',
+            'actif' => 'Actif',
         ]);
         $this->indexer();
     }
@@ -372,7 +385,7 @@ class ImportReferentiels
 
                 return $site?->nom;
             case 'service':
-                $service = Service::all()->first(fn (Service $s) => Normalisation::cle($s->nom) === Normalisation::cle($valeur));
+                $service = Service::all()->first(fn(Service $s) => Normalisation::cle($s->nom) === Normalisation::cle($valeur));
                 if (!$service) {
                     $this->rapport->anomalie($onglet, $numero, $element, "Service inconnu : {$valeur}");
                 }
@@ -491,7 +504,7 @@ class ImportReferentiels
     {
         foreach (array_keys($this->crees) as $id) {
             $utilisateur = User::find($id);
-            $principal = collect(self::PRIORITE)->first(fn (string $role) => $utilisateur->aLeRole($role)) ?? 'demandeur';
+            $principal = collect(self::PRIORITE)->first(fn(string $role) => $utilisateur->aLeRole($role)) ?? 'demandeur';
             if ($principal !== $utilisateur->role) {
                 $utilisateur->update(['role' => $principal]);
             }
@@ -780,7 +793,7 @@ class ImportReferentiels
             ->where('champ', $champ)
             ->where('statut', 'en_attente')
             ->get()
-            ->contains(fn (ModificationEnAttente $m) => ($m->nouvelle_valeur === null ? null : (float) $m->nouvelle_valeur) === $nouvelle);
+            ->contains(fn(ModificationEnAttente $m) => ($m->nouvelle_valeur === null ? null : (float) $m->nouvelle_valeur) === $nouvelle);
 
         if (!$dejaDemandee) {
             if (!$this->auteur) {
@@ -807,7 +820,7 @@ class ImportReferentiels
         if ($caisses->count() === 1) {
             return $caisses->first();
         }
-        $parLibelle = $caisses->first(fn (Caisse $c) => Normalisation::cle($c->libelle) === Normalisation::cle($libelle));
+        $parLibelle = $caisses->first(fn(Caisse $c) => Normalisation::cle($c->libelle) === Normalisation::cle($libelle));
         if ($parLibelle) {
             return $parLibelle;
         }
@@ -902,13 +915,13 @@ class ImportReferentiels
         }
         $sansPrecision = Normalisation::cle(Normalisation::personne($texte)[0]);
 
-        return Site::all()->first(fn (Site $site) => in_array(Normalisation::cle($site->nom), [$cle, $sansPrecision], true)
+        return Site::all()->first(fn(Site $site) => in_array(Normalisation::cle($site->nom), [$cle, $sansPrecision], true)
             || in_array(Normalisation::cle($site->ville), [$cle, $sansPrecision], true));
     }
 
     private function siteParCode(string $code): ?Site
     {
-        return Site::all()->first(fn (Site $site) => ltrim((string) $site->code, '0') === ltrim($code, '0'));
+        return Site::all()->first(fn(Site $site) => ltrim((string) $site->code, '0') === ltrim($code, '0'));
     }
 
     /* ------------------------------------------------------------------ */
@@ -916,7 +929,7 @@ class ImportReferentiels
     /** Comptes actifs de l'application absents du classeur : à ajouter à l'onglet 1 ou à désactiver */
     private function comptesAbsents(): void
     {
-        $absents = User::where('actif', true)->get()->reject(fn (User $u) => isset($this->rencontres[$u->id]));
+        $absents = User::where('actif', true)->get()->reject(fn(User $u) => isset($this->rencontres[$u->id]));
         foreach ($absents as $utilisateur) {
             $this->rapport->action(self::libelle($utilisateur), "Compte actif ({$utilisateur->email}) absent du classeur : l'ajouter à l'onglet 1, ou le désactiver s'il n'a plus lieu d'être.");
         }
@@ -958,6 +971,6 @@ class ImportReferentiels
 
     private static function libellesRoles(array $roles): string
     {
-        return implode(', ', array_map(fn ($role) => User::ROLES[$role] ?? $role, $roles));
+        return implode(', ', array_map(fn($role) => User::ROLES[$role] ?? $role, $roles));
     }
 }

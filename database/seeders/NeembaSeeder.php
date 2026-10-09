@@ -556,7 +556,7 @@ class NeembaSeeder extends Seeder
         $this->command->info('');
         $this->command->info('  Comptes pilote (mot de passe : Neemba@2026) :');
         $this->command->info('  ┌──────────────────────────────────────────────────────────┐');
-        $this->command->info('  │ Demandeur      saoudou.barry@neemba.com   +224 622461261 │');
+        $this->command->info('  │ Demandeur      souadou.barry@neemba.com   +224 622461261 │');
         $this->command->info('  │ Chef Service   thierry.gomis@neemba.com   +224 627471735 │');
         $this->command->info('  │ CDG            maimouna.barry@neemba.com  +224 627261871 │');
         $this->command->info('  │ DAF            mohamed.diakite@neemba.com +224 629000769 │');
