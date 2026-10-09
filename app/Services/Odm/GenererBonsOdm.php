@@ -152,7 +152,7 @@ final class GenererBonsOdm
     private static function bonParticipant(OrdreMission $odm, ParticipantOdm $participant, User $auteur): BonCaisse
     {
         $participant->refresh();
-        $bon = self::creer($odm, $participant->utilisateur, (float) $participant->montant_bon, self::motif($odm, $participant->nom, [$participant]), [
+        $bon = self::creer($odm, $participant->utilisateur, (float) ($participant->montant_bon ?? $participant->total), self::motif($odm, $participant->nom, [$participant]), [
             'odm_participant_id' => $participant->id,
             'telephone_beneficiaire' => ReglesSaisie::normaliserTelephone($participant->numero_om ?? $participant->utilisateur?->telephone),
         ] + self::partsExterieur($odm, [$participant]));
@@ -166,7 +166,7 @@ final class GenererBonsOdm
     {
         $participants = $odm->participantsActifs()->with('utilisateur')->get();
         $designe = $participants->firstWhere('user_id', $beneficiaireId) ?? $participants->first();
-        $total = (float) $participants->sum(fn (ParticipantOdm $p) => (float) $p->montant_bon);
+        $total = (float) $participants->sum(fn (ParticipantOdm $p) => (float) ($p->montant_bon ?? $p->total));
 
         $bon = self::creer($odm, $designe->utilisateur, $total,
             self::motif($odm, "bon groupé de {$participants->count()} participant(s), versé à {$designe->nom}", $participants->all()), [

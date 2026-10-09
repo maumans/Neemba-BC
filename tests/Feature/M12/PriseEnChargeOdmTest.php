@@ -238,4 +238,30 @@ class PriseEnChargeOdmTest extends TestCase
         /* Du 27/09 au 30/09 : 3 nuits (1 500 000) et la nuitée de rattrapage (500 000), payées par le client */
         $this->assertEquals(2000000, (float) $this->participant($segment, $this->thierno)->montant_client_direct);
     }
+
+    /** Q50 : facture payée au retour, avancée pour le client ou payée par lui ; avec un retour anticipé */
+    public function test_facture_au_retour_selon_la_prise_en_charge(): void
+    {
+        TauxChange::create(['date_taux' => today(), 'taux' => 15]);
+        $odm = $this->valider($this->brouillon(
+            ['type' => 'exterieur', 'hebergement_exterieur' => 'au_retour', 'destinations' => ['Abidjan'], 'prise_en_charge' => 'neemba'],
+            [
+                ['user_id' => $this->thierno->id, 'prises_en_charge' => ['indemnite' => 'client_avance', 'hebergement_retour' => 'client_avance']],
+                ['user_id' => $this->yacouba->id, 'prises_en_charge' => ['hebergement_retour' => 'client_direct']],
+            ],
+        ));
+        $this->assertEquals(1650000, (float) $odm->montant_a_refacturer);    // 5 j × 22 000 FCFA × 15
+        $this->actingAs($this->demandeur)->post(route('odm.generer-bons', $odm))->assertSessionHas('success');
+
+        /* Retour le 24/09 : 3 jours ; facture de 600 000 pour chacun */
+        $this->actingAs($this->demandeur)->post(route('odm.cloturer', $odm), [
+            'date_retour_reelle' => '2026-09-24',
+            'factures_retour' => [$this->thierno->id => 600000, $this->yacouba->id => 600000],
+        ])->assertSessionHas('success');
+
+        $odm->refresh();
+        $this->assertEquals(990000 + 600000, (float) $odm->montant_a_refacturer);   // 3 j × 22 000 × 15, plus la facture avancée
+        $this->assertNotNull($this->participant($odm, $this->thierno)->bon_complement_id);
+        $this->assertNull($this->participant($odm, $this->yacouba)->bon_complement_id);   // payée par le client : pas de bon
+    }
 }

@@ -412,13 +412,25 @@ function Cloturer({ odm, regularisationsPossibles }) {
                             <div className="space-y-2 rounded-md border p-3 text-sm">
                                 <p className="font-medium">Factures d'hébergement payées au retour</p>
                                 <p className="text-xs text-gray-500">Un bon complémentaire est préparé en brouillon pour chaque facture : joignez-la, puis soumettez le bon.</p>
-                                {odm.participants.map((p) => (
-                                    <div key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
-                                        <span>{p.nom}</span>
-                                        <MontantInput className="w-40" value={form.data.factures_retour[p.user_id] ?? ''}
-                                            onChange={(v) => form.setData('factures_retour', { ...form.data.factures_retour, [p.user_id]: v })} />
-                                    </div>
-                                ))}
+                                {odm.participants.map((p) => {
+                                    /* Q50 : facture payée directement par le client, pas de bon ; avancée par Neemba, refacturée */
+                                    const prise = p.prises_en_charge?.hebergement_retour ?? 'neemba';
+
+                                    return (
+                                        <div key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
+                                            <span>
+                                                {p.nom}
+                                                {prise === 'client_avance' && <span className="ml-1 text-xs text-purple-800">(avancée, refacturée au client)</span>}
+                                            </span>
+                                            {prise === 'client_direct' ? (
+                                                <span className="text-xs font-medium text-purple-800">Payée par le client : aucun bon</span>
+                                            ) : (
+                                                <MontantInput className="w-40" value={form.data.factures_retour[p.user_id] ?? ''}
+                                                    onChange={(v) => form.setData('factures_retour', { ...form.data.factures_retour, [p.user_id]: v })} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

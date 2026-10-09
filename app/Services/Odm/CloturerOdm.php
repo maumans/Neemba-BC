@@ -163,8 +163,9 @@ final class CloturerOdm
                 continue;
             }
             if ($prise === 'client_avance') {
-                $participant->update(['montant_refacturable' => (float) $participant->montant_refacturable + $montant]);
-                $odm->update(['montant_a_refacturer' => (float) $odm->montant_a_refacturer + $montant, 'a_refacturer' => true]);
+                /* Incrément en base : le retour anticipé vient de recalculer ces montants, l'instance en mémoire est périmée */
+                ParticipantOdm::whereKey($participant->id)->increment('montant_refacturable', $montant);
+                OrdreMission::whereKey($odm->id)->increment('montant_a_refacturer', $montant, ['a_refacturer' => true]);
             }
             $bon = BonCaisse::create([
                 'type_bon' => 'BD',
