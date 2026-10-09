@@ -53,7 +53,7 @@ Le module M12 remplace ce circuit papier et ces e-mails :
 | **Segment** | Une période de mission. L'ODM initial est le segment 1 ; chaque prolongation crée le segment suivant, lié au précédent |
 | **Mission** | La chaîne complète des segments : l'ODM initial et toutes ses prolongations |
 | **Nuitée de rattrapage** | Nuit d'hébergement ajoutée lors d'une prolongation pour compenser la nuit non payée du segment précédent (section 4.3) |
-| **Prise en charge client** | Mission dont les frais sont refacturés au client. L'ODM est marqué « à refacturer », avec ses OR |
+| **Prise en charge** | Pour chaque participant et chaque ligne de frais : Neemba, le client avec avance de Neemba (dans le bon, puis refacturé ; l'ODM est « à refacturer », avec ses OR) ou le client qui paie directement (hors bon). Le choix de l'en-tête s'applique à toutes les lignes ; « Mixte » quand elles diffèrent (Q49) |
 | **Taux du jour** | Taux FCFA → GNF saisi chaque jour par la Trésorerie, d'après le taux communiqué par la banque |
 | **Frais Orange Money (OM)** | Frais d'envoi par OM, calculés par paliers sur le total versé : 1 % de 100 001 à 5 000 000 GNF, 0,8 % de 5 000 001 à 15 000 000 GNF. Ils sont **ajoutés** au montant versé |
 | **BD / BP** | Bon de caisse définitif (dépense justifiée) / provisoire (avance à régulariser après la mission) |
@@ -206,7 +206,7 @@ Statut :
 | RG-M12-12 | Rejet motivé ; même numéro ; modifiable et resoumis | C | M12-3 | ☑ |
 | RG-M12-13 | Génération depuis un ODM validé : BD, plus BP facultatif ; circuit complet ; OM souhaité | C | M12-4 | ☑ |
 | RG-M12-14 | Un bon par participant (défaut) ou bon groupé | O | M12-4 | ☑ |
-| RG-M12-15 | Prise en charge client : variante A (bons et « à refacturer », défaut) ou B (aucun bon) | O | M12-4 | ☑ |
+| RG-M12-15 | Prise en charge par ligne de frais et par participant : Neemba, client avancé (refacturé) ou client direct (hors bon) ; ancien choix A/B devenu le mode proposé par défaut (Q49, demande de la direction du 09/10) | C | M12-4, §36 | ☑ |
 | RG-M12-16 | Chevauchement bloqué ; dérogation du DAF motivée | C | M12-2 | ☑ |
 | RG-M12-17 | Prolongation : segment lié, départ = retour + 1, participants repris (pas d'ajout) | C | M12-5 | ☑ |
 | RG-M12-18 | Nuitée de rattrapage pour chaque participant non logé sur base vie | C | M12-5 | ☑ |
@@ -463,3 +463,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 08/10/2026 | M12-7 | 34f972d, c52e2f9 | PDF (ordre de mission et fiche d'indemnités, visas horodatés), tableau de bord du DAF (missions en cours, dérogations, à refacturer) et export Excel ; 264 tests PHP ; parcours navigateur (8 vérifications) |
 | 08/10/2026 | M12-8 | (ce commit) | Recette : scénarios SC-20 à SC-29 et SC-37 couverts, parcours complet dans le navigateur (15 vérifications, sans échec), devBook §34 et bilan du module |
 | 09/10/2026 | Correctif | (ce commit) | Bons générés : un chef de service participant recevait une erreur 403. RG-M01-04 et RG-M04-09 appliquées aux bons (étape sautée ou confiée au suppléant), refus expliqués, rôles complémentaires reconnus ; commande `bons:sauter-etapes` ; 272 tests PHP. Décision Q48 ; devBook §35 |
+| 09/10/2026 | Évolution | (ce commit) | Prise en charge des frais ligne par ligne, pour chaque participant (Neemba, client avancé, client direct) : calcul, bons, clôture, prolongation, écrans, PDF, tableau de bord ; 286 tests PHP, 71 JS ; parcours navigateur (21 vérifications). Décisions Q49 à Q51 ; devBook §36 |

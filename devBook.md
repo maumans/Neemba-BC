@@ -3653,3 +3653,96 @@ php artisan bons:sauter-etapes --simulation   # bons qui seront débloqués
 php artisan bons:sauter-etapes
 npm run build
 ```
+
+## 36. Version v36 — ODM : prise en charge des frais ligne par ligne (9 Octobre 2026)
+
+Branche `m12-prise-en-charge`, partie de `m12-odm`. Commits locaux, non poussés, non déployés.
+
+### 36.1 La demande
+
+La direction veut choisir, **pour chaque participant et pour chaque frais**, qui le prend en charge. Jusqu'ici, le choix « Frais à la charge de » valait pour tout l'ODM (Neemba ou client), et le paramètre « variante A / B » décidait du sort de l'argent pour tous les ODM du client.
+
+Choix validés avec l'utilisateur :
+- **payeurs** : Neemba ou le client ;
+- **toutes les lignes** ont leur choix :
+  - intérieur : indemnité de repas, indemnité de déplacement, hébergement, nuitée de rattrapage ;
+  - extérieur : indemnité (FCFA), facture d'hébergement payée avant le départ, facture payée au retour ;
+- **une ligne du client** se règle sur la ligne même, de deux façons :
+  - avancée par Neemba, puis refacturée : elle reste dans le bon de caisse ;
+  - payée directement par le client : elle sort du bon de caisse ;
+- **le choix de l'en-tête** devient le défaut appliqué à toutes les lignes ; il affiche « Mixte » quand elles diffèrent.
+
+Une ligne vaut donc `neemba`, `client_avance` ou `client_direct`.
+
+### 36.2 Ce qui change
+
+**Données** (migration `2026_10_14_000001_odm_prise_en_charge_par_ligne`) :
+- `odm_participants` :
+  - `prises_en_charge` (json, une valeur par ligne) ;
+  - `montant_bon`, `montant_refacturable`, `montant_client_direct` ;
+- `ordres_mission` :
+  - `prise_en_charge` accepte `mixte` ;
+  - `mode_client` (avance ou direct) ;
+  - `montant_a_refacturer`.
+
+Reprise des ODM existants : un ODM « client » passe toutes ses lignes en avance (variante A) ou en paiement direct (variante B), selon le paramètre en vigueur. Le paramètre garde sa clé et devient « Ligne à la charge du client : mode proposé par défaut ».
+
+**Calcul** (`CalculOdm`, toujours pur) :
+- `lignes()` : lignes présentes et montants ;
+- `repartition()` : bon de caisse = lignes Neemba + lignes client avancées ; à refacturer = lignes client avancées ; payé par le client = lignes client directes ;
+- `priseEnChargeGlobale()` : en-tête déduit des lignes qui ont un montant (une ligne « sans objet », comme l'hébergement sur base vie, ne compte pas).
+
+Le `total` reste le coût complet de la mission (vue mission, contrôle des nuits, PDF). Les frais Orange Money portent sur ce que Neemba verse.
+
+**Bons et suite** :
+- **bon par participant** : `montant_bon` ; un participant dont le client paie tout n'a pas de bon ; si c'est le cas de tous, aucun bon (MSG-APP-028 reformulé) ;
+- **bon groupé** : somme des `montant_bon` ;
+- **motif** : « hors X GNF payés par le client » quand il y en a ;
+- **ODM extérieur** : l'indemnité payée par le client sort de la part en FCFA recalculée au paiement ;
+- **« à refacturer »** : vrai dès qu'une ligne du client est avancée ; montant au tableau de bord et à l'export ;
+- **clôture** : trop-perçu calculé sur le montant du bon, et non plus sur le total ; facture payée au retour : pas de bon complémentaire si le client la paie directement, ajout au « à refacturer » s'il est avancé (Q50) ;
+- **prolongation** : choix repris ; la nuitée de rattrapage suit le choix de l'hébergement ;
+- **soumission** : une ligne du client exige le client (MSG-APP-042, Q51).
+
+**Écrans** :
+- **en-tête** : sélecteur Neemba / Client, puis « Avancé · refacturé » ou « Payé par le client ». Il s'applique à toutes les lignes, avec le message « Appliqué aux n lignes de frais ». Une confirmation est demandée si des lignes avaient été ajustées une à une ;
+- **carte « Prise en charge des frais »** :
+  - une section par participant, chaque ligne avec son montant serveur et son choix ;
+  - boutons « Tout Neemba » et « Tout client » par participant et pour tous ;
+  - lignes « sans objet » grisées ;
+  - ventilation en pied de section : bon de caisse, à refacturer, payé par le client ;
+- **panneau Calcul** : étiquette violette « Client » ou « Client · direct » sur les lignes concernées, ventilation par participant et pour l'ODM ;
+- **fiche** :
+  - badge « À refacturer · montant » ;
+  - résumé « n lignes sur m à la charge du client » ;
+  - onglet Calcul avec les choix en lecture seule ;
+  - génération des bons au montant versé, « Aucun bon : frais payés par le client » ;
+- **PDF** : repères (C) et (CD), légende et ventilation ;
+- **tableau de bord du DAF et export** : colonnes « À refacturer », « Payé par le client » et coût de la mission.
+
+### 36.3 Tests et vérifications
+
+- `tests/Unit/CalculOdmTest.php` : 6 tests de plus (défaut Neemba, hébergement payé par le client, avance refacturée, tout payé par le client et valeurs invalides, extérieur avec et sans taux, en-tête déduit).
+- `tests/Feature/M12/PriseEnChargeOdmTest.php` : 8 tests (choix par ligne et « mixte », défaut de l'en-tête, client obligatoire, bons hors paiement direct, à refacturer et tableau de bord, extérieur, trop-perçu, prolongation).
+- `tests/js/odm.test.js` : 5 tests Vitest des utilitaires (choix global, par ligne, par participant, état « mixte », nouveau participant).
+- **Total** : **286 tests PHP** et **71 tests JavaScript** passent.
+- **Migration** : vérifiée sur une copie de la base de dev (aller, retour, aller, et reprise d'un ODM « client »), puis appliquée en dev.
+- **Parcours dans Edge** (instance jetable) : 21 vérifications, aucune erreur JavaScript :
+  1. choix global « Client » appliqué aux 5 lignes ;
+  2. ajustements et « Mixte » ;
+  3. confirmation avant écrasement ;
+  4. soumission bloquée sans client ;
+  5. visas, puis un seul bon de 3 250 000 GNF : le participant payé directement n'en a pas ;
+  6. badge « À refacturer · 1 250 000 GNF » ;
+  7. PDF et tableau de bord ;
+  8. affichage sur téléphone (375 px).
+
+### 36.4 Déploiement
+
+```bash
+php artisan migrate
+php artisan optimize:clear
+npm run build
+```
+
+Vérifier ensuite, dans Paramétrage → Ordres de mission, le mode proposé par défaut pour une ligne du client.
