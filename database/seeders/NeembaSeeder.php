@@ -67,12 +67,23 @@ class NeembaSeeder extends Seeder
         /* Caisse Orange Money unique, rattachée à Conakry (RG-BC-12), et caisse Atelier en avance fixe (D10) */
         $conakry = Site::where('nom', 'Conakry')->first();
         Caisse::create([
-            'code' => 'CKY-OM', 'libelle' => 'Caisse Orange Money Conakry', 'site_id' => $conakry->id,
-            'type' => 'orange_money', 'mode' => 'standard', 'solde' => 0, 'actif' => true,
+            'code' => 'CKY-OM',
+            'libelle' => 'Caisse Orange Money Conakry',
+            'site_id' => $conakry->id,
+            'type' => 'orange_money',
+            'mode' => 'standard',
+            'solde' => 0,
+            'actif' => true,
         ]);
         Caisse::create([
-            'code' => 'CKY-ATL', 'libelle' => 'Caisse Atelier', 'site_id' => $conakry->id,
-            'type' => 'especes', 'mode' => 'avance_fixe', 'montant_avance' => 15000000, 'solde' => 0, 'actif' => false,
+            'code' => 'CKY-ATL',
+            'libelle' => 'Caisse Atelier',
+            'site_id' => $conakry->id,
+            'type' => 'especes',
+            'mode' => 'avance_fixe',
+            'montant_avance' => 15000000,
+            'solde' => 0,
+            'actif' => false,
         ]);
 
         /* ================================================================
@@ -150,7 +161,7 @@ class NeembaSeeder extends Seeder
         $demandeur = User::create([
             'name'       => 'BARRY',
             'prenom'     => 'Souadou',
-            'email'      => 'saoudou.barry@neemba.com',
+            'email'      => 'souadou.barry@neemba.com',
             'password'   => Hash::make('Neemba@2026'),
             'matricule'  => 'NMB-P001',
             'telephone'  => '622461261',
