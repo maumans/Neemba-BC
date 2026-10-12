@@ -3746,3 +3746,124 @@ npm run build
 ```
 
 Vérifier ensuite, dans Paramétrage → Ordres de mission, le mode proposé par défaut pour une ligne du client.
+
+## 37. Version v37 — Spec v2.3 : prise en charge des frais d'ODM par lignes et par parts, référentiel clients (12 Octobre 2026)
+
+Branche `m12-v23`, partie de `m12-prise-en-charge`. Commits locaux, non poussés, non déployés.
+
+### 37.1 Ce que change la v2.3
+
+`docs/Spec_Fonctionnelle_v2.3_Neemba_P2.docx` (09/10) ne change que la prise en charge des frais d'ODM (décision du 09/10). Elle **remplace le modèle livré au §36** :
+
+| Règle | Contenu |
+|---|---|
+| RG-M12-05 | La prise en charge quitte l'en-tête de l'ODM ; Neemba 100 % par défaut. |
+| RG-M12-15 | Variante A (défaut) : bons pour le **montant total**, ODM « à refacturer ». Variante B : aucun bon, seulement si **toutes** les parts sont client. |
+| RG-M12-30 | Lignes de frais : participant × segment × élément (indemnité, hébergement, rattrapage, hébergement à l'étranger payé en GNF), avec quantité, taux, montant. |
+| RG-M12-31 | Parts : payeur, client (référentiel), OR, code analytique, montant ou pourcentage ; somme ≠ ligne : soumission bloquée. |
+| RG-M12-32 | Saisie rapide sur un participant ou tout l'ODM. |
+| RG-M12-33 | Client de l'OR proposé ; client différent ou part client sans OR : avertissement, commentaire obligatoire. |
+| RG-M12-34 | Récapitulatif Neemba / client pour les valideurs ; lecture pour caissier, Comptabilité, CDG, Trésorerie, DAF. |
+| RG-M12-35 | Figement à la validation, reprise en prolongation, retour anticipé au prorata, traçabilité. |
+| RG-M12-36 | Frais OM répartis entre les parts (prorata par défaut, ou 100 % Neemba, PO-24). |
+| RG-M12-37 | « À refacturer » dès qu'une part est client ; montant par client et par OR. |
+| §6.5 | Référentiel clients ; plus de saisie libre sur l'ODM ; OR rattaché à un client. |
+
+Choix de l'utilisateur (12/10) :
+- **alignement sur la v2.3** : le « payé directement par le client » du §36 est retiré ;
+- **indemnité** : une seule ligne, l'affichage en deux lignes de 125 000 restant dans le calcul et le PDF ;
+- **périmètre** : M12 complet, tableau de bord et export ; M16 (imputation) plus tard ;
+- **référentiel clients** : écran avec import Excel ou CSV.
+
+### 37.2 Référentiel clients (lot PC-1)
+
+- **Données** :
+  - table `clients` (code unique, raison sociale, actif) ;
+  - table `odm_clients` : clients de la mission ;
+  - `odm_ordres_reparation.client_id`.
+- **Reprise** : les noms saisis librement deviennent des clients `REP-…` (Q54). En dev, `REP-SMD` et `REP-CBG`.
+- **Écran `Referentiels/Clients`** (chef comptable, CDG, administrateur ; menu « Clients ») :
+  - recherche, ajout, modification, désactivation ;
+  - import Excel ou CSV (point-virgule détecté) avec aperçu : créés, mis à jour, inchangés, ignorés avec leur motif.
+- **ODM** :
+  - les clients et le client de chaque OR se choisissent dans le référentiel (`ChoixClient`, recherche `api.referentiels.clients`) ;
+  - un client choisi sur un OR rejoint les clients de la mission ;
+  - un client désactivé n'est plus proposé, mais reste sur les ODM qui le portent.
+- **OR** : ils sont désormais mis à jour par numéro (et non recréés), car les parts les référencent.
+
+### 37.3 Lignes de frais et parts (lots PC-2 à PC-4)
+
+- **Données** :
+  - `odm_lignes_frais` : élément, quantité, taux, devise, montant ;
+  - `odm_parts` : payeur, client, OR, code analytique (null : celui de l'ODM), pourcentage, montant, commentaire ;
+  - `ordres_mission.montant_neemba`.
+  - Supprimés : `prise_en_charge`, `mode_client` et les colonnes du §36.
+  - Reprise : une part par ligne, Neemba ou client (premier client de l'ODM).
+- **Calcul** :
+  - `CalculOdm::lignesFrais`, `repartirLigne`, `recapitulatif`, `repartirFrais` ;
+  - service `RepartitionOdm` : synchronisation des lignes, parts saisies, totaux, photographie, récapitulatif, parts d'un bon.
+  - **Le pourcentage fait foi** (Q52) : la part suit la ligne quand les dates, le retour réel ou le taux du paiement changent. La part la plus forte reçoit l'arrondi.
+- **Règles de soumission** : répartition ≠ 100 % (MSG-APP-043), part client sans client (MSG-APP-042), avertissement sans commentaire (MSG-APP-044), code analytique inconnu (MSG-APP-045).
+- **Circuit** :
+  - récapitulatif dans le bloc de visa et en tête de la fiche ;
+  - caissier et CDG en lecture ;
+  - « à refacturer » posé à la validation finale.
+- **Traçabilité (Q53)** : photographie de la répartition à la soumission et à la validation. Chaque modification après la première soumission est inscrite au journal (action « Répartition des frais », parts avant et après).
+- **Bons** :
+  - au total (variante A) ; variante B seulement si tout est client ;
+  - ODM extérieur : la ligne d'indemnité prend le montant au taux du paiement ;
+  - clôture : retour anticipé au prorata ; la facture payée au retour devient le montant de sa ligne.
+- **Prolongation** : parts reprises (OR du segment) ; la nuitée de rattrapage reprend celles de l'hébergement.
+
+### 37.4 Écrans, reporting, PDF (lots PC-3 et PC-5)
+
+- **Formulaire** :
+  - carte « Prise en charge des frais » : par participant, lignes « quantité × taux », pastille « Neemba 100 % » et bouton « Répartir » ;
+  - éditeur de parts : payeur, client, OR, code analytique, % ou GNF, avertissement avec commentaire, « Reste à répartir » ;
+  - saisie rapide « Appliquer à ses lignes / à tout l'ODM » dans une boîte de dialogue.
+- **Panneau Calcul** : total, puis part Neemba et part de chaque client.
+- **Fiche du bon** : répartition des lignes payées, en lecture seule, avec les frais OM répartis.
+- **Tableau de bord** : « À refacturer par client et par OR » (montant et part déjà payée).
+- **Export** : onglet « Frais à refacturer », une ligne par part client.
+- **PDF** : parts client sous chaque participant et récapitulatif.
+
+### 37.5 Tests et vérifications
+
+- **Tests** :
+  - `ClientsTest` (3) ;
+  - `RepartitionV23Test` (12) ;
+  - `CalculOdmTest` réécrit pour la v2.3 (5 tests de plus) ;
+  - Vitest : 5 tests des utilitaires de répartition ;
+  - tests M12 existants adaptés.
+- **Total** : **292 tests PHP** et **71 tests JavaScript** passent.
+- **Migrations** `2026_10_15_000001` et `000002` :
+  - vérifiées sur une copie de la base de dev (aller, retour, aller ; reprise de l'ODM N°2/DIR/26 « mixte ») ;
+  - appliquées en dev, totaux inchangés.
+- **Parcours dans Edge** (instance jetable) : 19 vérifications, aucune erreur JavaScript.
+  1. client SAG créé ;
+  2. OR rattaché à SAG ;
+  3. hébergement 60/40 avec le client de l'OR proposé ;
+  4. saisie rapide, avertissement et commentaire obligatoire ;
+  5. récapitulatif du chef d'atelier (SAG 2 050 000 GNF) ;
+  6. bon au total, répartition sur le bon ;
+  7. tableau de bord par client et OR, export ;
+  8. affichage sur téléphone.
+
+### 37.6 Hors de ce chantier
+
+- **M16 (imputation comptable)** : écritures par part, compte de charge selon l'élément, compte refacturable (paramètre `compte_frais_refacturables`, PO-25), corrections par la Comptabilité (RG-M16-05 et 06), colonnes payeur / client / OR à l'export des écritures (RG-M16-03).
+- **Export Excel général des bons (M14)**, avec une ligne par part.
+- **Fichier des clients de Neemba (PO-26)**, à importer dès réception.
+
+### 37.7 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_15_000001 (clients) et 000002 (lignes et parts)
+php artisan optimize:clear
+npm run build
+```
+
+Ensuite :
+- importer la liste des clients (écran Clients) ;
+- rattacher les OR en cours à leur client ;
+- vérifier les paramètres « Frais Orange Money sur un ODM partagé » et « ODM à la charge de clients ».

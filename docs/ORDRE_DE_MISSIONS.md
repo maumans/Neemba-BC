@@ -372,7 +372,11 @@ Ils sont codés en **paramètres**, avec leur valeur par défaut : la réponse d
 |------|-------|------------------|------------|
 | PO-02 | Libellés des deux lignes de 125 000 | Repas / Déplacement | Neemba |
 | PO-03 | Un bon par participant ou bon groupé | Un bon par participant | DAF (avant S6) |
-| PO-04 | ODM à la charge du client | Variante A : bons, plus « à refacturer » | Neemba (avant S6) |
+| PO-04 | ODM à la charge du client | Variante A : bons pour le total, plus « à refacturer » ; variante B seulement si 100 % client (v2.3) | Neemba (avant S6) |
+| PO-24 | Frais OM sur un ODM partagé (v2.3) | Au prorata des parts (paramètre) | Neemba |
+| PO-25 | Compte des frais refacturables (v2.3) | Paramètre vide, pour M16 | Comptabilité Neemba |
+| PO-26 | Source du référentiel clients (v2.3) | Écran et import Excel / CSV ; noms existants repris en « REP- » | Neemba |
+| PO-27 | Validation de la répartition par client (v2.3) | Chef d'atelier avec l'ODM ; correction par la Comptabilité à l'imputation (M16) | Neemba |
 | PO-05 | Prolongation = ODM lié à l'initial | Retenu | Neemba |
 | PO-06 | Définition d'une mission technique | Case pré-cochée pour Technique et Aftermarket | Neemba |
 | PO-07 | Hébergement à l'étranger : plafond de la facture | Facture réelle, sans plafond | Neemba |
@@ -422,6 +426,25 @@ Ces questions ne sont pas tranchées par la spécification. Elles seront report�
 
 ---
 
+## 10 bis. Spec v2.3 : prise en charge des frais par lignes et par parts (09/10/2026)
+
+La v2.3 ne change que la prise en charge des frais d'ODM. Elle remplace le modèle « par ligne » du devBook §36. Détail : devBook §37.
+
+- [x] §6.5 Référentiel clients : écran, import avec aperçu, OR rattaché à un client, plus de saisie libre (PC-1)
+- [x] RG-M12-05 Prise en charge hors de l'en-tête, Neemba 100 % par défaut
+- [x] RG-M12-15 Variante A au total, variante B seulement si toutes les parts sont client
+- [x] RG-M12-30 Lignes de frais avec quantité, taux, montant (PC-2)
+- [x] RG-M12-31 Parts : payeur, client, OR, code analytique, pourcentage ; 100 % exigé (PC-2, PC-3)
+- [x] RG-M12-32 Saisie rapide pour un participant ou tout l'ODM (PC-3)
+- [x] RG-M12-33 Client de l'OR proposé ; avertissement et commentaire obligatoire (PC-3)
+- [x] RG-M12-34 Récapitulatif pour les valideurs ; lecture caissier, Comptabilité, CDG, Trésorerie, DAF (PC-4)
+- [x] RG-M12-35 Figement, prolongation, retour anticipé au prorata, traçabilité (PC-4)
+- [x] RG-M12-36 Frais OM répartis entre les parts (PC-5)
+- [x] RG-M12-37 « À refacturer » par client et par OR, export « Frais à refacturer » (PC-5)
+- [x] M03 : répartition en lecture seule sur le bon issu d'un ODM (PC-5)
+- [ ] M14 : export général des bons, une ligne par part (l'export général n'existe pas encore)
+- [ ] M16 : imputation par part, compte refacturable, corrections de la Comptabilité (module à venir)
+
 ## 11. Écarts de la spécification v2.2 hors du module M12
 
 La v2.2 (07/10/2026) **remplace** la SFD v1.3, dont le module M03 a été livré (lots 3 à 5). Plusieurs règles du bon de caisse changent. Elles ne sont **pas** traitées par le chantier M12 et demandent un plan dédié :
@@ -464,3 +487,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 08/10/2026 | M12-8 | (ce commit) | Recette : scénarios SC-20 à SC-29 et SC-37 couverts, parcours complet dans le navigateur (15 vérifications, sans échec), devBook §34 et bilan du module |
 | 09/10/2026 | Correctif | (ce commit) | Bons générés : un chef de service participant recevait une erreur 403. RG-M01-04 et RG-M04-09 appliquées aux bons (étape sautée ou confiée au suppléant), refus expliqués, rôles complémentaires reconnus ; commande `bons:sauter-etapes` ; 272 tests PHP. Décision Q48 ; devBook §35 |
 | 09/10/2026 | Évolution | (ce commit) | Prise en charge des frais ligne par ligne, pour chaque participant (Neemba, client avancé, client direct) : calcul, bons, clôture, prolongation, écrans, PDF, tableau de bord ; 286 tests PHP, 71 JS ; parcours navigateur (21 vérifications). Décisions Q49 à Q51 ; devBook §36 |
+| 12/10/2026 | v2.3 | (ce commit) | Spec v2.3 : référentiel clients, lignes de frais et parts, saisie rapide, avertissements, récapitulatif pour les valideurs, traçabilité, bons au total, répartition sur le bon, tableau de bord par client et OR, export « Frais à refacturer » ; le modèle du §36 est remplacé. 292 tests PHP, 71 JS ; parcours navigateur (19 vérifications). Décisions Q52 à Q55 ; devBook §37 |
