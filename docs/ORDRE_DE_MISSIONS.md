@@ -442,8 +442,8 @@ La v2.3 ne change que la prise en charge des frais d'ODM. Elle remplace le modè
 - [x] RG-M12-36 Frais OM répartis entre les parts (PC-5)
 - [x] RG-M12-37 « À refacturer » par client et par OR, export « Frais à refacturer » (PC-5)
 - [x] M03 : répartition en lecture seule sur le bon issu d'un ODM (PC-5)
-- [ ] M14 : export général des bons, une ligne par part (l'export général n'existe pas encore)
-- [ ] M16 : imputation par part, compte refacturable, corrections de la Comptabilité (module à venir)
+- [x] M14 : export Excel des bons, une ligne par part (devBook §38)
+- [x] M16 : imputation par part, compte refacturable, corrections de la Comptabilité reportées sur l'ODM (devBook §38)
 
 ## 11. Écarts de la spécification v2.2 hors du module M12
 
@@ -488,3 +488,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 09/10/2026 | Correctif | (ce commit) | Bons générés : un chef de service participant recevait une erreur 403. RG-M01-04 et RG-M04-09 appliquées aux bons (étape sautée ou confiée au suppléant), refus expliqués, rôles complémentaires reconnus ; commande `bons:sauter-etapes` ; 272 tests PHP. Décision Q48 ; devBook §35 |
 | 09/10/2026 | Évolution | (ce commit) | Prise en charge des frais ligne par ligne, pour chaque participant (Neemba, client avancé, client direct) : calcul, bons, clôture, prolongation, écrans, PDF, tableau de bord ; 286 tests PHP, 71 JS ; parcours navigateur (21 vérifications). Décisions Q49 à Q51 ; devBook §36 |
 | 12/10/2026 | v2.3 | (ce commit) | Spec v2.3 : référentiel clients, lignes de frais et parts, saisie rapide, avertissements, récapitulatif pour les valideurs, traçabilité, bons au total, répartition sur le bon, tableau de bord par client et OR, export « Frais à refacturer » ; le modèle du §36 est remplacé. 292 tests PHP, 71 JS ; parcours navigateur (19 vérifications). Décisions Q52 à Q55 ; devBook §37 |
+| 12/10/2026 | M16 / M14 | (ce commit) | Imputation comptable (une ligne par part pour les bons d'ODM, corrections reportées sur l'ODM avec motif), export des écritures, alerte J+1 ; export Excel des bons ; 299 tests PHP ; parcours navigateur (14 vérifications). Décisions Q56 à Q60 ; devBook §38 |

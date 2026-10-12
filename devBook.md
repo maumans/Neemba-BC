@@ -3867,3 +3867,96 @@ Ensuite :
 - importer la liste des clients (écran Clients) ;
 - rattacher les OR en cours à leur client ;
 - vérifier les paramètres « Frais Orange Money sur un ODM partagé » et « ODM à la charge de clients ».
+
+## 38. Version v38 — M16 imputation comptable et export comptable ; M14 export Excel des bons (12 Octobre 2026)
+
+Branche `m16-imputation`, partie de `m12-v23`. Commits locaux, non poussés, non déployés.
+
+### 38.1 Périmètre
+
+Ce lot traite ce qui restait du chantier v2.3 (devBook §37.6).
+- **M16** (spec v2.3, §8.11) : RG-M16-01 à 06.
+- **M14** (§8.9) : export Excel des bons au format opérationnel, une ligne par part pour les bons d'ODM.
+- **Hors lot** : le fichier des clients de Neemba (PO-26), qui n'est pas encore fourni ; l'écran d'import des clients est prêt (§37.2).
+
+Choix de l'utilisateur (12/10) :
+- **nouveau rôle « Comptabilité »** (`comptable`) : rôle complémentaire, aussi reconnu à l'import des référentiels. Le Chef comptable, le DAF et le DAF adjoint imputent aussi ;
+- **code journal par mode de paiement** : paramètres « code journal espèces / Orange Money / MTN Money / chèque / virement ».
+
+### 38.2 Données
+
+Migration `2026_10_16_000001_m16_imputation_comptable` :
+- **`imputations`** : un bon, statut (brouillon, validée, exportée), code journal, motif de correction, saisie, validation, export ;
+- **`lignes_imputation`** : nature (dépense, frais OM), compte, libellé, montant, code analytique ; pour un bon d'ODM, payeur, client, OR et ligne de frais ;
+- **`exports_comptables`** : période, nombre d'écritures, montant, auteur ;
+- **paramètres du nouveau groupe « Comptabilité (M16) »** :
+  - comptes : `compte_bp` (421100), `compte_frais_om` (PO-17), `compte_odm_indemnite`, `compte_odm_hebergement`, `compte_frais_refacturables` (PO-25, venu du groupe ODM) ;
+  - codes journaux : `code_journal_*`, un par mode de paiement ;
+  - délai : `imputation_delai_alerte` (1 jour ouvré).
+
+  Les comptes et codes journaux restent vides tant que la Comptabilité ne les a pas fournis. L'écran les signale.
+
+### 38.3 Règles (service `App\Services\Comptabilite\ImputationBon`)
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M16-01 | Une ou plusieurs lignes ; à la validation : compte obligatoire (MSG-APP-047), somme = montant versé, frais OM compris (MSG-APP-048) ; un bon non payé ne s'impute pas (MSG-APP-051). |
+| RG-M16-02 | Pré-remplissage : BP au 421100, frais OM au compte paramétré, code journal selon le mode de paiement retenu. |
+| RG-M16-03 | Export Excel ou CSV générique (point-virgule, BOM UTF-8) : date, n° de bon, compte, libellé, montant, code journal, code analytique, payeur, client, OR. Les imputations exportées sont figées ; chaque export reste téléchargeable. |
+| RG-M16-04 | Commande `comptabilite:alerter-non-imputes`, chaque jour ouvré à 8 h : notification aux Chefs comptables pour les bons payés non imputés au-delà de J+1 ouvré. |
+| RG-M16-05 | Bon d'ODM : une ligne par part. Part Neemba au compte de l'élément (indemnité, ou hébergement / rattrapage), part client au compte des frais refacturables, avec code analytique, client et OR. Frais OM répartis selon le paramètre (RG-M12-36), part client refacturable. |
+| RG-M16-06 | Tant que l'écriture n'est pas exportée, la Comptabilité peut corriger la répartition (payeur, client, OR, code analytique, montants, partage d'une ligne). Motif obligatoire (MSG-APP-050) ; chaque ligne de frais reste entière (MSG-APP-049). L'ODM reprend les parts corrigées : journal « Répartition des frais », source « imputation », avant / après et motif. Une écriture exportée ne se modifie plus (MSG-APP-046). |
+
+### 38.4 Écrans
+
+- **« Imputation comptable »** (menu ; Comptabilité, Chef comptable, DAF, DAF adjoint) :
+  - compteurs : à imputer, en retard, à exporter ;
+  - onglets « À imputer », « À exporter », « Exportées » ;
+  - période par défaut : depuis le plus ancien bon non imputé, pour qu'aucun retard ne soit masqué ;
+  - export Excel ou CSV et historique des exports ;
+  - bandeau des paramètres comptables encore vides.
+- **Imputation d'un bon** :
+  - en-tête du bon : montant, frais OM, montant versé, mode et code journal, lien vers l'ODM ;
+  - lignes modifiables, avec ajout, partage d'une ligne d'ODM et suppression ;
+  - total comparé au montant versé ;
+  - pour un bon d'ODM, contrôle de chaque ligne de frais et motif de correction ;
+  - lecture seule une fois exportée.
+- **Fiche du bon** : bouton « Imputation comptable » avec son état ; la Comptabilité consulte les bons payés.
+- **Liste des bons** : bouton « Exporter (Excel) » (M14). Il exporte la liste filtrée, avec la même visibilité ; il est proposé à la Finance, la Comptabilité, au CDG, à la Direction, à la Trésorerie et à l'administrateur.
+  - Colonnes : n° de bon, date, type, statut, bénéficiaire, motif, montant, frais OM, montant versé, caisse, site, service, code analytique, OR, mode, date de paiement, délais par étape (heures), puis ODM, élément, payeur, client, OR et code analytique de la part, montant de la part.
+  - Un bon d'ODM donne une ligne par part.
+
+### 38.5 Tests et vérifications
+
+- **`tests/Feature/M16/ImputationComptableTest.php`** (7 tests) :
+  1. droits et liste ;
+  2. contrôles et validation ;
+  3. BP et frais OM pré-remplis ;
+  4. bon d'ODM avec une ligne par part, puis correction avec motif reportée sur l'ODM ;
+  5. export qui fige les écritures ;
+  6. alerte J+1 ouvré ;
+  7. export Excel des bons.
+- **Total** : **299 tests PHP** et **71 tests JavaScript** passent.
+- **Migration** : vérifiée sur une copie de la base de dev (aller, retour, aller), puis appliquée en dev.
+- **Parcours dans Edge** (instance jetable) : 14 vérifications, aucune erreur JavaScript.
+  1. liste et retards ;
+  2. BP au 421100 ;
+  3. compte obligatoire, ligne partagée ;
+  4. export Excel des écritures, puis bon en lecture seule ;
+  5. export des bons ;
+  6. affichage sur téléphone.
+
+  Le parcours a révélé un défaut, corrigé : la période par défaut (30 derniers jours) masquait des bons de juin non imputés.
+
+### 38.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_16_000001
+php artisan optimize:clear
+npm run build
+```
+
+Ensuite :
+- renseigner les comptes et codes journaux dans Paramétrage → Comptabilité ;
+- attribuer le rôle « Comptabilité » aux comptables ;
+- vérifier que le planificateur tourne (alerte de 8 h).
