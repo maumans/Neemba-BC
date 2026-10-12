@@ -85,5 +85,12 @@
     "MSG-APP-042": "Indiquez le client de la part « client » : :element de :participant.",
     "MSG-APP-043": "Répartition incomplète : :element de :participant est réparti à :total % au lieu de 100 %.",
     "MSG-APP-044": ":element de :participant : :avertissement Ajoutez un commentaire pour les valideurs.",
-    "MSG-APP-045": ":element de :participant : le code analytique :code n'existe pas ou n'est plus actif."
+    "MSG-APP-045": ":element de :participant : le code analytique :code n'existe pas ou n'est plus actif.",
+    "MSG-APP-046": "Cette imputation a été exportée : elle ne peut plus être modifiée.",
+    "MSG-APP-047": "Ligne :ligne : indiquez le compte comptable.",
+    "MSG-APP-048": "La somme des lignes (:somme) doit être égale au montant versé (:montant).",
+    "MSG-APP-049": ":element de :participant : les lignes font :somme au lieu de :montant.",
+    "MSG-APP-050": "La répartition de l'ordre de mission est corrigée : indiquez le motif de la correction.",
+    "MSG-APP-051": "Ce bon n'est pas encore payé : il ne s'impute qu'après paiement.",
+    "MSG-APP-052": "Aucune écriture imputée à exporter sur cette période."
 }

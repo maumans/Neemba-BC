@@ -264,7 +264,7 @@ class PrerequisTest extends TestCase
             ->get(route('parametrage.index'))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('choixParametres.odm_prise_en_charge_client.variante_b', 'Variante B : aucun bon si tout est à la charge de clients')
-                ->where('parametres', fn ($parametres) => collect($parametres)->where('groupe', 'odm')->count() === 14));
+                ->where('parametres', fn ($parametres) => collect($parametres)->where('groupe', 'odm')->count() === 13));   // le compte refacturable est passé au groupe Comptabilité (M16)
     }
 
     /* ------------------------------------------------------------------

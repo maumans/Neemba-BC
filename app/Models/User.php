@@ -65,9 +65,11 @@ class User extends Authenticatable
         'chef_atelier' => "Chef d'atelier / chef d'équipe",
         'dp_adjoint' => 'DP adjoint',
         'logistique' => 'Logistique',
+        /* M16 (spec v2.3, chapitre 3) : la Comptabilité impute les bons payés */
+        'comptable' => 'Comptabilité',
     ];
 
-    public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh', 'logistique'];
+    public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh', 'logistique', 'comptable'];
 
     /** Rôle principal proposé à l'écran Utilisateurs ; les autres rôles s'ajoutent en rôles complémentaires */
     public const ROLES_PRINCIPAUX = ['demandeur', 'responsable_service', 'controle_gestion', 'daf', 'directeur_pays', 'caissier', 'administrateur'];

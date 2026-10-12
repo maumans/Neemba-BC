@@ -51,6 +51,7 @@ import {
     Wallet,
     Timer,
     SkipForward,
+    BookOpen,
 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Badge } from '@/Components/ui/badge';
@@ -194,6 +195,7 @@ function RepartitionDuBon({ repartition }) {
 export default function Show({
     bonCaisse,
     repartitionOdm = null,
+    imputation = null,
     statutsLabels = {},
     categoriesDepense = {},
     typesBeneficiaire = {},
@@ -1847,6 +1849,16 @@ export default function Show({
                                             Exporter PDF
                                         </Button>
                                     </a>
+                                )}
+
+                                {/* M16 : imputation comptable du bon payé */}
+                                {imputation && (
+                                    <Link href={route('comptabilite.imputation', bonCaisse.id)} className="block w-full">
+                                        <Button variant="outline" className="mt-2 w-full">
+                                            <BookOpen className="mr-2 h-4 w-4" />
+                                            Imputation comptable · {imputation.statut_label}
+                                        </Button>
+                                    </Link>
                                 )}
 
                                 {/* Actions de validation (si l'utilisateur est le validateur concerné) */}

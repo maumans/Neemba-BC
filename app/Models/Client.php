@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Client extends Model
 {
     /** Qui gère le référentiel : la Comptabilité (chef comptable), le CDG, l'administrateur */
-    public const ROLES_GESTION = ['chef_comptable', 'controle_gestion', 'administrateur'];
+    public const ROLES_GESTION = ['chef_comptable', 'comptable', 'controle_gestion', 'administrateur'];
 
     protected $fillable = ['code', 'raison_sociale', 'actif', 'cree_par_id'];
 

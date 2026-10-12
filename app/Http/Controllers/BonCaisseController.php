@@ -50,6 +50,35 @@ class BonCaisseController extends Controller
         /** @var \App\Models\User $utilisateur */
         $utilisateur = Auth::user();
 
+        $query = self::requeteListe($request, $utilisateur);
+
+        /* RG-BC-33 (ANO-08) : les cartes comptent exactement les lignes du filtre courant.
+         * Clone pris AVANT paginate() : paginate() pose LIMIT/OFFSET sur le builder. */
+        $statsQuery = (clone $query)->reorder();
+        $statsIndex = self::cartesListe($statsQuery);
+
+        $bonsCaisse = $query->paginate(20)->withQueryString();
+        $bonsCaisse->getCollection()->transform(fn (BonCaisse $bon) => self::avecAge($bon));
+
+        return Inertia::render('BonsCaisse/Index', [
+            'bonsCaisse' => $bonsCaisse,
+            'filtres' => $request->only(['statut', 'type_bon', 'niveau_urgence', 'du', 'au', 'recherche']),
+            'niveauxUrgence' => BonCaisse::NIVEAUX_URGENCE,
+            'statuts' => BonCaisse::STATUTS_LABELS,
+            'peutValider' => $utilisateur->peutValider(),
+            /* M14 : export Excel au format opérationnel */
+            'peutExporter' => $utilisateur->aLeRole(self::ROLES_EXPORT),
+            'roleUtilisateur' => $utilisateur->role,
+            'statsIndex' => $statsIndex,
+        ]);
+    }
+
+    /**
+     * Requête de la liste des bons (E-03.1) : filtres de l'écran et visibilité selon les rôles. Sert aussi à l'export
+     * Excel (M14) : on exporte exactement ce que l'utilisateur voit.
+     */
+    private static function requeteListe(Request $request, \App\Models\User $utilisateur): \Illuminate\Database\Eloquent\Builder
+    {
         /* E-03.1 : du plus récent au plus ancien ; étape de validation en cours chargée pour la colonne Âge */
         $query = BonCaisse::with(['demandeur', 'validations' => fn ($q) => $q->where('statut', 'en_attente')])
             ->latest('created_at')
@@ -163,23 +192,27 @@ class BonCaisseController extends Controller
             });
         }
 
-        /* RG-BC-33 (ANO-08) : les cartes comptent exactement les lignes du filtre courant.
-         * Clone pris AVANT paginate() : paginate() pose LIMIT/OFFSET sur le builder. */
-        $statsQuery = (clone $query)->reorder();
-        $statsIndex = self::cartesListe($statsQuery);
+        return $query;
+    }
 
-        $bonsCaisse = $query->paginate(20)->withQueryString();
-        $bonsCaisse->getCollection()->transform(fn (BonCaisse $bon) => self::avecAge($bon));
+    /** M14 : qui exporte la liste des bons (Finance, Comptabilité, CDG, Direction, Trésorerie, administrateur) */
+    public const ROLES_EXPORT = ['daf', 'daf_adjoint', 'chef_comptable', 'comptable', 'controle_gestion', 'directeur_pays', 'dp_adjoint', 'tresorerie', 'administrateur'];
 
-        return Inertia::render('BonsCaisse/Index', [
-            'bonsCaisse' => $bonsCaisse,
-            'filtres' => $request->only(['statut', 'type_bon', 'niveau_urgence', 'du', 'au', 'recherche']),
-            'niveauxUrgence' => BonCaisse::NIVEAUX_URGENCE,
-            'statuts' => BonCaisse::STATUTS_LABELS,
-            'peutValider' => $utilisateur->peutValider(),
-            'roleUtilisateur' => $utilisateur->role,
-            'statsIndex' => $statsIndex,
-        ]);
+    /**
+     * M14 (spec v2.3 §8.9) : export Excel des bons de la liste (mêmes filtres, même visibilité), au format opérationnel
+     * du client ; une ligne par part de prise en charge pour les bons issus d'un ODM.
+     */
+    public function exporter(Request $request)
+    {
+        /** @var \App\Models\User $utilisateur */
+        $utilisateur = Auth::user();
+        abort_unless($utilisateur->aLeRole(self::ROLES_EXPORT), 403);
+        $bons = self::requeteListe($request, $utilisateur)->limit(5000)->get();
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\BonsCaisseExport(\App\Services\Rapports\ExportBons::lignes($bons)),
+            'bons-de-caisse-' . today()->format('Y-m-d') . '.xlsx',
+        );
     }
 
     private const LIBELLES_NIVEAUX = [
@@ -416,6 +449,11 @@ class BonCaisseController extends Controller
                 $autorise = true;
             }
 
+            /* M16 : la Comptabilité consulte les bons payés qu'elle impute */
+            if ($utilisateur->aLeRole(\App\Models\Imputation::ROLES) && in_array($bonCaisse->statut, \App\Services\Odm\PaiementOdm::STATUTS_PAYES, true)) {
+                $autorise = true;
+            }
+
             /* Vérifier si le bon est déjà validé par cet utilisateur (suivi) */
             if (!$autorise) {
                 $dejaValide = Validation::where('bon_caisse_id', $bonCaisse->id)
@@ -550,6 +588,10 @@ class BonCaisseController extends Controller
             'delaisValidation' => $delaisValidation,
             /* E-03.8 : étapes de validation (fait / en cours / à venir), bandeau de rejet, âge du bon */
             'etapesValidation' => self::etapesValidation($bonCaisse),
+            /* M16 : la Comptabilité impute le bon payé */
+            'imputation' => $utilisateur->aLeRole(\App\Models\Imputation::ROLES) && in_array($bonCaisse->statut, \App\Services\Odm\PaiementOdm::STATUTS_PAYES, true)
+                ? ['statut' => $bonCaisse->imputation?->statut, 'statut_label' => \App\Models\Imputation::STATUTS[$bonCaisse->imputation?->statut ?? ''] ?? 'À imputer']
+                : null,
             /* Spec v2.3 : répartition (lecture seule) des lignes de l'ODM payées par ce bon */
             'repartitionOdm' => \App\Services\Odm\RepartitionOdm::pourBon($bonCaisse),
             'rejet' => self::rejet($bonCaisse),

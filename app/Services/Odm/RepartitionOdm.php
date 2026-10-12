@@ -225,6 +225,15 @@ final class RepartitionOdm
         ];
     }
 
+    /** Parts d'une ligne, telles qu'inscrites au journal (avant / après une modification) */
+    public static function photographieLigne(LigneFraisOdm $ligne): array
+    {
+        return $ligne->parts->map(fn (PartOdm $p) => [
+            'payeur' => $p->payeur, 'client' => $p->client?->code, 'or' => $p->ordreReparation?->numero,
+            'code_analytique' => $p->code_analytique, 'pourcentage' => (float) $p->pourcentage, 'montant' => $p->montant !== null ? (float) $p->montant : null,
+        ])->values()->all();
+    }
+
     /** Parts des participants présents (hors retirés d'une prolongation) */
     public static function partsActives(OrdreMission $odm): Collection
     {

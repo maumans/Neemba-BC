@@ -66,6 +66,8 @@ class HistoriqueAction extends Model
     const ACTION_MOUVEMENT_CAISSE = 'mouvement_caisse';
     const ACTION_DELEGATION = 'delegation';
     const ACTION_ANNULATION = 'annulation';
+    /* M16 : imputation comptable du bon payé */
+    const ACTION_IMPUTATION = 'imputation';
 
     /** Labels lisibles pour chaque action */
     const ACTIONS_LABELS = [
@@ -88,6 +90,7 @@ class HistoriqueAction extends Model
         'modification_ventilation' => 'Modification ventilation analytique',
         'mouvement_caisse' => 'Mouvement de caisse',
         'delegation' => 'Délégation de pouvoirs',
+        'imputation' => 'Imputation comptable',
     ];
 
     /** Icônes pour chaque action (noms Lucide) */
@@ -110,6 +113,7 @@ class HistoriqueAction extends Model
         'modification_ventilation' => 'GitBranch',
         'mouvement_caisse' => 'Wallet',
         'delegation' => 'UserCheck',
+        'imputation' => 'BookOpen',
     ];
 
     /* ----------------------------------------------------------------

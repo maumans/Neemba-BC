@@ -25,6 +25,7 @@ import {
     XCircle,
     Activity,
     Pencil,
+    FileSpreadsheet,
 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -88,7 +89,7 @@ function formaterTempsEcoule(dateStr) {
     return { texte: texte.trim(), jours };
 }
 
-export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutValider = false, roleUtilisateur = '', statsIndex = {}, niveauxUrgence = {} }) {
+export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutValider = false, roleUtilisateur = '', statsIndex = {}, niveauxUrgence = {}, peutExporter = false }) {
     const { auth } = usePage().props;
     const [recherche, setRecherche] = useState(filtres.recherche || '');
     const [, forceUpdate] = useState(0);
@@ -142,14 +143,25 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                         Gérez vos demandes de fonds
                     </p>
                 </div>
-                {auth.user?.peut_initier_bon && (
-                    <Link href={route('bons-caisse.create')} className="flex-shrink-0">
-                        <Button size="sm" className="sm:size-default">
-                            <Plus className="mr-1.5 h-4 w-4" />
-                            Nouveau Bon
-                        </Button>
-                    </Link>
-                )}
+                <div className="flex flex-shrink-0 gap-2">
+                    {/* M14 : export Excel des bons filtrés, au format opérationnel */}
+                    {peutExporter && (
+                        <a href={route('bons-caisse.export', Object.fromEntries(Object.entries(filtres).filter(([, v]) => v)))}>
+                            <Button size="sm" variant="outline">
+                                <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+                                Exporter (Excel)
+                            </Button>
+                        </a>
+                    )}
+                    {auth.user?.peut_initier_bon && (
+                        <Link href={route('bons-caisse.create')}>
+                            <Button size="sm" className="sm:size-default">
+                                <Plus className="mr-1.5 h-4 w-4" />
+                                Nouveau Bon
+                            </Button>
+                        </Link>
+                    )}
+                </div>
             </div>
 
             {/* Cartes (E-03.1, RG-BC-33) : calculées sur le périmètre et les filtres de la liste */}

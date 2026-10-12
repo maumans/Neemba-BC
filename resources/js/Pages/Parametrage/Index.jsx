@@ -325,6 +325,7 @@ const LIBELLES_GROUPES_PARAMETRES = {
     carburant: 'Carburant',
     orange_money: 'Orange Money',
     odm: 'Ordres de mission',
+    comptabilite: 'Comptabilité (M16)',
 };
 
 export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {

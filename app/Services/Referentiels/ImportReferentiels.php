@@ -438,6 +438,7 @@ class ImportReferentiels
                 str_starts_with($cle, 'LOGISTIQUE') => 'logistique',
                 $cle === 'CDG', str_starts_with($cle, 'CONTROLE DE GESTION') => 'controle_gestion',
                 str_starts_with($cle, 'TRESORERIE') => 'tresorerie',
+                str_starts_with($cle, 'COMPTABILITE'), str_starts_with($cle, 'COMPTABLE') => 'comptable',
                 str_starts_with($cle, 'CAISSIER') => 'caissier',
                 str_starts_with($cle, 'CHEF DE SERVICE') => 'responsable_service',
                 str_starts_with($cle, 'DEMANDEUR') => 'demandeur',

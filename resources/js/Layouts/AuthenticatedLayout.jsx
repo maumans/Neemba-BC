@@ -29,6 +29,7 @@ import {
     Landmark,
     Plane,
     Building2,
+    BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/Components/NotificationBell";
@@ -109,11 +110,18 @@ const navigationItems = [
         roles: ["caissier", "daf", "directeur_pays", "administrateur"],
     },
     {
+        /* M16 : imputation comptable des bons payés et export des écritures */
+        label: "Imputation comptable",
+        href: "comptabilite.index",
+        icon: BookOpen,
+        roles: ["comptable", "chef_comptable", "daf", "daf_adjoint"],
+    },
+    {
         /* Spec v2.3, §6.5 : référentiel des clients (ODM, parts de prise en charge) */
         label: "Clients",
         href: "clients.index",
         icon: Building2,
-        roles: ["chef_comptable", "controle_gestion", "administrateur"],
+        roles: ["chef_comptable", "comptable", "controle_gestion", "administrateur"],
     },
     {
         label: "Taux du jour",

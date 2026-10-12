@@ -12,6 +12,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RapportCaisseController;
 use App\Http\Controllers\TauxChangeController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\ImputationController;
 use App\Http\Controllers\UtilisateurController;
 use App\Http\Controllers\ParametrageController;
 use App\Http\Controllers\NotificationController;
@@ -62,6 +63,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     /* Pages : liste, assistant (création, reprise d'un brouillon, correction après rejet), fiche.
      * L'enregistrement passe par l'API de l'assistant ; un bon ne se supprime pas, il s'annule (RG-BC-31). */
+    /* M14 : export Excel de la liste des bons (avant la route de la fiche, qui prendrait « export » pour un bon) */
+    Route::get('/bons-caisse/export', [BonCaisseController::class, 'exporter'])->name('bons-caisse.export');
+
     Route::resource('bons-caisse', BonCaisseController::class)
         ->parameters(['bons-caisse' => 'bonCaisse'])
         ->only(['index', 'create', 'show', 'edit']);
@@ -200,8 +204,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('mouvements-caisse.rejeter');
     });
 
+    /* --- M16 : imputation comptable et export des écritures (Comptabilité, Chef comptable, DAF, DAF adjoint) --- */
+    Route::middleware('role:comptable,chef_comptable,daf,daf_adjoint')->prefix('comptabilite')->name('comptabilite.')->group(function () {
+        Route::get('/', [ImputationController::class, 'index'])->name('index');
+        Route::get('/bons/{bonCaisse}', [ImputationController::class, 'edit'])->name('imputation');
+        Route::put('/bons/{bonCaisse}', [ImputationController::class, 'update'])->name('imputation.enregistrer');
+        Route::post('/exports', [ImputationController::class, 'exporter'])->name('exporter');
+        Route::get('/exports/{export}/{format}', [ImputationController::class, 'telecharger'])->name('export.telecharger');
+    });
+
     /* --- Référentiel clients (spec v2.3, §6.5) : Comptabilité, CDG, administrateur --- */
-    Route::middleware('role:chef_comptable,controle_gestion,administrateur')->group(function () {
+    Route::middleware('role:chef_comptable,comptable,controle_gestion,administrateur')->group(function () {
         Route::get('/referentiels/clients', [ClientController::class, 'index'])->name('clients.index');
         Route::post('/referentiels/clients', [ClientController::class, 'store'])->name('clients.store');
         Route::put('/referentiels/clients/{client}', [ClientController::class, 'update'])->name('clients.update');

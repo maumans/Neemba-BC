@@ -26,6 +26,9 @@ Schedule::command('odm:relancer-visas')->hourly();
 /* RG-M12-28 : rappel au demandeur 2 jours ouvrés avant la fin d'un segment de mission */
 Schedule::command('odm:rappeler-fin-segment')->dailyAt('07:00');
 
+/* M16, RG-M16-04 : bons payés non imputés à J+1 ouvré, alerte au Chef comptable */
+Schedule::command('comptabilite:alerter-non-imputes')->dailyAt('08:00');
+
 /* Alertes d'expiration des archives légales (J-30, J-7, J-1) */
 Schedule::command('archives:alerter-expiration')->dailyAt('08:30');
 

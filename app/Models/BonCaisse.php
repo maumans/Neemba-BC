@@ -281,6 +281,12 @@ class BonCaisse extends Model
     /**
      * Ordre de mission dont le bon est issu, ou auquel un BP de mission est rattaché (M12)
      */
+    /** M16 : imputation comptable du bon payé */
+    public function imputation(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(Imputation::class);
+    }
+
     public function ordreMission(): BelongsTo
     {
         return $this->belongsTo(OrdreMission::class, 'odm_id');
