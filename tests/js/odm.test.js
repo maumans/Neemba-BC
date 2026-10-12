@@ -12,11 +12,18 @@ import {
     joursDeMission,
     natureTechniqueParDefaut,
     retourAvantDepart,
-    appliquerPriseEnChargeGlobale,
-    changerPriseEnCharge,
-    etatPriseEnCharge,
-    priseDeLigne,
-    toutesLesLignes,
+    appliquerRepartition,
+    avertissementPart,
+    choisirOrDeLaPart,
+    clientsAvecCeuxDesOr,
+    estNeembaSeul,
+    lignesAjustees,
+    nouvellePartClient,
+    PART_NEEMBA,
+    partsDeLigne,
+    pourcentageDe,
+    repartirMontant,
+    resteARepartir,
 } from '../../resources/js/utils/odm';
 
 describe('Ordres de mission — saisie (M12-2)', () => {
@@ -76,7 +83,7 @@ describe('Ordres de mission — saisie (M12-2)', () => {
         expect(donnees.technique).toBe(true);
         expect(donnees.hebergement_exterieur).toBeNull();
         expect(donnees.participants).toEqual([{ user_id: 3, base_vie: true, hebergement_facture: null }]);
-        expect(donnees.ordres_reparation).toEqual([{ numero: '11022219', type: 'vente' }]);
+        expect(donnees.ordres_reparation).toEqual([{ numero: '11022219', type: 'vente', client_id: null }]);
         expect(donneesOdm({ ...form, type: 'exterieur' }).participants[0].base_vie).toBe(false);
     });
 
@@ -90,53 +97,68 @@ describe('Ordres de mission — saisie (M12-2)', () => {
     });
 });
 
-describe('Ordres de mission — prise en charge par ligne (Q49)', () => {
+describe('Ordres de mission — lignes de frais et parts (spec v2.3)', () => {
+    const smd = { id: 7, code: 'SMD', raison_sociale: 'Société Minière de Dinguiraye' };
+    const cbg = { id: 9, code: 'CBG', raison_sociale: 'Compagnie des Bauxites de Guinée' };
+    const ordres = [{ numero: '11022219', type: 'vente', client: smd }, { numero: '11022220', type: 'garantie', client: null }];
     const calcul = {
         participants: [
-            { user_id: 3, lignes: [{ cle: 'indemnite_1' }, { cle: 'indemnite_2' }, { cle: 'hebergement' }, { cle: 'rattrapage', sans_objet: true }] },
-            { user_id: 4, lignes: [{ cle: 'indemnite_1' }, { cle: 'indemnite_2' }, { cle: 'hebergement', sans_objet: true }, { cle: 'rattrapage', sans_objet: true }] },
+            { user_id: 3, lignes: [{ element: 'indemnite', montant: 1250000, parts: [] }, { element: 'hebergement', montant: 2000000, parts: [] }] },
+            { user_id: 4, lignes: [{ element: 'indemnite', montant: 1250000, parts: [{ payeur: 'client', client: smd, ordre_reparation: '11022219', pourcentage: 100 }] }] },
         ],
     };
-    const form = {
-        prise_en_charge: 'neemba', mode_client: 'avance',
-        participants: [{ user_id: 3, prises_en_charge: toutesLesLignes('neemba') }, { user_id: 4, prises_en_charge: toutesLesLignes('neemba') }],
-    };
 
-    it('traduit le choix de l\'en-tête en valeur de ligne', () => {
-        expect(priseDeLigne('neemba', 'direct')).toBe('neemba');
-        expect(priseDeLigne('client', 'avance')).toBe('client_avance');
-        expect(priseDeLigne('client', 'direct')).toBe('client_direct');
-        expect(priseDeLigne('mixte', 'direct')).toBe('neemba');
+    it('part par défaut : Neemba 100 %, affichée en compact', () => {
+        expect(partsDeLigne(calcul.participants[0].lignes[0], {}, 3)).toEqual([PART_NEEMBA]);
+        expect(estNeembaSeul([PART_NEEMBA])).toBe(true);
+        expect(estNeembaSeul([{ ...PART_NEEMBA, pourcentage: 60 }, { ...PART_NEEMBA, payeur: 'client', pourcentage: 40 }])).toBe(false);
+        /* Parts du serveur, puis parts modifiées à l'écran */
+        expect(partsDeLigne(calcul.participants[1].lignes[0], {}, 4)[0].client).toEqual(smd);
+        expect(partsDeLigne(calcul.participants[1].lignes[0], { 4: { indemnite: [PART_NEEMBA] } }, 4)).toEqual([PART_NEEMBA]);
     });
 
-    it('applique le choix de l\'en-tête à toutes les lignes de tous les participants', () => {
-        const apres = appliquerPriseEnChargeGlobale(form, 'client', 'direct');
-        expect(apres.prise_en_charge).toBe('client');
-        expect(apres.participants.every((p) => Object.values(p.prises_en_charge).every((v) => v === 'client_direct'))).toBe(true);
-        expect(form.participants[0].prises_en_charge.hebergement).toBe('neemba');   // pas de mutation
+    it('montants des parts comme le serveur, reste à répartir et saisie en GNF', () => {
+        expect(repartirMontant(1250000, [60, 40])).toEqual([750000, 500000]);
+        expect(repartirMontant(1000000, [33.3333, 33.3333, 33.3334]).reduce((a, b) => a + b, 0)).toBe(1000000);
+        expect(repartirMontant(null, [100])).toEqual([null]);
+        expect(resteARepartir([{ pourcentage: 60 }, { pourcentage: 30 }])).toBe(10);
+        expect(resteARepartir([{ pourcentage: 60 }, { pourcentage: 40 }])).toBe(0);
+        expect(pourcentageDe(400000, 1250000)).toBe(32);
     });
 
-    it('une ligne ajustée rend l\'en-tête « mixte » ; les lignes sans objet ne comptent pas', () => {
-        const mixte = changerPriseEnCharge(form, 3, 'hebergement', 'client_avance', calcul);
-        expect(mixte.prise_en_charge).toBe('mixte');
-        expect(mixte.participants[0].prises_en_charge.hebergement).toBe('client_avance');
-
-        /* L'hébergement de 4 est sans objet (base vie) : le mettre au client ne change rien à l'en-tête */
-        expect(changerPriseEnCharge(form, 4, 'hebergement', 'client_direct', calcul).prise_en_charge).toBe('neemba');
+    it('client de l\'OR proposé, avertissements RG-M12-33', () => {
+        const part = { payeur: 'client', client: null, ordre_reparation: null, pourcentage: 40 };
+        expect(avertissementPart(part, ordres)).toBe('Part client sans OR.');
+        const avecOr = choisirOrDeLaPart(part, '11022219', ordres);
+        expect(avecOr.client).toEqual(smd);                       // proposé par défaut
+        expect(avertissementPart(avecOr, ordres)).toBeNull();
+        expect(avertissementPart({ ...avecOr, client: cbg }, ordres)).toBe("Client différent de celui de l'OR 11022219.");
+        expect(avertissementPart({ ...PART_NEEMBA }, ordres)).toBeNull();
+        /* Nouvelle part client : le reste, le client et l'OR proposés */
+        expect(nouvellePartClient([{ pourcentage: 70 }], ordres, [cbg])).toMatchObject({ payeur: 'client', client: smd, ordre_reparation: '11022219', pourcentage: 30 });
     });
 
-    it('toutes les lignes d\'un participant, puis de tous : l\'en-tête suit', () => {
-        let etat = changerPriseEnCharge(form, 3, null, 'client_direct', calcul);
-        expect(etat.prise_en_charge).toBe('mixte');
-        etat = changerPriseEnCharge(etat, 4, null, 'client_direct', calcul);
-        expect(etatPriseEnCharge(etat.participants, calcul, etat)).toEqual({ prise_en_charge: 'client', mode_client: 'direct' });
+    it('saisie rapide sur un participant ou tout l\'ODM (RG-M12-32), lignes déjà ajustées comptées', () => {
+        const modele = [{ ...PART_NEEMBA, pourcentage: 50 }, { payeur: 'client', client: smd, ordre_reparation: '11022219', pourcentage: 50 }];
+        const pourUn = appliquerRepartition({}, calcul, modele, 3);
+        expect(Object.keys(pourUn)).toEqual(['3']);
+        expect(pourUn[3].hebergement[1].client).toEqual(smd);
+        const pourTous = appliquerRepartition({}, calcul, modele, null);
+        expect(Object.keys(pourTous)).toEqual(['3', '4']);
+        expect(lignesAjustees({}, calcul, null)).toBe(1);         // la ligne déjà au client
+        expect(lignesAjustees(pourTous, calcul, 3)).toBe(2);
     });
 
-    it('un nouveau participant reçoit le choix de l\'en-tête et l\'envoie au serveur', () => {
-        const { liste } = ajouterParticipant([], { user_id: 7, nom: 'CAMARA Ibrahima' }, 10, 'client_avance');
-        expect(liste[0].prises_en_charge.indemnite_1).toBe('client_avance');
-        const donnees = donneesOdm({ ...form, type: 'interieur', mode_client: 'direct', participants: liste });
-        expect(donnees.mode_client).toBe('direct');
-        expect(donnees.participants[0].prises_en_charge.hebergement).toBe('client_avance');
+    it('envoie les parts modifiées au serveur, clients par identifiant ; un client d\'OR rejoint ceux de l\'ODM', () => {
+        const donnees = donneesOdm({
+            type: 'interieur', participants: [{ user_id: 3, base_vie: false }], clients: [cbg], ordres_reparation: ordres,
+            repartitions: { 3: { hebergement: [{ payeur: 'client', client: smd, ordre_reparation: '11022219', code_analytique: null, pourcentage: 100, commentaire: ' ' }] } },
+        });
+        expect(donnees.clients).toEqual([9]);
+        expect(donnees.ordres_reparation[0]).toEqual({ numero: '11022219', type: 'vente', client_id: 7 });
+        expect(donnees.participants[0].lignes.hebergement.parts[0]).toEqual({
+            payeur: 'client', client_id: 7, ordre_reparation: '11022219', code_analytique: null, pourcentage: 100, commentaire: null,
+        });
+        expect(clientsAvecCeuxDesOr([cbg], ordres).map((c) => c.id)).toEqual([9, 7]);
     });
 });

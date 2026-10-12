@@ -66,7 +66,7 @@ final class SoumettreOdm
 
             HistoriqueOdm::enregistrer($odm, 'soumission', $statutAvant, 'SOUMIS', $auteur->id,
                 $resoumission ? "Ordre de mission corrigé et resoumis (version {$odm->version})." : "Ordre de mission soumis : n° {$odm->numero}.",
-                ['total' => $odm->total, 'participants' => $odm->participantsActifs()->count()]);
+                ['total' => $odm->total, 'participants' => $odm->participantsActifs()->count(), 'repartition' => RepartitionOdm::photographie($odm)]);
 
             return [$odm, true];
         });

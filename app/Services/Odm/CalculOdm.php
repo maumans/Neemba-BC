@@ -20,25 +20,11 @@ use Carbon\CarbonInterface;
  * | Indemnité   | jours × 250 000, en 2 lignes égales               | jours × 22 000 / 34 000 FCFA × taux → GNF              |
  * | Hébergement | nuits × 500 000                                   | filiale : 0 ; avant le départ : facture ; au retour : 0 |
  *
- * Prise en charge par ligne (Q49) : chaque ligne est à la charge de Neemba, du client avec avance de Neemba
- * (dans le bon, à refacturer) ou du client qui la paie directement (hors bon). Le total reste le coût complet
- * de la mission ; le bon de caisse ne porte que les lignes que Neemba décaisse.
+ * Spec v2.3 : le calcul produit des lignes de frais (RG-M12-30), réparties en parts de prise en charge
+ * (RG-M12-31). Le pourcentage d'une part fait foi ; son montant découle de la ligne (décision Q52).
  */
 final class CalculOdm
 {
-    /** Qui prend en charge une ligne de frais (Q49) */
-    public const PRISES_EN_CHARGE = [
-        'neemba' => 'Neemba',
-        'client_avance' => 'Client, avancé par Neemba (refacturé)',
-        'client_direct' => 'Client, payé directement',
-    ];
-
-    /** Lignes de frais d'un participant, intérieur et extérieur confondus */
-    public const LIGNES = ['indemnite_1', 'indemnite_2', 'hebergement', 'rattrapage', 'indemnite', 'hebergement_retour'];
-
-    /** Ligne dont le montant n'est connu qu'à la clôture (facture d'hébergement payée au retour, Q24) */
-    public const LIGNE_A_LA_CLOTURE = 'hebergement_retour';
-
     /**
      * Barèmes et paramètres en vigueur, enregistrés avec l'ODM à sa validation (RG-M12-25).
      */
@@ -70,10 +56,8 @@ final class CalculOdm
     /**
      * Calcul d'un participant sur un segment.
      *
-     * @param array{base_vie?: bool, statut_cadre?: ?string, hebergement_facture?: float|int|string|null, rattrapage?: bool,
-     *              prises_en_charge?: ?array, prise_defaut?: string} $participant
+     * @param array{base_vie?: bool, statut_cadre?: ?string, hebergement_facture?: float|int|string|null, rattrapage?: bool} $participant
      *        « rattrapage » : prolongation, et le participant n'était pas logé sur base vie au segment précédent (RG-M12-18)
-     *        « prises_en_charge » : ligne => neemba | client_avance | client_direct ; une ligne absente prend « prise_defaut »
      * @param array{type: string, jours: int, hebergement_exterieur?: ?string, taux?: float|int|string|null} $segment
      *        « taux » : GNF pour 1 FCFA (ODM extérieur) ; sans taux, l'indemnité extérieure n'est pas convertie
      */
@@ -86,19 +70,9 @@ final class CalculOdm
         $resultat = ($segment['type'] ?? 'interieur') === 'exterieur'
             ? self::exterieur($participant, $segment, $baremes, $jours, $rattrapage)
             : self::interieur($baseVie, $jours, $rattrapage, $baremes);
+        $resultat['lignes'] = self::lignesFrais($segment['type'] ?? 'interieur', $resultat, $segment['hebergement_exterieur'] ?? null, $baremes);
 
-        /* Q49 : ventilation selon qui prend en charge chaque ligne ; les frais OM portent sur ce que Neemba verse */
-        $prises = self::prisesNormalisees($participant['prises_en_charge'] ?? null, $participant['prise_defaut'] ?? 'neemba');
-        $lignes = self::lignes($segment['type'] ?? 'interieur', $resultat, $segment['hebergement_exterieur'] ?? null);
-        $repartition = self::repartition($lignes, $prises);
-        $frais = $repartition['montant_bon'] === null ? null : FraisOrangeMoney::calculer($repartition['montant_bon'], $baremes['frais_om_paliers'] ?? null);
-
-        return array_merge($resultat, $repartition, [
-            'prises_en_charge' => $prises,
-            'lignes' => $lignes,
-            'frais_om' => $frais['frais'] ?? null,
-            'montant_verse_om' => $frais['montant_verse'] ?? null,
-        ]);
+        return $resultat;
     }
 
     private static function interieur(bool $baseVie, int $jours, bool $rattrapage, array $baremes): array
@@ -145,6 +119,7 @@ final class CalculOdm
         float|int $hebergement, int $rattrapage, array $baremes,
     ): array {
         $total = $indemnite === null ? null : $indemnite + $hebergement + $rattrapage;
+        $frais = $total === null ? null : FraisOrangeMoney::calculer($total, $baremes['frais_om_paliers'] ?? null);
 
         return [
             'jours' => $jours,
@@ -157,135 +132,142 @@ final class CalculOdm
             'hebergement' => $hebergement,
             'rattrapage' => $rattrapage,
             'total' => $total,
+            /* Pour information : frais si le caissier retient Orange Money (null hors paliers) */
+            'frais_om' => $frais['frais'] ?? null,
+            'montant_verse_om' => $frais['montant_verse'] ?? null,
         ];
     }
 
     /**
-     * Choix de prise en charge complet : une valeur valide pour chaque ligne, le défaut sinon.
+     * RG-M12-30 : lignes de frais d'un participant sur un segment, avec quantité, taux et montant.
+     * - indemnité : jours × indemnité journalière ; à l'étranger, jours × barème FCFA (devise FCFA), montant en GNF au taux ;
+     * - hébergement : nuits × prix de la nuit (intérieur) ;
+     * - nuitée de rattrapage : 1 × prix de la nuit ;
+     * - hébergement à l'étranger payé en GNF : la facture (avant le départ), ou montant connu à la clôture (au retour).
+     * Une ligne sans objet (montant nul : base vie, filiale d'accueil, pas de rattrapage) n'est pas produite.
      *
-     * @return array<string, string>
+     * @return array<string, array{quantite: float, taux: ?float, devise: string, montant: ?float}>
      */
-    public static function prisesNormalisees(?array $prises, string $defaut = 'neemba'): array
+    public static function lignesFrais(string $type, array $resultat, ?string $hebergementExterieur, array $baremes): array
     {
-        $defaut = array_key_exists($defaut, self::PRISES_EN_CHARGE) ? $defaut : 'neemba';
-        $normalisees = [];
-        foreach (self::LIGNES as $ligne) {
-            $valeur = $prises[$ligne] ?? null;
-            $normalisees[$ligne] = is_string($valeur) && array_key_exists($valeur, self::PRISES_EN_CHARGE) ? $valeur : $defaut;
+        $lignes = [];
+        if ($resultat['jours'] > 0) {
+            $lignes['indemnite'] = $type === 'exterieur'
+                ? ['quantite' => (float) $resultat['jours'], 'taux' => $resultat['indemnite_fcfa'] !== null ? $resultat['indemnite_fcfa'] / $resultat['jours'] : null,
+                    'devise' => 'FCFA', 'montant' => $resultat['indemnite'] !== null ? (float) $resultat['indemnite'] : null]
+                : ['quantite' => (float) $resultat['jours'], 'taux' => (float) $baremes['indemnite_journaliere'], 'devise' => 'GNF', 'montant' => (float) $resultat['indemnite']];
         }
-
-        return $normalisees;
-    }
-
-    /**
-     * Lignes de frais présentes pour le type d'ODM, avec leur montant :
-     * - intérieur : les deux lignes d'indemnité, l'hébergement et la nuitée de rattrapage ;
-     * - extérieur : l'indemnité (null sans taux), la facture payée avant le départ, la facture payée au retour
-     *   (montant connu à la clôture : null).
-     *
-     * @param array{indemnite_ligne_1?: ?float, indemnite_ligne_2?: ?float, indemnite?: ?float, hebergement?: ?float, rattrapage?: ?float} $montants
-     * @return array<string, float|int|null>
-     */
-    public static function lignes(string $type, array $montants, ?string $hebergementExterieur = null): array
-    {
         if ($type === 'exterieur') {
-            $lignes = ['indemnite' => $montants['indemnite'] ?? null];
-            if ($hebergementExterieur === 'avant_depart') {
-                $lignes['hebergement'] = (float) ($montants['hebergement'] ?? 0);
+            if ($hebergementExterieur === 'avant_depart' && (float) $resultat['hebergement'] > 0) {
+                $lignes['hebergement_exterieur'] = ['quantite' => 1.0, 'taux' => (float) $resultat['hebergement'], 'devise' => 'GNF', 'montant' => (float) $resultat['hebergement']];
             }
-            if ($hebergementExterieur === 'au_retour') {
-                $lignes[self::LIGNE_A_LA_CLOTURE] = null;
+            if ($hebergementExterieur === 'au_retour' && $resultat['jours'] > 0) {
+                $lignes['hebergement_exterieur'] = ['quantite' => 1.0, 'taux' => null, 'devise' => 'GNF', 'montant' => null];
             }
 
             return $lignes;
         }
+        if ($resultat['nuits'] > 0) {
+            $lignes['hebergement'] = ['quantite' => (float) $resultat['nuits'], 'taux' => (float) $baremes['hebergement_nuit'], 'devise' => 'GNF', 'montant' => (float) $resultat['hebergement']];
+        }
+        if ($resultat['nuit_rattrapage'] > 0) {
+            $lignes['rattrapage'] = ['quantite' => (float) $resultat['nuit_rattrapage'], 'taux' => (float) $baremes['hebergement_nuit'], 'devise' => 'GNF', 'montant' => (float) $resultat['rattrapage']];
+        }
 
-        return [
-            'indemnite_1' => $montants['indemnite_ligne_1'] ?? null,
-            'indemnite_2' => $montants['indemnite_ligne_2'] ?? null,
-            'hebergement' => (float) ($montants['hebergement'] ?? 0),
-            'rattrapage' => (float) ($montants['rattrapage'] ?? 0),
-        ];
+        return $lignes;
     }
 
     /**
-     * Ventilation d'un participant (Q49) :
-     * - montant du bon : lignes de Neemba et lignes du client avancées par Neemba ;
-     * - à refacturer : lignes du client avancées par Neemba ;
-     * - payé directement par le client : hors bon.
-     * Null si un montant est inconnu (ODM extérieur sans taux). La facture payée au retour n'entre pas ici :
-     * son bon complémentaire est préparé à la clôture.
+     * RG-M12-31 : montant de chaque part d'une ligne, d'après son pourcentage (décision Q52). Quand les pourcentages
+     * font 100 %, la part la plus forte reçoit l'arrondi : la somme des parts égale toujours la ligne.
      *
-     * @param array<string, float|int|null> $lignes
-     * @param array<string, string> $prises
-     * @return array{montant_bon: ?float, montant_refacturable: ?float, montant_client_direct: ?float}
+     * @param array<int, float|int|string> $pourcentages
+     * @return array<int, ?float> montants, dans l'ordre des parts (null si le montant de la ligne est inconnu)
      */
-    public static function repartition(array $lignes, array $prises): array
+    public static function repartirLigne(?float $montant, array $pourcentages): array
     {
-        $parts = ['neemba' => 0.0, 'client_avance' => 0.0, 'client_direct' => 0.0];
-        foreach ($lignes as $ligne => $montant) {
-            if ($ligne === self::LIGNE_A_LA_CLOTURE) {
+        if ($montant === null) {
+            return array_map(fn () => null, $pourcentages);
+        }
+        $montants = array_map(fn ($p) => round($montant * (float) $p / 100), $pourcentages);
+        if ($montants !== [] && abs(array_sum(array_map('floatval', $pourcentages)) - 100) < 0.001) {
+            $plusForte = array_keys($pourcentages, max($pourcentages))[0];
+            $montants[$plusForte] += round($montant) - array_sum($montants);
+        }
+
+        return array_map('floatval', $montants);
+    }
+
+    /** Pourcentage d'une part saisie en montant (4 décimales) */
+    public static function pourcentageDe(float $montantPart, float $montantLigne): float
+    {
+        return $montantLigne > 0 ? round($montantPart / $montantLigne * 100, 4) : 0.0;
+    }
+
+    /**
+     * RG-M12-34, RG-M12-37 : récapitulatif d'un ensemble de parts — Neemba, clients, et par client puis par OR.
+     *
+     * @param iterable<array{payeur: string, client_id: ?int, ordre_reparation_id?: ?int, montant: ?float}> $parts
+     * @return array{neemba: float, client: float, par_client: array<int, array{montant: float, par_or: array<int|string, float>}>}
+     */
+    public static function recapitulatif(iterable $parts): array
+    {
+        $recap = ['neemba' => 0.0, 'client' => 0.0, 'par_client' => []];
+        foreach ($parts as $part) {
+            $montant = (float) ($part['montant'] ?? 0);
+            if ($part['payeur'] !== 'client') {
+                $recap['neemba'] += $montant;
                 continue;
             }
-            if ($montant === null) {
-                return ['montant_bon' => null, 'montant_refacturable' => null, 'montant_client_direct' => null];
-            }
-            $parts[$prises[$ligne] ?? 'neemba'] += (float) $montant;
+            $recap['client'] += $montant;
+            $client = (int) ($part['client_id'] ?? 0);
+            $recap['par_client'][$client]['montant'] = ($recap['par_client'][$client]['montant'] ?? 0) + $montant;
+            $or = $part['ordre_reparation_id'] ?? null ?: 'sans_or';
+            $recap['par_client'][$client]['par_or'][$or] = ($recap['par_client'][$client]['par_or'][$or] ?? 0) + $montant;
         }
 
-        return [
-            'montant_bon' => $parts['neemba'] + $parts['client_avance'],
-            'montant_refacturable' => $parts['client_avance'],
-            'montant_client_direct' => $parts['client_direct'],
-        ];
+        return $recap;
     }
 
     /**
-     * Prise en charge de l'en-tête déduite des lignes qui ont un montant : neemba, client ou mixte,
-     * et le mode des lignes client quand elles ont toutes le même. Null s'il n'y a aucune ligne.
+     * RG-M12-36 : frais Orange Money d'un bon répartis entre les parts qu'il paie, au prorata de leur montant (défaut)
+     * ou à 100 % sur les parts Neemba (PO-24). L'arrondi va à la part la plus forte du payeur retenu.
      *
-     * @param array<int, array{lignes: array<string, float|int|null>, prises_en_charge: array<string, string>}> $calculs
-     * @return array{prise_en_charge: string, mode_client: ?string}|null
+     * @param array<int, array{payeur: string, montant: ?float}> $parts
+     * @return array<int, float> frais par part, dans l'ordre des parts
      */
-    public static function priseEnChargeGlobale(array $calculs): ?array
+    public static function repartirFrais(float $frais, array $parts, string $mode = 'prorata'): array
     {
-        $valeurs = [];
-        foreach ($calculs as $calcul) {
-            foreach ($calcul['lignes'] as $ligne => $montant) {
-                /* Une ligne sans objet (montant nul) ne compte pas ; un montant encore inconnu, si */
-                if ($montant === null || (float) $montant > 0) {
-                    $valeurs[] = $calcul['prises_en_charge'][$ligne] ?? 'neemba';
-                }
-            }
+        $eligibles = array_map(fn ($p) => $mode === 'neemba' && $p['payeur'] !== 'neemba' ? 0.0 : (float) ($p['montant'] ?? 0), $parts);
+        $base = array_sum($eligibles);
+        if ($base <= 0) {
+            /* Rien côté Neemba (tout client) : les frais suivent le prorata */
+            $eligibles = array_map(fn ($p) => (float) ($p['montant'] ?? 0), $parts);
+            $base = array_sum($eligibles);
         }
-        $valeurs = array_values(array_unique($valeurs));
-        if ($valeurs === []) {
-            return null;
+        if ($base <= 0) {
+            return array_map(fn () => 0.0, $parts);
         }
-        if ($valeurs === ['neemba']) {
-            return ['prise_en_charge' => 'neemba', 'mode_client' => null];
-        }
-        if (count($valeurs) === 1) {
-            return ['prise_en_charge' => 'client', 'mode_client' => $valeurs[0] === 'client_direct' ? 'direct' : 'avance'];
-        }
+        $repartis = array_map(fn ($m) => round($frais * $m / $base), $eligibles);
+        $plusForte = array_keys($eligibles, max($eligibles))[0];
+        $repartis[$plusForte] += round($frais) - array_sum($repartis);
 
-        return ['prise_en_charge' => 'mixte', 'mode_client' => null];
+        return array_map('floatval', $repartis);
     }
 
     /**
      * Total de l'ODM : somme des totaux des participants (null si l'un d'eux n'est pas calculable, ex. sans taux).
-     * Sert aussi aux autres montants de la ventilation (« montant_bon », « montant_refacturable »…).
      *
-     * @param array<int, array<string, float|int|null>> $calculs
+     * @param array<int, array{total: float|int|null}> $calculs
      */
-    public static function total(array $calculs, string $cle = 'total'): ?float
+    public static function total(array $calculs): ?float
     {
         $total = 0.0;
         foreach ($calculs as $calcul) {
-            if (($calcul[$cle] ?? null) === null) {
+            if ($calcul['total'] === null) {
                 return null;
             }
-            $total += (float) $calcul[$cle];
+            $total += (float) $calcul['total'];
         }
 
         return $total;

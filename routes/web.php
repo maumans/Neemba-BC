@@ -11,6 +11,7 @@ use App\Http\Controllers\OcrController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RapportCaisseController;
 use App\Http\Controllers\TauxChangeController;
+use App\Http\Controllers\ClientController;
 use App\Http\Controllers\UtilisateurController;
 use App\Http\Controllers\ParametrageController;
 use App\Http\Controllers\NotificationController;
@@ -68,6 +69,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     /* --- API JSON de l'assistant « Nouveau bon de caisse » (SFD M03, §5.7) --- */
     Route::prefix('api/v1')->name('api.')->group(function () {
         Route::get('/referentiels/beneficiaires', [AssistantBonController::class, 'beneficiaires'])->name('referentiels.beneficiaires');
+        /* Spec v2.3, §6.5 : clients actifs, pour les sélecteurs des ODM */
+        Route::get('/referentiels/clients', [ClientController::class, 'recherche'])->name('referentiels.clients');
         Route::get('/referentiels/caisse-payeuse', [AssistantBonController::class, 'caissePayeuse'])->name('referentiels.caisse-payeuse');
         Route::post('/bons', [AssistantBonController::class, 'creer'])->name('bons.creer');
         Route::patch('/bons/{bonCaisse}', [AssistantBonController::class, 'enregistrer'])->name('bons.enregistrer');
@@ -195,6 +198,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/mouvements-caisse/{mouvement}/rejeter', [MouvementCaisseController::class, 'rejeter'])
             ->middleware('role:daf,directeur_pays')
             ->name('mouvements-caisse.rejeter');
+    });
+
+    /* --- Référentiel clients (spec v2.3, §6.5) : Comptabilité, CDG, administrateur --- */
+    Route::middleware('role:chef_comptable,controle_gestion,administrateur')->group(function () {
+        Route::get('/referentiels/clients', [ClientController::class, 'index'])->name('clients.index');
+        Route::post('/referentiels/clients', [ClientController::class, 'store'])->name('clients.store');
+        Route::put('/referentiels/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
+        Route::post('/referentiels/clients/{client}/basculer', [ClientController::class, 'basculer'])->name('clients.basculer');
+        Route::post('/referentiels/clients/import', [ClientController::class, 'importer'])->name('clients.importer');
     });
 
     /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */

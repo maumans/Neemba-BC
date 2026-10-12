@@ -16,6 +16,8 @@ use App\Support\Format;
  * - ODM extérieur (RG-M12-10) : le montant estimé au dernier taux est recalculé au paiement avec le taux saisi par
  *   la Trésorerie le jour même ; sans taux du jour, le paiement est bloqué (MSG-M12-05). L'écart est tracé sur le bon.
  * - RG-M12-21 : l'ODM passe « Payé » quand tous ses bons encore actifs sont payés.
+ * - Spec v2.3 : l'indemnité payée au taux du jour devient le montant de la ligne de frais ; ses parts suivent
+ *   leur pourcentage (RG-M12-31) et le montant à refacturer est mis à jour (RG-M12-37).
  */
 final class PaiementOdm
 {
@@ -55,6 +57,25 @@ final class PaiementOdm
                 . Format::montant($estime) . ' au taux ' . str_replace('.', ',', (string) (float) $bon->taux_change_estime)
                 . ', payé ' . Format::montant($recalcul['montant']) . ' (écart ' . ($ecart >= 0 ? '+' : '−') . Format::montant(abs($ecart)) . ').',
         );
+        self::indemniteAuTauxPaye($bon, $recalcul['taux']);
+    }
+
+    /** Lignes « indemnité » des participants payés par ce bon : montant au taux appliqué, parts recalculées */
+    private static function indemniteAuTauxPaye(BonCaisse $bon, float $taux): void
+    {
+        $odm = OrdreMission::find($bon->odm_id);
+        if (!$odm) {
+            return;
+        }
+        $participants = $odm->participants()->where('bon_caisse_id', $bon->id)->get();
+        foreach ($participants as $participant) {
+            if ($participant->indemnite_fcfa !== null) {
+                $participant->lignes()->where('element', 'indemnite')->update(['montant' => round((float) $participant->indemnite_fcfa * $taux)]);
+            }
+        }
+        if ($participants->isNotEmpty()) {
+            RepartitionOdm::repartir($odm);
+        }
     }
 
     /** RG-M12-21 : statut « Payé » de l'ODM quand tous ses bons actifs sont payés */

@@ -148,7 +148,7 @@ class CircuitOdmTest extends TestCase
 
         $this->actingAs($this->demandeur)->get(route('odm.edit', $odm))
             ->assertInertia(fn (Assert $page) => $page->where('odm.rejet.niveau', 'DAF')->where('odm.rejet.motif', 'Le client prend en charge l\'hébergement'));
-        $this->actingAs($this->demandeur)->putJson(route('api.odm.enregistrer', $odm), ['prise_en_charge' => 'client'])->assertOk();
+        $this->actingAs($this->demandeur)->putJson(route('api.odm.enregistrer', $odm), ['but' => 'Dépannage chez SMD, hébergement à la charge du client'])->assertOk();
         $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $odm))->assertOk()->assertJsonPath('odm.numero', 'N°1/AT/26');
 
         $odm->refresh();

@@ -43,7 +43,7 @@ function Tableau({ titre, entetes, lignes, vide }) {
     );
 }
 
-export default function TableauDeBord({ indicateurs, missionsEnCours = [], derogations = [], aRefacturer = [] }) {
+export default function TableauDeBord({ indicateurs, missionsEnCours = [], derogations = [], aRefacturer = [], parClient = [] }) {
     return (
         <AuthenticatedLayout header="Ordres de mission — tableau de bord">
             <Head title="Tableau de bord des ODM" />
@@ -105,8 +105,23 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                 />
 
                 <Tableau
-                    titre="Ordres de mission à refacturer (frais du client avancés par Neemba)"
-                    entetes={['ODM', 'Client(s)', 'OR', 'Période', 'À refacturer', 'Payé par le client', 'Statut']}
+                    titre="À refacturer par client et par OR"
+                    entetes={['Client', 'OR', 'ODM', 'À refacturer', 'Dont bons payés']}
+                    vide="Aucun montant à refacturer."
+                    lignes={parClient.map((r) => (
+                        <tr key={`${r.client}-${r.or ?? ''}`} className="border-b last:border-b-0">
+                            <td className="py-2 pr-3 font-medium">{r.client}</td>
+                            <td className="py-2 pr-3">{r.or ? `OR ${r.or}` : <span className="text-gray-400">Sans OR</span>}</td>
+                            <td className="py-2 pr-3 tabular-nums">{r.odm}</td>
+                            <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums">{r.montant_format}</td>
+                            <td className="whitespace-nowrap py-2 text-right tabular-nums text-gray-600">{r.paye_format}</td>
+                        </tr>
+                    ))}
+                />
+
+                <Tableau
+                    titre="Ordres de mission à refacturer"
+                    entetes={['ODM', 'Client(s)', 'OR', 'Période', 'À refacturer', 'Par client', 'Statut']}
                     vide="Aucun ODM à refacturer."
                     lignes={aRefacturer.map((r) => (
                         <tr key={r.id} className="border-b last:border-b-0">
@@ -115,7 +130,7 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                             <td className="py-2 pr-3">{r.or || '—'}</td>
                             <td className="whitespace-nowrap py-2 pr-3">{r.periode}</td>
                             <td className="whitespace-nowrap py-2 pr-3 text-right font-medium tabular-nums">{r.montant_format}</td>
-                            <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums text-gray-500">{r.client_direct > 0 ? r.client_direct_format : '—'}</td>
+                            <td className="py-2 pr-3 text-xs text-gray-600">{r.par_client || '—'}</td>
                             <td className="py-2">{r.statut_label}</td>
                         </tr>
                     ))}

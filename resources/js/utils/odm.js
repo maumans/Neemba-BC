@@ -76,77 +76,150 @@ export function codesDuServiceOdm(codes = [], services = [], nomService = '') {
 }
 
 /* ------------------------------------------------------------------
- * Prise en charge des frais, ligne par ligne (Q49)
- * Une ligne est à la charge de Neemba, du client avec avance de Neemba (dans le bon, refacturée)
- * ou du client qui la paie directement (hors bon). L'en-tête est le défaut appliqué à toutes les lignes.
+ * Spec v2.3 : lignes de frais (RG-M12-30) et parts de prise en charge (RG-M12-31 à RG-M12-33)
+ * Une part : payeur (neemba | client), client du référentiel, OR (numéro), code analytique (vide : celui de l'ODM),
+ * pourcentage (il fait foi, décision Q52), commentaire. Le serveur fait foi ; l'écran recalcule les montants pour l'affichage.
  * ------------------------------------------------------------------ */
 
-export const LIGNES_FRAIS = ['indemnite_1', 'indemnite_2', 'hebergement', 'rattrapage', 'indemnite', 'hebergement_retour'];
+export const PART_NEEMBA = { payeur: 'neemba', client: null, ordre_reparation: null, code_analytique: null, pourcentage: 100, commentaire: '' };
 
-export const PRISES_LIGNE = {
-    neemba: 'Neemba',
-    client_avance: 'Client · avancé par Neemba',
-    client_direct: 'Client · payé directement',
-};
-
-/** Valeur d'une ligne pour un choix d'en-tête : « client » + mode, ou Neemba */
-export function priseDeLigne(priseEnCharge, modeClient = 'avance') {
-    return priseEnCharge === 'client' ? `client_${modeClient === 'direct' ? 'direct' : 'avance'}` : 'neemba';
-}
-
-/** Toutes les lignes avec la même prise en charge */
-export function toutesLesLignes(prise) {
-    return Object.fromEntries(LIGNES_FRAIS.map((ligne) => [ligne, prise]));
-}
-
-/**
- * En-tête déduit des lignes qui ont un montant (celles du calcul serveur, hors « sans objet ») :
- * neemba, client (avec son mode) ou mixte. Sans calcul, toutes les lignes comptent.
- */
-export function etatPriseEnCharge(participants = [], calcul = null, actuel = { prise_en_charge: 'neemba', mode_client: 'avance' }) {
-    const valeurs = new Set();
-    participants.forEach((p) => {
-        const lignesCalcul = calcul?.participants?.find((c) => c.user_id === p.user_id)?.lignes;
-        const cles = lignesCalcul ? lignesCalcul.filter((l) => !l.sans_objet).map((l) => l.cle) : LIGNES_FRAIS;
-        cles.forEach((cle) => valeurs.add(p.prises_en_charge?.[cle] ?? priseDeLigne(actuel.prise_en_charge, actuel.mode_client)));
-    });
-    if (valeurs.size === 0) return { prise_en_charge: actuel.prise_en_charge, mode_client: actuel.mode_client };
-    if (valeurs.size === 1) {
-        const [seule] = [...valeurs];
-        if (seule === 'neemba') return { prise_en_charge: 'neemba', mode_client: actuel.mode_client };
-        return { prise_en_charge: 'client', mode_client: seule === 'client_direct' ? 'direct' : 'avance' };
-    }
-
-    return { prise_en_charge: 'mixte', mode_client: actuel.mode_client };
-}
-
-/** Choix de l'en-tête appliqué à toutes les lignes de tous les participants */
-export function appliquerPriseEnChargeGlobale(form, priseEnCharge, modeClient = 'avance') {
-    const prise = priseDeLigne(priseEnCharge, modeClient);
-
+/** Part reçue du serveur, au format de l'éditeur */
+export function partEditable(part) {
     return {
-        ...form,
-        prise_en_charge: priseEnCharge,
-        mode_client: modeClient,
-        participants: (form.participants ?? []).map((p) => ({ ...p, prises_en_charge: toutesLesLignes(prise) })),
+        payeur: part.payeur === 'client' ? 'client' : 'neemba',
+        client: part.client ?? null,
+        ordre_reparation: part.ordre_reparation ?? null,
+        code_analytique: part.code_analytique ?? null,
+        pourcentage: Number(part.pourcentage ?? 0),
+        commentaire: part.commentaire ?? '',
     };
 }
 
-/** Une ligne d'un participant, ou toutes ses lignes (ligne = null) ; l'en-tête est recalculé */
-export function changerPriseEnCharge(form, userId, ligne, prise, calcul = null) {
-    const participants = (form.participants ?? []).map((p) => {
-        if (p.user_id !== userId) return p;
-        const prises = ligne === null
-            ? toutesLesLignes(prise)
-            : { ...toutesLesLignes(priseDeLigne(form.prise_en_charge, form.mode_client)), ...(p.prises_en_charge ?? {}), [ligne]: prise };
-        return { ...p, prises_en_charge: prises };
+/** Parts d'une ligne : celles modifiées à l'écran, sinon celles du serveur, sinon Neemba 100 % */
+export function partsDeLigne(ligne, repartitions = {}, userId = null) {
+    const locales = repartitions?.[userId]?.[ligne.element];
+    if (locales) return locales;
+    if (ligne.parts?.length) return ligne.parts.map(partEditable);
+
+    return [{ ...PART_NEEMBA }];
+}
+
+/** Une seule part, Neemba à 100 % : affichage compact */
+export function estNeembaSeul(parts = []) {
+    return parts.length === 1 && parts[0].payeur === 'neemba' && Number(parts[0].pourcentage) === 100 && !parts[0].code_analytique;
+}
+
+/** Montant de chaque part (comme le serveur : la part la plus forte reçoit l'arrondi quand le total fait 100 %) */
+export function repartirMontant(montant, pourcentages = []) {
+    if (montant === null || montant === undefined) return pourcentages.map(() => null);
+    const montants = pourcentages.map((p) => Math.round((montant * Number(p || 0)) / 100));
+    const total = pourcentages.reduce((s, p) => s + Number(p || 0), 0);
+    if (montants.length && Math.abs(total - 100) < 0.001) {
+        const max = Math.max(...pourcentages.map(Number));
+        const indice = pourcentages.findIndex((p) => Number(p) === max);
+        montants[indice] += Math.round(montant) - montants.reduce((s, m) => s + m, 0);
+    }
+
+    return montants;
+}
+
+/** Pourcentage d'une part saisie en GNF (4 décimales) */
+export function pourcentageDe(montantPart, montantLigne) {
+    return montantLigne > 0 ? Math.round((Number(montantPart || 0) / montantLigne) * 1000000) / 10000 : 0;
+}
+
+/** Reste à répartir, en pourcentage (0 : la ligne est entièrement répartie) */
+export function resteARepartir(parts = []) {
+    return Math.round((100 - parts.reduce((s, p) => s + Number(p.pourcentage || 0), 0)) * 10000) / 10000;
+}
+
+/** RG-M12-33 : avertissement (commentaire obligatoire) — part client sans OR, ou client différent de celui de l'OR */
+export function avertissementPart(part, ordres = []) {
+    if (part.payeur !== 'client') return null;
+    if (!part.ordre_reparation) return 'Part client sans OR.';
+    const or = ordres.find((o) => o.numero === part.ordre_reparation);
+    if (or?.client && part.client && or.client.id !== part.client.id) return `Client différent de celui de l'OR ${or.numero}.`;
+
+    return null;
+}
+
+/** Changement d'OR sur une part client : le client de l'OR est proposé par défaut (RG-M12-33) */
+export function choisirOrDeLaPart(part, numero, ordres = []) {
+    const or = ordres.find((o) => o.numero === numero);
+    const client = part.payeur === 'client' && !part.client && or?.client ? or.client : part.client;
+
+    return { ...part, ordre_reparation: numero || null, client };
+}
+
+/** Nouvelle part client : le reste à répartir, le client et l'OR proposés */
+export function nouvellePartClient(parts = [], ordres = [], clientsOdm = []) {
+    const or = ordres.find((o) => o.client) ?? ordres[0] ?? null;
+    const reste = resteARepartir(parts);
+
+    return {
+        payeur: 'client',
+        client: or?.client ?? clientsOdm[0] ?? null,
+        ordre_reparation: or?.numero ?? null,
+        code_analytique: null,
+        pourcentage: reste > 0 ? reste : 0,
+        commentaire: '',
+    };
+}
+
+/**
+ * RG-M12-32 : une répartition appliquée d'un coup à toutes les lignes d'un participant (userId) ou de l'ODM (null).
+ * Les lignes viennent du calcul du serveur.
+ */
+export function appliquerRepartition(repartitions = {}, calcul = null, modele = [{ ...PART_NEEMBA }], userId = null) {
+    const resultat = { ...repartitions };
+    (calcul?.participants ?? []).forEach((p) => {
+        if (userId !== null && p.user_id !== userId) return;
+        resultat[p.user_id] = { ...(resultat[p.user_id] ?? {}) };
+        (p.lignes ?? []).forEach((ligne) => {
+            resultat[p.user_id][ligne.element] = modele.map((part) => ({ ...part }));
+        });
     });
 
-    return { ...form, participants, ...etatPriseEnCharge(participants, calcul, form) };
+    return resultat;
+}
+
+/** Lignes déjà réparties autrement que « Neemba 100 % » (confirmation avant d'appliquer une répartition) */
+export function lignesAjustees(repartitions = {}, calcul = null, userId = null) {
+    let nombre = 0;
+    (calcul?.participants ?? []).forEach((p) => {
+        if (userId !== null && p.user_id !== userId) return;
+        (p.lignes ?? []).forEach((ligne) => {
+            if (!estNeembaSeul(partsDeLigne(ligne, repartitions, p.user_id))) nombre += 1;
+        });
+    });
+
+    return nombre;
+}
+
+/** Part envoyée au serveur */
+export function partPourServeur(part) {
+    return {
+        payeur: part.payeur === 'client' ? 'client' : 'neemba',
+        client_id: part.payeur === 'client' ? (part.client?.id ?? null) : null,
+        ordre_reparation: part.ordre_reparation || null,
+        code_analytique: part.code_analytique || null,
+        pourcentage: Number(part.pourcentage || 0),
+        commentaire: part.commentaire?.trim() ? part.commentaire.trim() : null,
+    };
+}
+
+/** Spec v2.3 : un client choisi sur un OR rejoint les clients de la mission */
+export function clientsAvecCeuxDesOr(clients = [], ordres = []) {
+    const liste = [...clients];
+    ordres.forEach((or) => {
+        if (or.client && !liste.some((c) => c.id === or.client.id)) liste.push(or.client);
+    });
+
+    return liste;
 }
 
 /** Participant ajouté depuis la recherche (une seule fois, dans la limite du paramètre) */
-export function ajouterParticipant(liste = [], employe, maximum = 10, prise = 'neemba') {
+export function ajouterParticipant(liste = [], employe, maximum = 10) {
     if (!employe || liste.some((p) => p.user_id === employe.user_id)) return { liste, erreur: null };
     if (liste.length >= maximum) return { liste, erreur: 'MSG-APP-014' };
 
@@ -160,7 +233,6 @@ export function ajouterParticipant(liste = [], employe, maximum = 10, prise = 'n
             numero_om: employe.numero_om ?? null,
             base_vie: false,
             hebergement_facture: null,
-            prises_en_charge: toutesLesLignes(prise),
         }],
         erreur: null,
     };
@@ -175,23 +247,25 @@ export function donneesOdm(form) {
         service: form.service || null,
         code_analytique: form.code_analytique || null,
         but: form.but ?? '',
-        clients: form.clients ?? [],
+        /* Spec v2.3, §6.5 : clients du référentiel, envoyés par identifiant */
+        clients: (form.clients ?? []).map((c) => (typeof c === 'object' ? c.id : c)),
         destinations: form.destinations ?? [],
         vehicule: form.vehicule ?? '',
         date_depart: form.date_depart || null,
         date_retour_prevue: form.date_retour_prevue || null,
         motif_depart_passe: form.motif_depart_passe ?? '',
-        prise_en_charge: form.prise_en_charge,
-        mode_client: form.mode_client === 'direct' ? 'direct' : 'avance',
         hebergement_exterieur: form.type === 'exterieur' ? (form.hebergement_exterieur || null) : null,
         reference_billet: form.reference_billet ?? '',
         participants: (form.participants ?? []).map((p) => ({
             user_id: p.user_id,
             base_vie: form.type === 'interieur' ? Boolean(p.base_vie) : false,
             hebergement_facture: p.hebergement_facture === '' || p.hebergement_facture === undefined ? null : p.hebergement_facture,
-            ...(p.prises_en_charge ? { prises_en_charge: p.prises_en_charge } : {}),
+            /* RG-M12-31 : parts des lignes modifiées à l'écran */
+            ...(form.repartitions?.[p.user_id] ? {
+                lignes: Object.fromEntries(Object.entries(form.repartitions[p.user_id]).map(([element, parts]) => [element, { parts: parts.map(partPourServeur) }])),
+            } : {}),
         })),
-        ordres_reparation: (form.ordres_reparation ?? []).map((or) => ({ numero: or.numero, type: or.type })),
+        ordres_reparation: (form.ordres_reparation ?? []).map((or) => ({ numero: or.numero, type: or.type, client_id: or.client?.id ?? or.client_id ?? null })),
     };
 }
 

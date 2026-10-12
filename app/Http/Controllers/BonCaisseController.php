@@ -550,6 +550,8 @@ class BonCaisseController extends Controller
             'delaisValidation' => $delaisValidation,
             /* E-03.8 : étapes de validation (fait / en cours / à venir), bandeau de rejet, âge du bon */
             'etapesValidation' => self::etapesValidation($bonCaisse),
+            /* Spec v2.3 : répartition (lecture seule) des lignes de l'ODM payées par ce bon */
+            'repartitionOdm' => \App\Services\Odm\RepartitionOdm::pourBon($bonCaisse),
             'rejet' => self::rejet($bonCaisse),
             'ageBon' => $bonCaisse->date_soumission && !in_array($bonCaisse->statut, ['PAYE', 'REGULARISE', 'ARCHIVE', 'ANNULE', 'REJETE'], true)
                 ? Format::dureeEntre($bonCaisse->date_soumission)

@@ -64,7 +64,7 @@ class SaisieOdmTest extends TestCase
             'technique' => true,
             'but' => 'Dépannage d\'une chargeuse chez le client',
             'destinations' => ['Kouroussa'],
-            'clients' => ['SMD'],
+            'clients' => [\App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye'])->id],
             'date_depart' => '2026-09-22',
             'date_retour_prevue' => '2026-09-26',
             'prise_en_charge' => 'neemba',
@@ -117,7 +117,9 @@ class SaisieOdmTest extends TestCase
             ->assertJsonPath('odm.calcul.participants.0.frais_om', 32500)
             ->assertJsonPath('odm.calcul.total', 3250000)
             ->assertJsonPath('odm.calcul.libelle_indemnite_1', 'Indemnité de repas')
-            ->assertJsonPath('odm.ordres_reparation.0', ['numero' => '11022219', 'type' => 'vente']);
+            ->assertJsonPath('odm.ordres_reparation.0.numero', '11022219')
+            ->assertJsonPath('odm.ordres_reparation.0.type', 'vente')
+            ->assertJsonPath('odm.ordres_reparation.0.client', null);
     }
 
     /** SC-21 (B.2) et SC-27 (base vie) */

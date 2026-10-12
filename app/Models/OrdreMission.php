@@ -47,19 +47,6 @@ class OrdreMission extends Model
         'exterieur' => 'Extérieur',
     ];
 
-    /** En-tête : défaut appliqué à toutes les lignes ; « mixte » quand les lignes diffèrent (Q49) */
-    public const PRISES_EN_CHARGE = [
-        'neemba' => 'Neemba',
-        'client' => 'Client',
-        'mixte' => 'Mixte (selon les lignes)',
-    ];
-
-    /** Lignes à la charge du client : avancées par Neemba puis refacturées, ou payées directement (Q49) */
-    public const MODES_CLIENT = [
-        'avance' => 'Avancé par Neemba, refacturé',
-        'direct' => 'Payé directement par le client',
-    ];
-
     /** RG-M12-26 */
     public const HEBERGEMENTS_EXTERIEURS = [
         'filiale' => "Pris en charge par la filiale d'accueil",
@@ -85,9 +72,9 @@ class OrdreMission extends Model
         'numero', 'prefixe', 'sequence', 'annee',
         'type', 'technique',
         'entite', 'site', 'service', 'code_analytique', 'demandeur_id', 'initiateur_id',
-        'but', 'clients', 'destinations', 'vehicule',
+        'but', 'destinations', 'vehicule',
         'date_depart', 'date_retour_prevue', 'date_retour_reelle', 'motif_depart_passe',
-        'prise_en_charge', 'mode_client', 'a_refacturer', 'montant_a_refacturer',
+        'a_refacturer', 'montant_neemba', 'montant_a_refacturer',
         'hebergement_exterieur', 'reference_billet',
         'mission_id', 'segment_precedent_id', 'rang',
         'statut', 'version', 'cle_soumission', 'total', 'parametres_figes',
@@ -101,13 +88,13 @@ class OrdreMission extends Model
         return [
             'technique' => 'boolean',
             'a_refacturer' => 'boolean',
-            'clients' => 'array',
             'destinations' => 'array',
             'parametres_figes' => 'array',
             'date_depart' => 'date',
             'date_retour_prevue' => 'date',
             'date_retour_reelle' => 'date',
             'total' => 'decimal:2',
+            'montant_neemba' => 'decimal:2',
             'montant_a_refacturer' => 'decimal:2',
             'derogation_le' => 'datetime',
             'date_soumission' => 'datetime',
@@ -118,10 +105,13 @@ class OrdreMission extends Model
         ];
     }
 
-    /** Prise en charge d'une ligne non encore choisie (nouveau participant) : celle de l'en-tête, Neemba si « mixte » */
-    public function priseParDefaut(): string
+    /** RG-M12-37 : « à refacturer » dès qu'au moins une part (d'un participant présent) est à la charge d'un client */
+    public function aDesPartsClient(): bool
     {
-        return $this->prise_en_charge === 'client' ? 'client_' . ($this->mode_client === 'direct' ? 'direct' : 'avance') : 'neemba';
+        return PartOdm::where('payeur', 'client')
+            ->whereHas('ligne', fn ($q) => $q->where('ordre_mission_id', $this->id)
+                ->whereHas('participant', fn ($p) => $p->where('retire', false)))
+            ->exists();
     }
 
     /* ----------------------------------------------------------------
@@ -148,6 +138,18 @@ class OrdreMission extends Model
     public function participantsActifs(): HasMany
     {
         return $this->participants()->where('retire', false);
+    }
+
+    /** RG-M12-30 : lignes de frais de ce segment */
+    public function lignesFrais(): HasMany
+    {
+        return $this->hasMany(LigneFraisOdm::class, 'ordre_mission_id');
+    }
+
+    /** Spec v2.3, §6.5 : clients de la mission, pris dans le référentiel */
+    public function clients(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Client::class, 'odm_clients')->withTimestamps()->orderBy('raison_sociale');
     }
 
     public function ordresReparation(): HasMany
@@ -266,7 +268,8 @@ class OrdreMission extends Model
      * ---------------------------------------------------------------- */
 
     /** Rôles qui voient tous les ODM : circuit (DAF, DP), Trésorerie (taux, US-15), RH (retenues), administration */
-    public const ROLES_VISION_GLOBALE = ['daf', 'daf_adjoint', 'chef_comptable', 'directeur_pays', 'dp_adjoint', 'tresorerie', 'rh', 'administrateur'];
+    /* Spec v2.3, RG-M12-34 : la répartition est consultable par le caissier, la Comptabilité, le CDG, la Trésorerie et le DAF */
+    public const ROLES_VISION_GLOBALE = ['daf', 'daf_adjoint', 'chef_comptable', 'directeur_pays', 'dp_adjoint', 'tresorerie', 'rh', 'administrateur', 'caissier', 'controle_gestion'];
 
     /** Rôles qui décident d'une dérogation au chevauchement (RG-M12-16) */
     public const ROLES_DEROGATION = ['daf', 'daf_adjoint'];

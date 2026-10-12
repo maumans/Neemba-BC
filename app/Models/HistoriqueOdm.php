@@ -18,6 +18,7 @@ class HistoriqueOdm extends Model
     public const ACTIONS = [
         'creation' => 'Création',
         'modification' => 'Modification',
+        'repartition' => 'Répartition des frais',
         'soumission' => 'Soumission',
         'visa' => 'Visa',
         'rejet' => 'Rejet',

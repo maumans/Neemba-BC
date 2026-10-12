@@ -25,9 +25,8 @@ use Illuminate\Support\Facades\DB;
  * - Chaque bon est soumis aussitôt et suit son propre circuit complet (chef de service → CDG → Finance → DP).
  * - BP facultatif (paramètre « ODM générant un BP ») : avance pour frais réels, lié à la mission, à régulariser
  *   3 jours ouvrés après le retour.
- * - Prise en charge par ligne (Q49) : le bon porte les lignes de Neemba et celles que Neemba avance pour le client
- *   (ODM « à refacturer ») ; les lignes payées directement par le client en sont exclues. Un participant dont tous
- *   les frais sont payés par le client n'a pas de bon ; si c'est le cas de tous, l'ODM ne génère aucun bon.
+ * - Prise en charge (spec v2.3, RG-M12-15) : variante A, bons générés pour le montant total et ODM « à refacturer »
+ *   dès qu'une part est client ; variante B, aucun bon, seulement si toutes les parts de toutes les lignes sont client.
  * - ODM extérieur : montant estimé au dernier taux saisi (RG-M12-10), recalculé au paiement (PaiementOdm).
  *
  * Tout est fait dans une transaction : un bon refusé par les contrôles annule la génération entière.
@@ -61,7 +60,7 @@ final class GenererBonsOdm
             }
 
             $statutAvant = $odm->statut;
-            $odm->update(['statut' => 'BONS_GENERES', 'a_refacturer' => (float) $odm->montant_a_refacturer > 0]);
+            $odm->update(['statut' => 'BONS_GENERES', 'a_refacturer' => $odm->aDesPartsClient()]);
             HistoriqueOdm::enregistrer($odm, 'generation_bons', $statutAvant, 'BONS_GENERES', $auteur->id,
                 'Bon(s) généré(s) et soumis : ' . $bons->map(fn (BonCaisse $b) => "{$b->numero} ({$b->type_bon}, " . Format::montant($b->montant) . ')')->implode(', ') . '.',
                 ['bons' => $bons->pluck('id')->all()]);
@@ -82,17 +81,13 @@ final class GenererBonsOdm
 
         $bons = collect();
         if (Parametre::valeur('odm_mode_generation', 'par_participant') === 'groupe') {
-            if (!self::bonsActifs($odm)->where('type_bon', 'BD')->count() && !self::sansBon($odm)) {
+            if (!self::bonsActifs($odm)->where('type_bon', 'BD')->count()) {
                 $bons->push(self::bonGroupe($odm, $auteur, $beneficiaireGroupeId));
             }
 
             return $bons;
         }
         foreach ($odm->participantsActifs()->with(['utilisateur', 'bonCaisse'])->get() as $participant) {
-            /* Q49 : rien à verser quand le client paie directement tous les frais du participant */
-            if (self::sansMontant($participant)) {
-                continue;
-            }
             if (!$participant->bonCaisse || in_array($participant->bonCaisse->statut, self::STATUTS_INACTIFS, true)) {
                 $bons->push(self::bonParticipant($odm, $participant, $auteur));
             }
@@ -115,18 +110,15 @@ final class GenererBonsOdm
         }
     }
 
-    /** RG-M12-15, Q49 : tous les frais sont payés directement par le client, aucun bon */
+    /** RG-M12-15 (v2.3), variante B : aucun bon, si toutes les parts de toutes les lignes sont à la charge de clients */
     public static function sansBon(OrdreMission $odm): bool
     {
-        $participants = $odm->participantsActifs()->get();
+        if (Parametre::valeur('odm_prise_en_charge_client', 'variante_a') !== 'variante_b') {
+            return false;
+        }
+        $parts = RepartitionOdm::partsActives($odm);
 
-        return $participants->isNotEmpty() && $participants->every(fn (ParticipantOdm $p) => self::sansMontant($p));
-    }
-
-    /** Participant sans rien à verser : montant du bon connu et nul */
-    public static function sansMontant(ParticipantOdm $participant): bool
-    {
-        return $participant->montant_bon !== null && (float) $participant->montant_bon <= 0;
+        return $parts->isNotEmpty() && $parts->every(fn ($p) => $p->payeur === 'client');
     }
 
     /** Bons de l'ODM encore actifs (non annulés) */
@@ -152,7 +144,7 @@ final class GenererBonsOdm
     private static function bonParticipant(OrdreMission $odm, ParticipantOdm $participant, User $auteur): BonCaisse
     {
         $participant->refresh();
-        $bon = self::creer($odm, $participant->utilisateur, (float) ($participant->montant_bon ?? $participant->total), self::motif($odm, $participant->nom, [$participant]), [
+        $bon = self::creer($odm, $participant->utilisateur, (float) $participant->total, self::motif($odm, $participant->nom), [
             'odm_participant_id' => $participant->id,
             'telephone_beneficiaire' => ReglesSaisie::normaliserTelephone($participant->numero_om ?? $participant->utilisateur?->telephone),
         ] + self::partsExterieur($odm, [$participant]));
@@ -161,15 +153,15 @@ final class GenererBonsOdm
         return self::soumettre($bon, $auteur);
     }
 
-    /** Bon groupé (RG-M12-14) : montant à verser de l'ODM (Q49), versé au n° OM du participant désigné */
+    /** Bon groupé (RG-M12-14) : total de l'ODM, versé au n° OM du participant désigné */
     private static function bonGroupe(OrdreMission $odm, User $auteur, ?int $beneficiaireId): BonCaisse
     {
         $participants = $odm->participantsActifs()->with('utilisateur')->get();
         $designe = $participants->firstWhere('user_id', $beneficiaireId) ?? $participants->first();
-        $total = (float) $participants->sum(fn (ParticipantOdm $p) => (float) ($p->montant_bon ?? $p->total));
+        $total = (float) $participants->sum(fn (ParticipantOdm $p) => (float) $p->total);
 
         $bon = self::creer($odm, $designe->utilisateur, $total,
-            self::motif($odm, "bon groupé de {$participants->count()} participant(s), versé à {$designe->nom}", $participants->all()), [
+            self::motif($odm, "bon groupé de {$participants->count()} participant(s), versé à {$designe->nom}"), [
                 'telephone_beneficiaire' => ReglesSaisie::normaliserTelephone($designe->numero_om ?? $designe->utilisateur?->telephone),
             ] + self::partsExterieur($odm, $participants->all()));
         ParticipantOdm::whereIn('id', $participants->pluck('id'))->update(['bon_caisse_id' => $bon->id]);
@@ -244,18 +236,11 @@ final class GenererBonsOdm
         return $bon;
     }
 
-    /**
-     * Motif du bon : « Indemnités de mission — ODM N°285/AT/26, Kouroussa, du 22/09/2026 au 26/09/2026 — BAH Thierno »,
-     * avec la part payée directement par le client quand il y en a une (Q49).
-     *
-     * @param ParticipantOdm[] $participants
-     */
-    private static function motif(OrdreMission $odm, string $complement, array $participants = []): string
+    /** Motif du bon : « Indemnités de mission — ODM N°285/AT/26, Kouroussa, du 22/09/2026 au 26/09/2026 — BAH Thierno » */
+    private static function motif(OrdreMission $odm, string $complement): string
     {
-        $direct = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->montant_client_direct, $participants));
         $motif = "Indemnités de mission — ODM {$odm->numero}, " . implode(', ', $odm->destinations ?? [])
-            . ', du ' . Format::date($odm->date_depart) . ' au ' . Format::date($odm->date_retour_prevue) . " — {$complement}"
-            . ($direct > 0 ? ' (hors ' . Format::montant($direct) . ' payés par le client)' : '');
+            . ', du ' . Format::date($odm->date_depart) . ' au ' . Format::date($odm->date_retour_prevue) . " — {$complement}";
 
         return mb_substr($motif, 0, 200);
     }
@@ -266,10 +251,9 @@ final class GenererBonsOdm
         if ($odm->type !== 'exterieur') {
             return [];
         }
-        /* Q49 : seules les lignes versées par Neemba (les lignes payées directement par le client en sont exclues) */
-        $fcfa = array_sum(array_map(fn (ParticipantOdm $p) => $p->indemniteFcfaDansLeBon(), $participants));
-        $fixe = array_sum(array_map(fn (ParticipantOdm $p) => $p->fraisFixesDansLeBon(), $participants));
-        $total = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->montant_bon, $participants));
+        $fcfa = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->indemnite_fcfa, $participants));
+        $fixe = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->hebergement + (float) $p->rattrapage, $participants));
+        $total = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->total, $participants));
 
         return [
             'montant_fcfa' => $fcfa,

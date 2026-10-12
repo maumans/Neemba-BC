@@ -18,15 +18,15 @@ use Illuminate\Support\Facades\DB;
  * Une dérogation au chevauchement (RG-M12-16) ne vaut que pour les dates et les participants pour lesquels
  * elle a été demandée : si l'un d'eux change, elle est retirée.
  *
- * Prise en charge (Q49) : chaque participant porte le choix de chacune de ses lignes de frais ; l'en-tête
- * (neemba, client ou mixte) en est déduit après le calcul. Un nouveau participant reçoit le choix de l'en-tête.
+ * Spec v2.3 : le calcul produit les lignes de frais de chaque participant ; leurs parts de prise en charge sont saisies
+ * ligne par ligne (participants.*.lignes.{élément}.parts), Neemba 100 % par défaut (RepartitionOdm).
  */
 final class EnregistrementOdm
 {
     /** Champs de l'en-tête modifiables par le demandeur */
     public const CHAMPS = [
-        'type', 'technique', 'site', 'service', 'code_analytique', 'but', 'clients', 'destinations', 'vehicule',
-        'date_depart', 'date_retour_prevue', 'motif_depart_passe', 'prise_en_charge', 'mode_client', 'hebergement_exterieur', 'reference_billet',
+        'type', 'technique', 'site', 'service', 'code_analytique', 'but', 'destinations', 'vehicule',
+        'date_depart', 'date_retour_prevue', 'motif_depart_passe', 'hebergement_exterieur', 'reference_billet',
     ];
 
     public static function creer(User $demandeur, array $donnees = []): OrdreMission
@@ -39,7 +39,6 @@ final class EnregistrementOdm
                 'service' => $demandeur->service,
                 /* RG-M12-02 (PO-06) : case pré-cochée pour Technique et Aftermarket */
                 'technique' => in_array($demandeur->service, OrdreMission::SERVICES_TECHNIQUES, true),
-                'prise_en_charge' => 'neemba',
                 'demandeur_id' => $demandeur->id,
                 'initiateur_id' => $demandeur->id,
                 'statut' => 'BROUILLON',
@@ -77,6 +76,9 @@ final class EnregistrementOdm
             if (array_key_exists('participants', $donnees)) {
                 self::synchroniserParticipants($odm, (array) $donnees['participants']);
             }
+            if (array_key_exists('clients', $donnees)) {
+                self::synchroniserClients($odm, (array) $donnees['clients']);
+            }
             if (array_key_exists('ordres_reparation', $donnees)) {
                 self::synchroniserOr($odm, (array) $donnees['ordres_reparation']);
             }
@@ -90,6 +92,12 @@ final class EnregistrementOdm
 
             self::recalculer($odm);
 
+            /* RG-M12-31 : parts saisies, sur les lignes que le calcul vient de mettre à jour */
+            if (array_key_exists('participants', $donnees)) {
+                RepartitionOdm::appliquer($odm, (array) $donnees['participants'], $auteur);
+                RepartitionOdm::repartir($odm);
+            }
+
             return $odm->fresh();
         });
     }
@@ -97,8 +105,11 @@ final class EnregistrementOdm
     /**
      * Calcul de chaque participant (RG-M12-07) avec les barèmes en vigueur, ou figés une fois l'ODM validé (RG-M12-25).
      * ODM extérieur : indemnité estimée avec le dernier taux saisi (RG-M12-10), recalculée au paiement.
+     * Spec v2.3 : lignes de frais mises à jour (RG-M12-30), parts recalculées d'après leur pourcentage.
+     *
+     * @param array<int, array> $modeles parts à reprendre sur les lignes nouvelles, par user_id puis élément (prolongation)
      */
-    public static function recalculer(OrdreMission $odm, ?array $baremes = null, float|string|null $taux = null): void
+    public static function recalculer(OrdreMission $odm, ?array $baremes = null, float|string|null $taux = null, array $modeles = []): void
     {
         $baremes ??= $odm->parametres_figes['baremes'] ?? CalculOdm::baremesEnVigueur();
         if ($odm->type === 'exterieur') {
@@ -124,8 +135,6 @@ final class EnregistrementOdm
                 'statut_cadre' => $participant->statut_cadre,
                 'hebergement_facture' => $participant->hebergement_facture,
                 'rattrapage' => $precedents->has($participant->user_id) && !$precedents[$participant->user_id],
-                'prises_en_charge' => $participant->prises_en_charge,
-                'prise_defaut' => $odm->priseParDefaut(),
             ], $segment, $baremes);
             $participant->update([
                 'jours' => $calcul['jours'],
@@ -136,26 +145,13 @@ final class EnregistrementOdm
                 'hebergement' => $calcul['hebergement'],
                 'rattrapage' => $calcul['rattrapage'],
                 'total' => $calcul['total'],
-                'prises_en_charge' => $calcul['prises_en_charge'],
-                'montant_bon' => $calcul['montant_bon'],
-                'montant_refacturable' => $calcul['montant_refacturable'],
-                'montant_client_direct' => $calcul['montant_client_direct'],
             ]);
+            RepartitionOdm::synchroniserLignes($odm, $participant, $calcul['lignes'], $modeles[$participant->user_id] ?? []);
             $calculs[] = $calcul;
         }
 
-        $valeurs = [
-            'total' => $calculs === [] ? null : CalculOdm::total($calculs),
-            'montant_a_refacturer' => $calculs === [] ? null : CalculOdm::total($calculs, 'montant_refacturable'),
-        ];
-        /* Q49 : en-tête déduit des lignes (neemba, client ou mixte) */
-        if ($globale = CalculOdm::priseEnChargeGlobale($calculs)) {
-            $valeurs['prise_en_charge'] = $globale['prise_en_charge'];
-            if ($globale['mode_client']) {
-                $valeurs['mode_client'] = $globale['mode_client'];
-            }
-        }
-        $odm->update($valeurs);
+        $odm->update(['total' => $calculs === [] ? null : CalculOdm::total($calculs)]);
+        RepartitionOdm::repartir($odm);
     }
 
     /**
@@ -194,14 +190,10 @@ final class EnregistrementOdm
                 'base_vie' => (bool) ($voulu['base_vie'] ?? false),
                 'hebergement_facture' => is_numeric($voulu['hebergement_facture'] ?? null) ? max(0, (float) $voulu['hebergement_facture']) : null,
             ];
-            /* Q49 : choix par ligne ; une ligne non précisée garde son choix, ou prend celui de l'en-tête */
-            $prises = is_array($voulu['prises_en_charge'] ?? null) ? $voulu['prises_en_charge'] : [];
             if ($existant) {
-                $valeurs['prises_en_charge'] = CalculOdm::prisesNormalisees(array_merge((array) $existant->prises_en_charge, $prises), $odm->priseParDefaut());
                 $existant->update($valeurs + ['retire' => false]);
                 continue;
             }
-            $valeurs['prises_en_charge'] = CalculOdm::prisesNormalisees($prises, $odm->priseParDefaut());
             $utilisateur = User::find($userId);
             if ($utilisateur) {
                 $odm->participants()->create(ParticipantOdm::depuisUtilisateur($utilisateur) + $valeurs);
@@ -209,18 +201,39 @@ final class EnregistrementOdm
         }
     }
 
+    /** Spec v2.3, §6.5 : clients pris dans le référentiel ; un client désactivé déjà rattaché reste, aucun nouveau n'est ajouté */
+    private static function synchroniserClients(OrdreMission $odm, array $ids): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        $dejaRattaches = $odm->clients()->pluck('clients.id')->all();
+        $admis = \App\Models\Client::whereIn('id', $ids)
+            ->where(fn ($q) => $q->where('actif', true)->orWhereIn('id', $dejaRattaches))
+            ->pluck('id')->all();
+        $odm->clients()->sync($admis);
+    }
+
+    /**
+     * OR mis à jour par numéro (et non recréés) : les parts de prise en charge les référencent (RG-M12-31).
+     * Client facultatif de l'OR, pris dans le référentiel (RG-M12-33).
+     */
     private static function synchroniserOr(OrdreMission $odm, array $ors): void
     {
-        $odm->ordresReparation()->delete();
-        $vus = [];
+        $voulus = [];
         foreach ($ors as $or) {
-            $numero = preg_replace('/\D/', '', (string) (is_array($or) ? ($or['numero'] ?? '') : $or));
-            if ($numero === '' || isset($vus[$numero])) {
+            $numero = mb_substr(preg_replace('/\D/', '', (string) (is_array($or) ? ($or['numero'] ?? '') : $or)), 0, 8);
+            if ($numero === '' || isset($voulus[$numero])) {
                 continue;
             }
-            $vus[$numero] = true;
-            $type = is_array($or) && array_key_exists($or['type'] ?? '', OrdreReparationOdm::TYPES) ? $or['type'] : 'vente';
-            $odm->ordresReparation()->create(['numero' => mb_substr($numero, 0, 8), 'type' => $type]);
+            $clientId = is_array($or) && is_numeric($or['client_id'] ?? null) ? (int) $or['client_id'] : null;
+            $voulus[$numero] = [
+                'type' => is_array($or) && array_key_exists($or['type'] ?? '', OrdreReparationOdm::TYPES) ? $or['type'] : 'vente',
+                'client_id' => $clientId && \App\Models\Client::whereKey($clientId)->exists() ? $clientId : null,
+            ];
+        }
+
+        $odm->ordresReparation()->whereNotIn('numero', array_keys($voulus))->delete();
+        foreach ($voulus as $numero => $valeurs) {
+            $odm->ordresReparation()->updateOrCreate(['numero' => (string) $numero], $valeurs);
         }
     }
 
@@ -228,7 +241,7 @@ final class EnregistrementOdm
     {
         return match ($champ) {
             'technique' => filter_var($valeur, FILTER_VALIDATE_BOOLEAN),
-            'clients', 'destinations' => array_values(array_unique(array_filter(
+            'destinations' => array_values(array_unique(array_filter(
                 array_map(fn ($v) => mb_substr(trim((string) $v), 0, 120), is_array($valeur) ? $valeur : [$valeur]),
                 fn ($v) => $v !== '',
             ))),

@@ -59,8 +59,12 @@ class Parametre extends Model
         ],
         /* RG-M12-15 (PO-04) */
         'odm_prise_en_charge_client' => [
-            'variante_a' => 'Avancée par Neemba, refacturée',
-            'variante_b' => 'Payée directement par le client',
+            'variante_a' => 'Variante A : bons générés pour le montant total, ODM « à refacturer »',
+            'variante_b' => 'Variante B : aucun bon si tout est à la charge de clients',
+        ],
+        'odm_frais_om_repartition' => [
+            'prorata' => 'Au prorata des parts',
+            'neemba' => 'À 100 % sur Neemba',
         ],
     ];
 
@@ -83,6 +87,8 @@ class Parametre extends Model
             'json' => json_decode($valeur, true) === null
                 ? "Le texte saisi n'est pas une liste JSON valable."
                 : ($this->cle === 'frais_om_paliers' ? FraisOrangeMoney::erreurPaliers(json_decode($valeur, true)) : null),
+            /* Compte comptable facultatif (PO-25) : chiffres, lettres, points et tirets */
+            'compte' => preg_match('/^[0-9A-Za-z.\-]*$/', $valeur) ? null : 'Compte comptable : chiffres, lettres, points ou tirets.',
             default => $valeur === '' ? 'La valeur est obligatoire.' : null,
         };
     }

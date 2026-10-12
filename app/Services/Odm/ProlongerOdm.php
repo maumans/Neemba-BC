@@ -54,8 +54,8 @@ final class ProlongerOdm
 
             $initial = $precedent->initial();
             $segment = OrdreMission::create($precedent->only([
-                'type', 'technique', 'entite', 'site', 'service', 'code_analytique', 'but', 'clients', 'destinations', 'vehicule',
-                'prise_en_charge', 'mode_client', 'hebergement_exterieur', 'reference_billet',
+                'type', 'technique', 'entite', 'site', 'service', 'code_analytique', 'but', 'destinations', 'vehicule',
+                'hebergement_exterieur', 'reference_billet',
             ]) + [
                 'demandeur_id' => $precedent->demandeur_id,
                 'initiateur_id' => $auteur->id,
@@ -67,18 +67,27 @@ final class ProlongerOdm
                 'statut' => 'BROUILLON',
             ]);
 
+            $modeles = [];
             foreach ($precedent->participantsActifs()->get() as $participant) {
-                /* Q49 : choix repris ; la nuitée de rattrapage suit celui de l'hébergement du segment précédent */
-                $prises = CalculOdm::prisesNormalisees($participant->prises_en_charge, $precedent->priseParDefaut());
-                $prises['rattrapage'] = $prises['hebergement'];
                 $segment->participants()->create($participant->only([
                     'user_id', 'nom', 'matricule', 'service', 'statut_cadre', 'numero_om', 'base_vie', 'hebergement_facture',
-                ]) + ['prises_en_charge' => $prises]);
+                ]));
+                /* RG-M12-35 : répartition du segment précédent reprise par défaut ; le rattrapage suit l'hébergement */
+                $modeles[$participant->user_id] = RepartitionOdm::modelesDuPrecedent($precedent, $participant->user_id);
             }
+            $segment->clients()->sync($precedent->clients()->pluck('clients.id'));
+            /* Les parts désignent les OR du segment : même numéro, nouvel identifiant */
+            $correspondanceOr = [];
             foreach ($precedent->ordresReparation()->get() as $or) {
-                $segment->ordresReparation()->create($or->only(['numero', 'type']));
+                $correspondanceOr[$or->id] = $segment->ordresReparation()->create($or->only(['numero', 'type', 'client_id']))->id;
             }
-            EnregistrementOdm::recalculer($segment);
+            foreach ($modeles as &$parElement) {
+                foreach ($parElement as &$parts) {
+                    $parts = array_map(fn ($p) => ['ordre_reparation_id' => $correspondanceOr[$p['ordre_reparation_id']] ?? null] + $p, $parts);
+                }
+            }
+            unset($parElement, $parts);
+            EnregistrementOdm::recalculer($segment, modeles: $modeles);
 
             $rattrapages = $segment->participantsActifs()->where('nuit_rattrapage', '>', 0)->count();
             $message = \App\Exceptions\ErreurMetier::texte('MSG-M12-06', ['segment' => $precedent->numero, 'nombre' => $rattrapages]);

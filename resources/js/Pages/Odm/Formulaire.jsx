@@ -5,14 +5,15 @@
  * (il fait foi : aucun calcul n'est refait ici). La soumission refait tous les contrôles côté serveur ;
  * en cas de chevauchement (RG-M12-16), le demandeur peut demander une dérogation au DAF.
  *
- * Prise en charge des frais (Q49) : le choix de l'en-tête s'applique à toutes les lignes ; chaque ligne de chaque
- * participant s'ajuste ensuite dans la carte « Prise en charge des frais ». L'en-tête affiche alors « Mixte ».
+ * Prise en charge des frais (spec v2.3, RG-M12-30 à RG-M12-33) : chaque ligne de frais de chaque participant se
+ * répartit en parts (Neemba ou client, OR, code analytique, pourcentage), Neemba 100 % par défaut. Les parts modifiées
+ * à l'écran (form.repartitions) partent avec l'enregistrement automatique.
  */
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
-import { AlertTriangle, ArrowLeft, Check, CheckCircle2, Loader2, Send, ShieldAlert, Trash2, X, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, Loader2, Send, ShieldAlert, Trash2, X, XCircle } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
 import { Input } from '@/Components/ui/input';
@@ -25,20 +26,16 @@ import Champ, { placerCurseur } from '@/Components/Assistant/Champ';
 import EtiquettesTexte from '@/Components/Odm/EtiquettesTexte';
 import EtiquettesOrOdm from '@/Components/Odm/EtiquettesOrOdm';
 import RechercheParticipant from '@/Components/Odm/RechercheParticipant';
+import { SelectionClients } from '@/Components/Odm/ChoixClient';
 import PanneauCalcul from '@/Components/Odm/PanneauCalcul';
-import PriseEnChargeFrais from '@/Components/Odm/PriseEnChargeFrais';
-import { ChoixGlobal } from '@/Components/Odm/ChoixPriseEnCharge';
+import RepartitionFrais from '@/Components/Odm/RepartitionFrais';
 import BadgeStatutOdm from '@/Components/Odm/BadgeStatutOdm';
 import { nouvelleCleIdempotence } from '@/utils/assistant';
 import { msg, msgErreur } from '@/utils/messages';
 import {
     ajouterParticipant,
-    appliquerPriseEnChargeGlobale,
-    changerPriseEnCharge,
+    clientsAvecCeuxDesOr,
     codesDuServiceOdm,
-    etatPriseEnCharge,
-    priseDeLigne,
-    PRISES_LIGNE,
     departPasse,
     donneesOdm,
     erreursOdmParChamp,
@@ -50,8 +47,8 @@ import {
 
 const SELECT = 'h-9 w-full rounded-md border border-input bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-neemba-400';
 
-function etatInitial(odm, defauts, modeClientDefaut = 'avance') {
-    if (odm) return { mode_client: modeClientDefaut, ...odm };
+function etatInitial(odm, defauts) {
+    if (odm) return { repartitions: {}, ...odm };
 
     return {
         type: 'interieur',
@@ -66,8 +63,7 @@ function etatInitial(odm, defauts, modeClientDefaut = 'avance') {
         date_depart: '',
         date_retour_prevue: '',
         motif_depart_passe: '',
-        prise_en_charge: 'neemba',
-        mode_client: modeClientDefaut,
+        repartitions: {},
         hebergement_exterieur: null,
         reference_billet: '',
         participants: [],
@@ -82,9 +78,9 @@ function aDuContenu(form) {
 
 export default function Formulaire({
     odm = null, defauts = null, services = [], codesAnalytiques = [], types = {},
-    hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour, modeClientDefaut = 'avance',
+    hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour,
 }) {
-    const [form, setForm] = useState(() => etatInitial(odm, defauts, modeClientDefaut));
+    const [form, setForm] = useState(() => etatInitial(odm, defauts));
     const [odmId, setOdmId] = useState(odm?.id ?? null);
     /* Identifiant du brouillon et création en cours, lus par les enregistrements automatiques successifs */
     const idBrouillon = useRef(odm?.id ?? null);
@@ -102,9 +98,6 @@ export default function Formulaire({
     const [erreurDerogation, setErreurDerogation] = useState(null);
     const [annulation, setAnnulation] = useState(false);
     const [erreurParticipant, setErreurParticipant] = useState(null);
-    /* Q49 : confirmation avant d'écraser des lignes ajustées une à une ; message « appliqué aux n lignes » */
-    const [confirmationGlobale, setConfirmationGlobale] = useState(null);
-    const [messageApplique, setMessageApplique] = useState(null);
 
     const modifie = useRef(false);
     const requete = useRef(0);
@@ -124,35 +117,6 @@ export default function Formulaire({
         modifie.current = true;
         setForm(transformer);
     };
-
-    /* Q49 : en-tête déduit des lignes (neemba, client ou mixte) */
-    const entete = useMemo(() => etatPriseEnCharge(form.participants, calcul, form), [form, calcul]);
-    const lignesActives = useMemo(
-        () => (calcul?.participants ?? []).reduce((n, p) => n + (p.lignes ?? []).filter((l) => !l.sans_objet).length, 0),
-        [calcul],
-    );
-
-    const appliquerGlobal = (prise, mode) => {
-        majForm((f) => appliquerPriseEnChargeGlobale(f, prise, mode));
-        setConfirmationGlobale(null);
-        if (form.participants.length && lignesActives) {
-            setMessageApplique(`Appliqué aux ${lignesActives} ligne${lignesActives > 1 ? 's' : ''} de frais.`);
-        }
-    };
-    const choisirGlobal = (prise, mode) => {
-        if (entete.prise_en_charge === 'mixte' && form.participants.length) {
-            setConfirmationGlobale({ prise, mode });
-            return;
-        }
-        appliquerGlobal(prise, mode);
-    };
-    const toutPrendre = (priseLigne) => choisirGlobal(priseLigne === 'neemba' ? 'neemba' : 'client', priseLigne === 'client_direct' ? 'direct' : 'avance');
-
-    useEffect(() => {
-        if (!messageApplique) return undefined;
-        const minuterie = setTimeout(() => setMessageApplique(null), 3000);
-        return () => clearTimeout(minuterie);
-    }, [messageApplique]);
 
     /* Enregistrement du brouillon ; seule la réponse de la dernière requête est retenue */
     const enregistrer = useCallback(async (donnees) => {
@@ -205,7 +169,7 @@ export default function Formulaire({
     };
 
     const ajouter = (employe) => {
-        const { liste, erreur } = ajouterParticipant(form.participants, employe, maxParticipants, priseDeLigne(entete.prise_en_charge, form.mode_client));
+        const { liste, erreur } = ajouterParticipant(form.participants, employe, maxParticipants);
         setErreurParticipant(erreur ? msg(erreur, { max: maxParticipants }) : null);
         if (!erreur) changer('participants', liste);
     };
@@ -351,27 +315,6 @@ export default function Formulaire({
                                         ))}
                                     </div>
                                 </Champ>
-                                <Champ champ="prise_en_charge" libelle="Frais à la charge de" obligatoire erreur={erreurDe('prise_en_charge')}
-                                    aide="Appliqué à toutes les lignes ; ajustable ligne par ligne dans « Prise en charge des frais ».">
-                                    <div className="space-y-2 pt-1">
-                                        <ChoixGlobal priseEnCharge={entete.prise_en_charge} modeClient={entete.mode_client ?? form.mode_client} onChoisir={choisirGlobal} />
-                                        {confirmationGlobale && (
-                                            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900" role="alertdialog" aria-label="Confirmer l'application à toutes les lignes">
-                                                <p>
-                                                    Des lignes ont été ajustées une à une. Mettre toutes les lignes à
-                                                    « {PRISES_LIGNE[priseDeLigne(confirmationGlobale.prise, confirmationGlobale.mode)]} » ?
-                                                </p>
-                                                <div className="mt-2 flex gap-2">
-                                                    <Button type="button" size="sm" className="h-7 text-xs" onClick={() => appliquerGlobal(confirmationGlobale.prise, confirmationGlobale.mode)}>Appliquer à toutes</Button>
-                                                    <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setConfirmationGlobale(null)}>Garder mes choix</Button>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {messageApplique && (
-                                            <p className="flex items-center gap-1 text-xs text-green-700" role="status"><Check className="h-3.5 w-3.5" /> {messageApplique}</p>
-                                        )}
-                                    </div>
-                                </Champ>
                                 <Champ champ="service" libelle="Service émetteur" obligatoire erreur={erreurDe('service')}>
                                     <select id="champ-service" className={SELECT} value={form.service ?? ''} onChange={(e) => changerService(e.target.value)}>
                                         <option value="">Choisir…</option>
@@ -404,7 +347,7 @@ export default function Formulaire({
                                     <EtiquettesTexte id="champ-destinations" valeurs={form.destinations} onChange={(v) => changer('destinations', v)} placeholder="Ex. Kouroussa" invalide={Boolean(erreurDe('destinations'))} />
                                 </Champ>
                                 <Champ champ="clients" libelle="Client(s)" erreur={erreurDe('clients')}>
-                                    <EtiquettesTexte id="champ-clients" valeurs={form.clients} onChange={(v) => changer('clients', v)} placeholder="Ex. SMD" />
+                                    <SelectionClients valeurs={form.clients} onChange={(v) => changer('clients', v)} />
                                 </Champ>
                                 <Champ champ="but" libelle="But de la mission" obligatoire erreur={erreurDe('but')} aide={`${form.but.trim().length} caractère(s) — 10 au minimum`}>
                                     <Textarea id="champ-but" value={form.but} onChange={(e) => changer('but', e.target.value)} rows={3} maxLength={2000} />
@@ -453,7 +396,8 @@ export default function Formulaire({
                             </CardHeader>
                             <CardContent>
                                 <Champ champ="ordres_reparation" erreur={null}>
-                                    <EtiquettesOrOdm valeurs={form.ordres_reparation} onChange={(v) => changer('ordres_reparation', v)} typesOr={typesOr} erreur={erreurDe('ordres_reparation')} />
+                                    <EtiquettesOrOdm valeurs={form.ordres_reparation} typesOr={typesOr} erreur={erreurDe('ordres_reparation')} clients={form.clients}
+                                        onChange={(v) => majForm((f) => ({ ...f, ordres_reparation: v, clients: clientsAvecCeuxDesOr(f.clients, v) }))} />
                                 </Champ>
                             </CardContent>
                         </Card>
@@ -524,24 +468,31 @@ export default function Formulaire({
                             </CardContent>
                         </Card>
 
-                        {/* Prise en charge des frais, ligne par ligne (Q49) */}
-                        <Card>
+                        {/* Prise en charge des frais : lignes et parts (spec v2.3) */}
+                        <Card data-champ="repartition">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">Prise en charge des frais</CardTitle>
                                 <p className="text-xs text-gray-500">
-                                    Pour chaque frais : Neemba, ou le client. Une ligne du client est soit avancée par Neemba puis refacturée,
-                                    soit payée directement par le client (elle sort alors du bon de caisse).
+                                    Neemba prend tout en charge par défaut. Une ligne peut être répartie entre Neemba et un ou plusieurs clients : Neemba
+                                    avance le montant (le bon de caisse porte le total), puis le refacture au client.
                                 </p>
                             </CardHeader>
-                            <CardContent>
-                                <PriseEnChargeFrais
+                            <CardContent className="space-y-3">
+                                {erreursParChamp.repartition && (
+                                    <ul className="space-y-1 rounded-md bg-red-50 p-2 text-sm text-red-700" role="alert">
+                                        {erreursParChamp.repartition.map((m, i) => <li key={i}>{m}</li>)}
+                                    </ul>
+                                )}
+                                <RepartitionFrais
                                     participants={form.participants}
                                     calcul={calcul}
-                                    modeDefaut={entete.prise_en_charge === 'client' ? (entete.mode_client ?? 'avance') : form.mode_client}
+                                    repartitions={form.repartitions ?? {}}
+                                    onChange={(repartitions) => changer('repartitions', repartitions)}
+                                    ordres={form.ordres_reparation}
+                                    clientsOdm={form.clients}
+                                    codes={codes}
+                                    codeOdm={form.code_analytique}
                                     enCours={enregistrement === 'en_cours'}
-                                    onLigne={(userId, ligne, prise) => majForm((f) => changerPriseEnCharge(f, userId, ligne, prise, calcul))}
-                                    onParticipant={(userId, prise) => majForm((f) => changerPriseEnCharge(f, userId, null, prise, calcul))}
-                                    onTous={toutPrendre}
                                 />
                             </CardContent>
                         </Card>

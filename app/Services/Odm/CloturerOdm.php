@@ -97,9 +97,8 @@ final class CloturerOdm
     private static function retourAnticipe(OrdreMission $odm, User $auteur, Carbon $retour, array $regularisations): array
     {
         $participants = $odm->participantsActifs()->with('bonCaisse')->get();
-        /* Q49 : le trop-perçu porte sur ce que Neemba a versé (montant du bon), pas sur les frais payés par le client */
         $avant = $participants->mapWithKeys(fn (ParticipantOdm $p) => [$p->id => [
-            'montant_bon' => (float) $p->montant_bon, 'indemnite_fcfa' => $p->indemniteFcfaDansLeBon(),
+            'total' => (float) $p->total, 'indemnite_fcfa' => (float) $p->indemnite_fcfa,
         ]]);
 
         $odm->update(['date_retour_reelle' => $retour->toDateString()]);
@@ -140,16 +139,16 @@ final class CloturerOdm
         if ($bon->taux_change_applique !== null) {
             $taux = (float) $bon->taux_change_applique;
 
-            return max(0, round($avant['indemnite_fcfa'] * $taux) - round($participant->indemniteFcfaDansLeBon() * $taux));
+            return max(0, round($avant['indemnite_fcfa'] * $taux) - round((float) $participant->indemnite_fcfa * $taux));
         }
 
-        return max(0, round($avant['montant_bon'] - (float) $participant->montant_bon));
+        return max(0, round($avant['total'] - (float) $participant->total));
     }
 
     /**
      * Q24 : hébergement à l'étranger payé au retour, un bon complémentaire en brouillon par facture,
      * à compléter avec la facture (justificatif obligatoire) puis à soumettre.
-     * Q50 : pas de bon si le client paie directement la facture ; si Neemba l'avance, elle s'ajoute au « à refacturer ».
+     * Spec v2.3 : la ligne « hébergement à l'étranger » prend le montant de la facture ; ses parts (saisies avec l'ODM) s'appliquent.
      *
      * @return string[]
      */
@@ -158,15 +157,10 @@ final class CloturerOdm
         $crees = [];
         foreach ($odm->participantsActifs()->with('utilisateur')->get() as $participant) {
             $montant = (int) preg_replace('/\D/', '', (string) ($factures[$participant->user_id] ?? ''));
-            $prise = $participant->priseEnCharge(CalculOdm::LIGNE_A_LA_CLOTURE);
-            if ($montant < 1 || $prise === 'client_direct') {
+            if ($montant < 1) {
                 continue;
             }
-            if ($prise === 'client_avance') {
-                /* Incrément en base : le retour anticipé vient de recalculer ces montants, l'instance en mémoire est périmée */
-                ParticipantOdm::whereKey($participant->id)->increment('montant_refacturable', $montant);
-                OrdreMission::whereKey($odm->id)->increment('montant_a_refacturer', $montant, ['a_refacturer' => true]);
-            }
+            $participant->lignes()->where('element', 'hebergement_exterieur')->update(['taux' => $montant, 'montant' => $montant]);
             $bon = BonCaisse::create([
                 'type_bon' => 'BD',
                 'site' => $odm->site,
@@ -189,6 +183,13 @@ final class CloturerOdm
             ]);
             $participant->update(['bon_complement_id' => $bon->id]);
             $crees[] = $participant->nom . ' (' . Format::montant($montant) . ')';
+        }
+
+        if ($crees) {
+            RepartitionOdm::repartir($odm);
+            if ($odm->aDesPartsClient()) {
+                $odm->update(['a_refacturer' => true]);
+            }
         }
 
         return $crees ? ['Bon(s) complémentaire(s) d\'hébergement préparé(s) en brouillon, à compléter avec la facture puis à soumettre : ' . implode(', ', $crees) . '.'] : [];

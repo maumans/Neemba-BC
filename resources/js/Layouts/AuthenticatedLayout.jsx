@@ -28,6 +28,7 @@ import {
     ShieldAlert,
     Landmark,
     Plane,
+    Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/Components/NotificationBell";
@@ -106,6 +107,13 @@ const navigationItems = [
         href: "mouvements-caisse.index",
         icon: Wallet,
         roles: ["caissier", "daf", "directeur_pays", "administrateur"],
+    },
+    {
+        /* Spec v2.3, §6.5 : référentiel des clients (ODM, parts de prise en charge) */
+        label: "Clients",
+        href: "clients.index",
+        icon: Building2,
+        roles: ["chef_comptable", "controle_gestion", "administrateur"],
     },
     {
         label: "Taux du jour",

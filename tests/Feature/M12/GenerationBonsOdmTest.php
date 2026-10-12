@@ -238,20 +238,31 @@ class GenerationBonsOdmTest extends TestCase
         $this->assertSame(0, BonCaisse::count());
     }
 
-    /** SC-28, RG-M12-15, Q49 : à la charge du client ; avancé par Neemba (bons, « à refacturer ») ou payé directement (aucun bon) */
+    /** SC-28, RG-M12-15 (v2.3) : variante A, bons pour le montant total ; variante B, aucun bon seulement si tout est client */
     public function test_odm_a_la_charge_du_client(): void
     {
-        $odm = $this->odmValide(['prise_en_charge' => 'client', 'mode_client' => 'avance', 'clients' => ['SMD']]);
+        $toutClient = fn (User $u) => ['user_id' => $u->id, 'lignes' => [
+            'indemnite' => ['parts' => [['payeur' => 'client', 'client_id' => \App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye'])->id, 'ordre_reparation' => '11022219', 'pourcentage' => 100]]],
+            'hebergement' => ['parts' => [['payeur' => 'client', 'client_id' => \App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye'])->id, 'ordre_reparation' => '11022219', 'pourcentage' => 100]]],
+        ]];
+        $odm = $this->odmValide([], [$toutClient($this->thierno), $toutClient($this->yacouba)]);
         $this->assertTrue($odm->a_refacturer);
         $this->assertEquals(6500000, (float) $odm->montant_a_refacturer);   // 2 × 3 250 000 (annexe B.1)
         $this->generer($odm)->assertSessionHas('success');
-        $this->assertSame(2, BonCaisse::count());
+        $this->assertEquals([3250000, 3250000], BonCaisse::orderBy('id')->pluck('montant')->map(fn ($m) => (float) $m)->all());   // le total, avancé par Neemba
 
-        $autre = $this->odmValide(['prise_en_charge' => 'client', 'mode_client' => 'direct', 'clients' => ['SMD'],
-            'date_depart' => '2026-10-05', 'date_retour_prevue' => '2026-10-06']);
-        $this->generer($autre)->assertSessionHas('error', 'Tous les frais de cet ordre de mission sont payés directement par le client : aucun bon de caisse n\'est généré.');
+        Parametre::majValeur('odm_prise_en_charge_client', 'variante_b');
+        \Illuminate\Support\Facades\Cache::flush();
+        $autre = $this->odmValide(['date_depart' => '2026-10-05', 'date_retour_prevue' => '2026-10-06'], [$toutClient($this->thierno)]);
+        $this->generer($autre)->assertSessionHas('error', 'Ordre de mission entièrement à la charge de clients : aucun bon de caisse n\'est généré (variante B).');
         $this->actingAs($this->demandeur)->get(route('odm.show', $autre))
-            ->assertInertia(fn (Assert $page) => $page->where('sansBon', true)->where('generation', null)->where('odm.a_refacturer', false));
+            ->assertInertia(fn (Assert $page) => $page->where('sansBon', true)->where('generation', null)->where('odm.a_refacturer', true));
+
+        /* Variante B, mais une part reste à Neemba : bons générés normalement */
+        $mixte = $this->odmValide(['date_depart' => '2026-10-12', 'date_retour_prevue' => '2026-10-13'], [['user_id' => $this->yacouba->id, 'lignes' => [
+            'indemnite' => ['parts' => [['payeur' => 'client', 'client_id' => \App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye'])->id, 'ordre_reparation' => '11022219', 'pourcentage' => 100]]],
+        ]]]);
+        $this->generer($mixte)->assertSessionHas('success');
     }
 
     /** SC-29, RG-M12-10 : ODM extérieur estimé au dernier taux, recalculé au taux du jour du paiement */

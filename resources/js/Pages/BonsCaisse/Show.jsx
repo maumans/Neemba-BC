@@ -144,8 +144,56 @@ const couleurAction = {
     'modification_ventilation': 'text-purple-500',
 };
 
+/** Spec v2.3 : lignes de l'ODM payées par ce bon et leurs parts, en lecture seule (frais OM répartis, RG-M12-36) */
+function RepartitionDuBon({ repartition }) {
+    return (
+        <div className="space-y-2" data-testid="repartition-bon">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Prise en charge des frais</p>
+                <Link href={route('odm.show', repartition.odm.id)} className="text-xs text-neemba-700 hover:underline">Voir l'ordre de mission {repartition.odm.libelle}</Link>
+            </div>
+            {repartition.participants.map((p) => (
+                <div key={p.nom} className="rounded-md border">
+                    {repartition.participants.length > 1 && <p className="border-b bg-gray-50 px-3 py-1 text-xs font-medium">{p.nom}</p>}
+                    <ul className="divide-y text-xs">
+                        {p.lignes.map((l) => (
+                            <li key={l.id} className="px-3 py-2">
+                                <div className="flex justify-between gap-3 text-sm">
+                                    <span>{l.libelle}</span>
+                                    <span className="tabular-nums">{l.montant !== null ? formatMontant(l.montant) : '—'}</span>
+                                </div>
+                                <ul className="mt-1 space-y-0.5">
+                                    {l.parts.map((part) => (
+                                        <li key={part.id} className={`flex flex-wrap justify-between gap-2 ${part.payeur === 'client' ? 'text-purple-800' : 'text-gray-600'}`}>
+                                            <span>
+                                                {part.payeur === 'client' ? (part.client?.raison_sociale ?? 'Client') : 'Neemba'} · {Number(part.pourcentage).toLocaleString('fr-FR', { maximumFractionDigits: 2 })} %
+                                                {part.ordre_reparation && ` · OR ${part.ordre_reparation}`} · {part.code_analytique_effectif}
+                                            </span>
+                                            <span className="tabular-nums">
+                                                {part.montant !== null ? formatMontant(part.montant) : '—'}
+                                                {l.frais_om?.[part.id] ? ` + frais OM ${formatMontant(l.frais_om[part.id])}` : ''}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            ))}
+            {repartition.client > 0 && (
+                <p className="text-xs text-gray-600">
+                    Part Neemba {formatMontant(repartition.neemba)} · part des clients {formatMontant(repartition.client)}, avancée puis refacturée
+                    {repartition.frais_om_client > 0 && ` (frais OM : ${formatMontant(repartition.frais_om_client)})`}.
+                </p>
+            )}
+        </div>
+    );
+}
+
 export default function Show({
     bonCaisse,
+    repartitionOdm = null,
     statutsLabels = {},
     categoriesDepense = {},
     typesBeneficiaire = {},
@@ -874,6 +922,7 @@ export default function Show({
                                                         <p>{formatDate(bonCaisse.ordre_mission.date_retour_reelle ?? bonCaisse.ordre_mission.date_retour_prevue)}</p>
                                                     </div>
                                                 </div>
+                                                {repartitionOdm && <RepartitionDuBon repartition={repartitionOdm} />}
                                             </>
                                         )}
                                     </CardContent>

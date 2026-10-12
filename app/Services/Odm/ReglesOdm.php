@@ -61,13 +61,6 @@ final class ReglesOdm
         if (mb_strlen(trim((string) $odm->but)) < self::LONGUEUR_MIN_BUT) {
             $ajouter('BUT_TROP_COURT', 'MSG-APP-011', [], 'RG-M12-05', 'but');
         }
-        if (!array_key_exists($odm->prise_en_charge, OrdreMission::PRISES_EN_CHARGE)) {
-            $ajouter('PRISE_EN_CHARGE_OBLIGATOIRE', 'MSG-BC-001', [], 'RG-M12-05', 'prise_en_charge');
-        }
-        /* Q51 : une ligne à la charge du client exige de savoir quel client */
-        if (in_array($odm->prise_en_charge, ['client', 'mixte'], true) && empty(array_filter($odm->clients ?? [], 'filled'))) {
-            $ajouter('CLIENT_OBLIGATOIRE', 'MSG-APP-042', [], 'RG-M12-15', 'clients');
-        }
 
         /* Dates (RG-M12-06) */
         if (!$odm->date_depart) {
@@ -117,6 +110,30 @@ final class ReglesOdm
                 }
                 if ($odm->hebergement_exterieur === 'avant_depart' && (float) $participant->hebergement_facture <= 0) {
                     $ajouter('FACTURE_HEBERGEMENT_MANQUANTE', 'MSG-APP-018', ['participant' => $participant->nom], 'RG-M12-26', 'participants');
+                }
+            }
+        }
+
+        /* Spec v2.3 : parts de prise en charge (RG-M12-31, RG-M12-33) */
+        $codesActifs = CodeAnalytique::where('actif', true)->pluck('code')->all();
+        foreach ($odm->lignesFrais()->with(['parts.ordreReparation', 'participant'])->get() as $ligne) {
+            if ($ligne->participant->retire) {
+                continue;
+            }
+            $valeurs = ['element' => mb_strtolower(\App\Models\LigneFraisOdm::ELEMENTS[$ligne->element] ?? $ligne->element), 'participant' => $ligne->participant->nom];
+            $total = round($ligne->parts->sum(fn ($p) => (float) $p->pourcentage), 4);
+            if (abs($total - 100) >= 0.001) {
+                $ajouter('REPARTITION_INCOMPLETE', 'MSG-APP-043', $valeurs + ['total' => str_replace('.', ',', (string) round($total, 2))], 'RG-M12-31', 'repartition');
+            }
+            foreach ($ligne->parts as $part) {
+                if ($part->payeur === 'client' && !$part->client_id) {
+                    $ajouter('CLIENT_DE_LA_PART', 'MSG-APP-042', $valeurs, 'RG-M12-31', 'repartition');
+                }
+                if (($avertissement = $part->avertissement()) && blank($part->commentaire)) {
+                    $ajouter('COMMENTAIRE_PART', 'MSG-APP-044', $valeurs + ['avertissement' => $avertissement], 'RG-M12-33', 'repartition');
+                }
+                if ($part->code_analytique && !in_array($part->code_analytique, $codesActifs, true)) {
+                    $ajouter('CODE_ANALYTIQUE_PART', 'MSG-APP-045', $valeurs + ['code' => $part->code_analytique], 'RG-M12-31', 'repartition');
                 }
             }
         }

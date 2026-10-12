@@ -30,8 +30,13 @@ class TableauBordOdmExport implements WithMultipleSheets
                 ['ODM', 'Période', 'Demandeur', 'Statut', 'Motif', 'Décidée par', 'Le'],
                 array_map(fn ($d) => [$d['libelle'], $d['periode'], $d['demandeur'], $d['statut'], $d['motif'], $d['par'], $d['le']], $this->donnees['derogations'])),
             self::onglet('À refacturer',
-                ['ODM', 'Client(s)', 'OR', 'Période', 'À refacturer (GNF)', 'Payé directement par le client (GNF)', 'Coût de la mission (GNF)', 'Statut'],
-                array_map(fn ($r) => [$r['libelle'], $r['clients'], $r['or'], $r['periode'], $r['montant'], $r['client_direct'], $r['total'], $r['statut_label']], $this->donnees['aRefacturer'])),
+                ['ODM', 'Client(s)', 'OR', 'Période', 'À refacturer (GNF)', 'Par client', 'Coût de la mission (GNF)', 'Statut'],
+                array_map(fn ($r) => [$r['libelle'], $r['clients'], $r['or'], $r['periode'], $r['montant'], $r['par_client'], $r['total'], $r['statut_label']], $this->donnees['aRefacturer'])),
+            /* Spec v2.3 (M14) : une ligne par part à la charge d'un client */
+            self::onglet('Frais à refacturer',
+                ['ODM', 'Participant', 'Segment', 'Élément', 'Client', 'OR', 'Code analytique', 'Montant (GNF)', 'Frais OM de la part (GNF)', 'Date de paiement'],
+                array_map(fn ($l) => [$l['odm'], $l['participant'], $l['segment'], $l['element'], $l['client'], $l['or'], $l['code_analytique'], $l['montant'], $l['frais_om'], $l['date_paiement']],
+                    $this->donnees['fraisARefacturer'] ?? \App\Services\Odm\TableauBordOdm::partsClient()->all())),
         ];
     }
 

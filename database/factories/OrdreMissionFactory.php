@@ -23,11 +23,9 @@ class OrdreMissionFactory extends Factory
             'code_analytique' => 'ADAZZZ',
             'demandeur_id' => User::factory(),
             'but' => 'Dépannage d\'une machine chez le client',
-            'clients' => ['SMD'],
             'destinations' => ['Kouroussa'],
             'date_depart' => '2026-09-22',
             'date_retour_prevue' => '2026-09-26',
-            'prise_en_charge' => 'neemba',
             'statut' => 'BROUILLON',
         ];
     }

@@ -4,6 +4,7 @@ namespace App\Services\Odm;
 
 use App\Models\CodeAnalytique;
 use App\Models\HistoriqueOdm;
+use App\Models\LigneFraisOdm;
 use App\Models\OrdreMission;
 use App\Models\OrdreReparationOdm;
 use App\Models\Parametre;
@@ -54,14 +55,12 @@ final class PresentationOdm
             'service' => $odm->service,
             'code_analytique' => $odm->code_analytique,
             'but' => $odm->but ?? '',
-            'clients' => $odm->clients ?? [],
+            'clients' => $odm->clients()->get()->map(fn (\App\Models\Client $c) => $c->resume())->values()->all(),
             'destinations' => $odm->destinations ?? [],
             'vehicule' => $odm->vehicule ?? '',
             'date_depart' => $odm->date_depart?->toDateString() ?? '',
             'date_retour_prevue' => $odm->date_retour_prevue?->toDateString() ?? '',
             'motif_depart_passe' => $odm->motif_depart_passe ?? '',
-            'prise_en_charge' => $odm->prise_en_charge,
-            'mode_client' => $odm->mode_client ?? 'avance',
             'hebergement_exterieur' => $odm->hebergement_exterieur,
             'reference_billet' => $odm->reference_billet ?? '',
             'participants' => $odm->participantsActifs()->get()->map(fn (ParticipantOdm $p) => [
@@ -73,10 +72,9 @@ final class PresentationOdm
                 'numero_om' => $p->numero_om,
                 'base_vie' => (bool) $p->base_vie,
                 'hebergement_facture' => $p->hebergement_facture !== null ? (float) $p->hebergement_facture : null,
-                'prises_en_charge' => CalculOdm::prisesNormalisees($p->prises_en_charge, $odm->priseParDefaut()),
             ])->values()->all(),
-            'ordres_reparation' => $odm->ordresReparation()->get()->map(fn (OrdreReparationOdm $or) => [
-                'numero' => $or->numero, 'type' => $or->type,
+            'ordres_reparation' => $odm->ordresReparation()->with('client')->get()->map(fn (OrdreReparationOdm $or) => [
+                'id' => $or->id, 'numero' => $or->numero, 'type' => $or->type, 'client_id' => $or->client_id, 'client' => $or->client?->resume(),
             ])->values()->all(),
             'derogation' => self::derogation($odm),
             'rejet' => self::rejet($odm),
@@ -94,7 +92,7 @@ final class PresentationOdm
     /**
      * Calcul affiché (US-05) : par participant, jours, nuits, deux lignes d'indemnité, hébergement, rattrapage, total,
      * et l'estimation des frais OM pour information.
-     * Q49 : chaque ligne avec qui la prend en charge, et la ventilation (bon de caisse, à refacturer, payé par le client).
+     * Spec v2.3 : les lignes de frais (RG-M12-30) et leurs parts (RG-M12-31), le récapitulatif Neemba / client (RG-M12-34).
      */
     public static function calcul(OrdreMission $odm): array
     {
@@ -106,18 +104,9 @@ final class PresentationOdm
                 : (($dernier = TauxChange::dernier()) ? ['taux' => (float) $dernier->taux, 'date' => Format::date($dernier->date_taux), 'fige' => false] : null);
         }
 
-        $participants = $odm->participantsActifs()->get()->map(function (ParticipantOdm $p) use ($baremes, $odm) {
-            /* Frais OM sur ce que Neemba verse (montant du bon) */
-            $frais = $p->montant_bon !== null ? FraisOrangeMoney::calculer((float) $p->montant_bon, $baremes['frais_om_paliers'] ?? null) : null;
+        $participants = $odm->participantsActifs()->with(['lignes.parts.client', 'lignes.parts.ordreReparation.client'])->get()->map(function (ParticipantOdm $p) use ($baremes, $odm) {
+            $frais = $p->total !== null ? FraisOrangeMoney::calculer((float) $p->total, $baremes['frais_om_paliers'] ?? null) : null;
             $ligne1 = $p->indemnite_fcfa === null && $p->indemnite !== null ? $p->jours * intdiv($baremes['indemnite_journaliere'], 2) : null;
-            $prises = CalculOdm::prisesNormalisees($p->prises_en_charge, $odm->priseParDefaut());
-            $montants = CalculOdm::lignes($odm->type, [
-                'indemnite_ligne_1' => $ligne1,
-                'indemnite_ligne_2' => $ligne1 !== null ? (float) $p->indemnite - $ligne1 : null,
-                'indemnite' => $p->indemnite !== null ? (float) $p->indemnite : null,
-                'hebergement' => (float) $p->hebergement,
-                'rattrapage' => (float) $p->rattrapage,
-            ], $odm->hebergement_exterieur);
 
             return [
                 'user_id' => $p->user_id,
@@ -133,10 +122,8 @@ final class PresentationOdm
                 'hebergement' => (float) $p->hebergement,
                 'rattrapage' => (float) $p->rattrapage,
                 'total' => $p->total !== null ? (float) $p->total : null,
-                'lignes' => self::lignesFrais($montants, $prises, $baremes, $p, $odm->type),
-                'montant_bon' => $p->montant_bon !== null ? (float) $p->montant_bon : null,
-                'montant_refacturable' => $p->montant_refacturable !== null ? (float) $p->montant_refacturable : null,
-                'montant_client_direct' => $p->montant_client_direct !== null ? (float) $p->montant_client_direct : null,
+                'lignes' => $p->lignes->sortBy(fn (LigneFraisOdm $l) => array_search($l->element, array_keys(LigneFraisOdm::ELEMENTS), true))
+                    ->map(fn (LigneFraisOdm $l) => self::ligneFrais($l, $odm))->values()->all(),
                 'frais_om' => $frais['frais'] ?? null,
                 'frais_om_taux' => isset($frais['taux']) ? str_replace('.', ',', (string) $frais['taux']) : null,
                 'montant_verse_om' => $frais['montant_verse'] ?? null,
@@ -146,10 +133,7 @@ final class PresentationOdm
         return [
             'participants' => $participants,
             'total' => $odm->total !== null ? (float) $odm->total : null,
-            /* Q49 : ventilation de l'ODM */
-            'montant_bon' => $participants === [] ? null : CalculOdm::total($participants, 'montant_bon'),
-            'montant_refacturable' => $participants === [] ? null : CalculOdm::total($participants, 'montant_refacturable'),
-            'montant_client_direct' => $participants === [] ? null : CalculOdm::total($participants, 'montant_client_direct'),
+            'recapitulatif' => RepartitionOdm::recapitulatif($odm),
             'jours' => CalculOdm::jours($odm->date_depart, $odm->dateFin()),
             'libelle_indemnite_1' => $baremes['libelle_indemnite_1'],
             'libelle_indemnite_2' => $baremes['libelle_indemnite_2'],
@@ -163,47 +147,34 @@ final class PresentationOdm
     }
 
     /**
-     * Q49 : lignes de frais d'un participant, avec leur montant et qui les prend en charge.
-     * « sans_objet » : montant nul (base vie, pas de rattrapage…), aucun choix à faire ;
-     * « a_la_cloture » : facture payée au retour, montant connu à la clôture.
+     * Ligne de frais et ses parts (RG-M12-30, RG-M12-31). Code analytique d'une part : le sien, sinon celui de l'ODM.
+     * « avertissement » : RG-M12-33 (part client sans OR, ou client différent de celui de l'OR).
      */
-    private static function lignesFrais(array $montants, array $prises, array $baremes, ParticipantOdm $p, string $type): array
+    public static function ligneFrais(LigneFraisOdm $ligne, OrdreMission $odm): array
     {
-        $libelles = [
-            'indemnite_1' => $baremes['libelle_indemnite_1'],
-            'indemnite_2' => $baremes['libelle_indemnite_2'],
-            'hebergement' => $type === 'exterieur'
-                ? "Facture d'hébergement" : 'Hébergement (' . $p->nuits . ' nuit' . ($p->nuits > 1 ? 's' : '') . ')',
-            'rattrapage' => 'Nuitée de rattrapage',
-            'indemnite' => 'Indemnité' . ($p->indemnite_fcfa !== null ? ' (' . Format::nombre($p->indemnite_fcfa) . ' FCFA)' : ''),
-            CalculOdm::LIGNE_A_LA_CLOTURE => "Facture d'hébergement payée au retour",
+        return [
+            'id' => $ligne->id,
+            'element' => $ligne->element,
+            'libelle' => LigneFraisOdm::ELEMENTS[$ligne->element] ?? $ligne->element,
+            'quantite' => (float) $ligne->quantite,
+            'taux' => $ligne->taux !== null ? (float) $ligne->taux : null,
+            'devise' => $ligne->devise,
+            'montant' => $ligne->montant !== null ? (float) $ligne->montant : null,
+            /* Facture payée au retour : montant connu à la clôture */
+            'a_la_cloture' => $ligne->element === 'hebergement_exterieur' && $odm->hebergement_exterieur === 'au_retour' && $ligne->montant === null,
+            'parts' => $ligne->parts->map(fn (\App\Models\PartOdm $part) => [
+                'id' => $part->id,
+                'payeur' => $part->payeur,
+                'client' => $part->client?->resume(),
+                'ordre_reparation' => $part->ordreReparation?->numero,
+                'code_analytique' => $part->code_analytique,
+                'code_analytique_effectif' => $part->code_analytique ?? $odm->code_analytique,
+                'pourcentage' => (float) $part->pourcentage,
+                'montant' => $part->montant !== null ? (float) $part->montant : null,
+                'commentaire' => $part->commentaire,
+                'avertissement' => $part->avertissement(),
+            ])->values()->all(),
         ];
-        $lignes = [];
-        foreach ($montants as $cle => $montant) {
-            $aLaCloture = $cle === CalculOdm::LIGNE_A_LA_CLOTURE;
-            $lignes[] = [
-                'cle' => $cle,
-                'libelle' => $libelles[$cle] ?? $cle,
-                'montant' => $montant !== null ? (float) $montant : null,
-                'prise_en_charge' => $prises[$cle] ?? 'neemba',
-                'sans_objet' => !$aLaCloture && $montant !== null && (float) $montant <= 0,
-                'a_la_cloture' => $aLaCloture,
-            ];
-        }
-
-        return $lignes;
-    }
-
-    /** « 3 lignes sur 8 à la charge du client » : lignes ayant un montant (ou à venir) */
-    public static function resumePriseEnCharge(array $calcul): ?string
-    {
-        $lignes = collect($calcul['participants'])->flatMap(fn ($p) => $p['lignes'])->reject(fn ($l) => $l['sans_objet']);
-        if ($lignes->isEmpty()) {
-            return null;
-        }
-        $client = $lignes->where('prise_en_charge', '!=', 'neemba')->count();
-
-        return $client === 0 ? null : "{$client} ligne" . ($client > 1 ? 's' : '') . " sur {$lignes->count()} à la charge du client";
     }
 
     /** Fiche de l'ODM */
@@ -218,9 +189,7 @@ final class PresentationOdm
             'libelle_prolongation' => $odm->libelle_prolongation,
             'statut_label' => $odm->statut_label,
             'type_label' => OrdreMission::TYPES[$odm->type] ?? $odm->type,
-            'prise_en_charge_label' => OrdreMission::PRISES_EN_CHARGE[$odm->prise_en_charge] ?? $odm->prise_en_charge,
-            'mode_client_label' => $odm->prise_en_charge === 'client' ? (OrdreMission::MODES_CLIENT[$odm->mode_client] ?? null) : null,
-            'resume_prise_en_charge' => self::resumePriseEnCharge($formulaire['calcul']),
+            'montant_neemba' => (float) $odm->montant_neemba,
             'montant_a_refacturer' => (float) $odm->montant_a_refacturer,
             'montant_a_refacturer_format' => Format::montant($odm->montant_a_refacturer),
             'hebergement_exterieur_label' => OrdreMission::HEBERGEMENTS_EXTERIEURS[$odm->hebergement_exterieur] ?? null,
@@ -316,10 +285,6 @@ final class PresentationOdm
             'nom' => $p->nom,
             'numero_om' => $p->numero_om,
             'total' => $p->total !== null ? (float) $p->total : null,
-            /* Q49 : ce que Neemba verse ; nul si le client paie directement tous les frais du participant */
-            'montant_bon' => $p->montant_bon !== null ? (float) $p->montant_bon : null,
-            'montant_client_direct' => (float) $p->montant_client_direct,
-            'sans_bon' => GenererBonsOdm::sansMontant($p),
             'a_un_bon' => $p->bonCaisse !== null && !in_array($p->bonCaisse->statut, GenererBonsOdm::STATUTS_INACTIFS, true),
         ])->values();
 
@@ -328,11 +293,10 @@ final class PresentationOdm
             'participants' => $participants->all(),
             'reste_a_generer' => $mode === 'groupe'
                 ? ($actifs->where('type_bon', 'BD')->isEmpty() ? 1 : 0)
-                : $participants->where('a_un_bon', false)->where('sans_bon', false)->count(),
+                : $participants->where('a_un_bon', false)->count(),
             'bp_autorise' => (bool) Parametre::valeur('odm_genere_bp', true) && $actifs->where('type_bon', 'BP')->isEmpty(),
             'sans_taux' => $odm->type === 'exterieur' && !TauxChange::dernier(),
             'total' => $odm->total !== null ? (float) $odm->total : null,
-            'montant_bons' => $participants->contains(fn ($p) => $p['montant_bon'] === null) ? null : (float) $participants->sum('montant_bon'),
         ];
     }
 
@@ -360,10 +324,7 @@ final class PresentationOdm
                 ->map(fn (Service $s) => ['id' => $s->id, 'nom' => $s->nom, 'technique' => in_array($s->nom, OrdreMission::SERVICES_TECHNIQUES, true)]),
             'codesAnalytiques' => CodeAnalytique::where('actif', true)->orderBy('code')->get(['code', 'libelle', 'service_id']),
             'types' => OrdreMission::TYPES,
-            'prisesEnCharge' => OrdreMission::PRISES_EN_CHARGE,
-            'modesClient' => OrdreMission::MODES_CLIENT,
-            /* Mode proposé quand une ligne passe à la charge du client (paramètre, Q49) */
-            'modeClientDefaut' => Parametre::valeur('odm_prise_en_charge_client', 'variante_a') === 'variante_b' ? 'direct' : 'avance',
+            'elementsFrais' => LigneFraisOdm::ELEMENTS,
             'hebergementsExterieurs' => OrdreMission::HEBERGEMENTS_EXTERIEURS,
             'typesOr' => OrdreReparationOdm::TYPES,
             'maxParticipants' => (int) Parametre::valeur('odm_participants_max', 10),

@@ -16,7 +16,7 @@ import {
 } from '@/Components/ui/dialog';
 import BadgeStatutOdm from '@/Components/Odm/BadgeStatutOdm';
 import PanneauCalcul from '@/Components/Odm/PanneauCalcul';
-import PriseEnChargeFrais from '@/Components/Odm/PriseEnChargeFrais';
+import RepartitionFrais, { RecapitulatifRepartition } from '@/Components/Odm/RepartitionFrais';
 import MontantInput from '@/Components/MontantInput';
 import BadgeStatut from '@/Components/BadgeStatut';
 import { formaterMontant } from '@/utils/format';
@@ -102,7 +102,9 @@ function ActionsVisa({ odm, visa }) {
                     <Stamp className="h-4 w-4" /> Votre visa est attendu : {visa.niveau}
                     {visa.au_titre_de && <span className="font-normal">(au titre de {visa.au_titre_de})</span>}
                 </p>
-                {visa.dernier && <p className="text-xs text-blue-800">Dernier visa : l'ordre de mission sera validé et son calcul figé.</p>}
+                {visa.dernier && <p className="text-xs text-blue-800">Dernier visa : l'ordre de mission sera validé ; son calcul et sa répartition seront figés.</p>}
+                {/* RG-M12-34 : le valideur vise aussi la répartition Neemba / clients */}
+                <RecapitulatifRepartition recapitulatif={odm.calcul?.recapitulatif} titre="Répartition à viser (Neemba / clients)" className="border-blue-100" />
                 <Textarea rows={2} value={visaForm.data.commentaire} onChange={(e) => visaForm.setData('commentaire', e.target.value)}
                     placeholder="Commentaire (facultatif)" aria-label="Commentaire du visa" />
                 <div className="flex flex-wrap gap-2">
@@ -158,9 +160,9 @@ function GenerationBons({ odm, generation }) {
                 </p>
                 <p className="text-sm text-gray-700">
                     {groupe
-                        ? 'Un bon groupé, de ce que Neemba verse pour l\'ODM, au n° Orange Money du participant désigné.'
-                        : 'Un bon définitif par participant, du montant que Neemba lui verse.'}
-                    {' '}Les frais payés directement par le client n'entrent pas dans les bons.
+                        ? 'Un bon groupé, du total de l\'ODM, versé au n° Orange Money du participant désigné.'
+                        : 'Un bon définitif par participant, du montant de ses indemnités.'}
+                    {' '}Neemba avance aussi la part des clients, refacturée ensuite.
                     {' '}Chaque bon est soumis aussitôt et suit son propre circuit (chef de service, CDG, Finance, DP au-delà du seuil).
                     L'ODM tient lieu de justificatif.
                 </p>
@@ -174,15 +176,7 @@ function GenerationBons({ odm, generation }) {
                     {generation.participants.map((p) => (
                         <li key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
                             <span>{p.nom}{p.numero_om && <span className="ml-1 font-mono text-xs text-gray-500">OM {p.numero_om}</span>}</span>
-                            {p.sans_bon ? (
-                                <span className="text-xs font-medium text-purple-800">Aucun bon : frais payés par le client</span>
-                            ) : (
-                                <span className="tabular-nums">
-                                    {p.montant_bon !== null ? formaterMontant(p.montant_bon) : '—'}
-                                    {p.montant_client_direct > 0 && <span className="ml-1 text-xs text-purple-800">(hors {formaterMontant(p.montant_client_direct)} payés par le client)</span>}
-                                    {p.a_un_bon && <span className="ml-2 text-xs text-green-700">bon généré</span>}
-                                </span>
-                            )}
+                            <span className="tabular-nums">{p.total !== null ? formaterMontant(p.total) : '—'}{p.a_un_bon && <span className="ml-2 text-xs text-green-700">bon généré</span>}</span>
                         </li>
                     ))}
                 </ul>
@@ -413,21 +407,18 @@ function Cloturer({ odm, regularisationsPossibles }) {
                                 <p className="font-medium">Factures d'hébergement payées au retour</p>
                                 <p className="text-xs text-gray-500">Un bon complémentaire est préparé en brouillon pour chaque facture : joignez-la, puis soumettez le bon.</p>
                                 {odm.participants.map((p) => {
-                                    /* Q50 : facture payée directement par le client, pas de bon ; avancée par Neemba, refacturée */
-                                    const prise = p.prises_en_charge?.hebergement_retour ?? 'neemba';
+                                    /* Spec v2.3 : facture répartie comme sa ligne ; la part des clients est refacturée */
+                                    const ligne = odm.calcul?.participants?.find((c) => c.user_id === p.user_id)?.lignes?.find((l) => l.element === 'hebergement_exterieur');
+                                    const prise = ligne?.parts?.some((x) => x.payeur === 'client') ? 'client_avance' : 'neemba';
 
                                     return (
                                         <div key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
                                             <span>
                                                 {p.nom}
-                                                {prise === 'client_avance' && <span className="ml-1 text-xs text-purple-800">(avancée, refacturée au client)</span>}
+                                                {prise === 'client_avance' && <span className="ml-1 text-xs text-purple-800">(en partie refacturée au client)</span>}
                                             </span>
-                                            {prise === 'client_direct' ? (
-                                                <span className="text-xs font-medium text-purple-800">Payée par le client : aucun bon</span>
-                                            ) : (
-                                                <MontantInput className="w-40" value={form.data.factures_retour[p.user_id] ?? ''}
-                                                    onChange={(v) => form.setData('factures_retour', { ...form.data.factures_retour, [p.user_id]: v })} />
-                                            )}
+                                            <MontantInput className="w-40" value={form.data.factures_retour[p.user_id] ?? ''}
+                                                onChange={(v) => form.setData('factures_retour', { ...form.data.factures_retour, [p.user_id]: v })} />
                                         </div>
                                     );
                                 })}
@@ -640,7 +631,7 @@ export default function Show({
                 {sansBon && ['VALIDE', 'BONS_GENERES'].includes(odm.statut) && (
                     <p className="flex items-start gap-2 rounded-lg border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">
                         <IconeInfo className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                        Tous les frais sont payés directement par le client : aucun bon de caisse n'est généré.
+                        Ordre de mission entièrement à la charge de clients : aucun bon de caisse n'est généré (variante B). Il est « à refacturer ».
                     </p>
                 )}
 
@@ -669,19 +660,17 @@ export default function Show({
                     </TabsContent>
 
                     <TabsContent value="details" className="mt-4 space-y-4">
+                        {/* RG-M12-34 : récapitulatif de la répartition, pour les valideurs */}
+                        <RecapitulatifRepartition recapitulatif={odm.calcul?.recapitulatif} titre="Répartition des frais (Neemba / clients)" />
                         <Card>
                             <CardContent className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
                                 <Info libelle="Destination(s)">{odm.destinations.join(', ')}</Info>
-                                <Info libelle="Client(s)">{odm.clients.join(', ')}</Info>
-                                <Info libelle="Frais à la charge de">
-                                    {odm.prise_en_charge_label}{odm.mode_client_label && ` — ${odm.mode_client_label.toLowerCase()}`}
-                                    {odm.resume_prise_en_charge && <span className="block text-xs text-purple-800">{odm.resume_prise_en_charge}</span>}
-                                </Info>
+                                <Info libelle="Client(s)">{odm.clients.map((c) => c.raison_sociale).join(', ')}</Info>
                                 <Info libelle="But">{odm.but}</Info>
                                 <Info libelle="Code analytique">{odm.code_analytique && `${odm.code_analytique}${odm.code_analytique_libelle ? ' — ' + odm.code_analytique_libelle : ''}`}</Info>
                                 <Info libelle="Véhicule">{odm.vehicule}</Info>
                                 <Info libelle="Mission technique">{odm.technique ? 'Oui' : 'Non'}</Info>
-                                <Info libelle="OR liés">{odm.ordres_reparation.map((or) => `${or.numero} (${or.type === 'garantie' ? 'Garantie' : 'Vente'})`).join(', ')}</Info>
+                                <Info libelle="OR liés">{odm.ordres_reparation.map((or) => `${or.numero} (${or.type === 'garantie' ? 'Garantie' : 'Vente'}${or.client ? `, ${or.client.raison_sociale}` : ''})`).join(', ')}</Info>
                                 {odm.motif_depart_passe && <Info libelle="Motif (départ dans le passé)">{odm.motif_depart_passe}</Info>}
                                 {odm.type === 'exterieur' && <Info libelle="Hébergement à l'étranger">{odm.hebergement_exterieur_label}</Info>}
                                 {odm.type === 'exterieur' && <Info libelle="Référence billet / bon de commande Wanda">{odm.reference_billet}</Info>}
@@ -722,7 +711,7 @@ export default function Show({
                             <Card>
                                 <CardContent className="space-y-3 p-4">
                                     <h2 className="text-sm font-semibold text-gray-900">Prise en charge des frais</h2>
-                                    <PriseEnChargeFrais participants={odm.participants} calcul={odm.calcul} lectureSeule />
+                                    <RepartitionFrais participants={odm.participants} calcul={odm.calcul} codeOdm={odm.code_analytique} lectureSeule />
                                 </CardContent>
                             </Card>
                         </div>

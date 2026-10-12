@@ -53,7 +53,7 @@ class ImpressionTableauOdmTest extends TestCase
     {
         $odm = OrdreMission::findOrFail($this->actingAs($this->demandeur)->postJson(route('api.odm.creer'), $autres + [
             'service' => 'Technique', 'code_analytique' => 'TECZZZ', 'technique' => true, 'but' => 'Dépannage d\'une chargeuse chez SMD',
-            'destinations' => ['Kouroussa'], 'clients' => ['SMD'], 'date_depart' => '2026-09-22', 'date_retour_prevue' => '2026-09-26',
+            'destinations' => ['Kouroussa'], 'clients' => [\App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye'])->id], 'date_depart' => '2026-09-22', 'date_retour_prevue' => '2026-09-26',
             'prise_en_charge' => 'neemba', 'participants' => [['user_id' => $this->thierno->id]],
             'ordres_reparation' => [['numero' => '11022219', 'type' => 'garantie']],
         ])->json('odm.id'));
@@ -93,7 +93,9 @@ class ImpressionTableauOdmTest extends TestCase
     public function test_le_tableau_de_bord_du_daf(): void
     {
         $neemba = $this->odmValide();
-        $client = $this->odmValide(['prise_en_charge' => 'client', 'date_depart' => '2026-10-01', 'date_retour_prevue' => '2026-10-02']);
+        $partClient = ['parts' => [['payeur' => 'client', 'client_id' => \App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye'])->id, 'ordre_reparation' => '11022219', 'pourcentage' => 100]]];
+        $client = $this->odmValide(['date_depart' => '2026-10-01', 'date_retour_prevue' => '2026-10-02',
+            'participants' => [['user_id' => $this->thierno->id, 'lignes' => ['indemnite' => $partClient, 'hebergement' => $partClient]]]]);
         $this->actingAs($this->demandeur)->post(route('odm.prolonger', $neemba), ['date_retour_prevue' => '2026-09-30']);
 
         $this->actingAs($this->demandeur)->get(route('odm.tableau-de-bord'))->assertForbidden();
@@ -107,12 +109,15 @@ class ImpressionTableauOdmTest extends TestCase
                 ->where('missionsEnCours.0.jours', 5)
                 ->where('aRefacturer.0.libelle', 'N°2/AT/26')
                 ->where('aRefacturer.0.or', '11022219 (Garantie)')
-                ->where('aRefacturer.0.clients', 'SMD'));
+                ->where('aRefacturer.0.clients', 'Société Minière de Dinguiraye')
+                ->where('parClient.0.client', 'Société Minière de Dinguiraye')
+                ->where('parClient.0.or', '11022219')
+                ->where('parClient.0.montant', 1000000));
         $this->actingAs($this->daf)->get(route('odm.index'))->assertInertia(fn (Assert $page) => $page->where('peutVoirTableauDeBord', true));
 
         Excel::fake();
         $this->actingAs($this->daf)->get(route('odm.tableau-de-bord.export'));
-        Excel::assertDownloaded('ordres-de-mission-2026-09-01.xlsx', fn (TableauBordOdmExport $export) => count($export->sheets()) === 3
+        Excel::assertDownloaded('ordres-de-mission-2026-09-01.xlsx', fn (TableauBordOdmExport $export) => count($export->sheets()) === 4
             && $export->sheets()[0]->array()[1][0] === 'N°1/AT/26');
 
         /* Une mission clôturée n'est plus en cours ; elle reste à refacturer */

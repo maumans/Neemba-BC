@@ -8,6 +8,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10px; color: #222; padding: 18px 26px; }
         .entete { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .part-client td { font-size: 8.5px; color: #5b21b6; }
         .entete td { border: 1px solid #999; padding: 4px 6px; font-size: 9px; }
         .entete .logo { width: 130px; text-align: center; font-weight: bold; font-size: 12px; background: #fdc911; }
         .entete .titre { text-align: center; font-weight: bold; font-size: 11px; background: #f5f5f5; }
@@ -51,12 +52,12 @@
     <table class="infos">
         <tr><td class="libelle">Type</td><td>{{ $odm['type_label'] }}{{ $odm['technique'] ? ' — mission technique' : '' }}</td></tr>
         <tr><td class="libelle">Destination(s)</td><td>{{ implode(', ', $odm['destinations']) }}</td></tr>
-        @if ($odm['clients'])<tr><td class="libelle">Client(s)</td><td>{{ implode(', ', $odm['clients']) }}</td></tr>@endif
+        @if ($odm['clients'])<tr><td class="libelle">Client(s)</td><td>{{ collect($odm['clients'])->map(fn ($c) => $c['raison_sociale'] . ' (' . $c['code'] . ')')->implode(', ') }}</td></tr>@endif
         <tr><td class="libelle">But de la mission</td><td>{{ $odm['but'] }}</td></tr>
         <tr><td class="libelle">Période</td><td>du {{ $odm['date_depart_format'] }} au {{ $odm['date_retour_reelle_format'] ?? $odm['date_retour_prevue_format'] }}{{ $odm['date_retour_reelle_format'] ? ' (retour réel)' : '' }} — {{ $odm['calcul']['jours'] }} jour(s)</td></tr>
         @if ($odm['vehicule'])<tr><td class="libelle">Véhicule</td><td>{{ $odm['vehicule'] }}</td></tr>@endif
-        @if ($odm['ordres_reparation'])<tr><td class="libelle">OR</td><td>{{ collect($odm['ordres_reparation'])->map(fn ($or) => $or['numero'] . ' (' . ($or['type'] === 'garantie' ? 'Garantie' : 'Vente') . ')')->implode(', ') }}</td></tr>@endif
-        <tr><td class="libelle">Frais à la charge de</td><td>{{ $odm['prise_en_charge_label'] }}{{ $odm['mode_client_label'] ? ' — ' . mb_strtolower($odm['mode_client_label']) : '' }}{{ $odm['a_refacturer'] ? ' — à refacturer : ' . $odm['montant_a_refacturer_format'] : '' }}</td></tr>
+        @if ($odm['ordres_reparation'])<tr><td class="libelle">OR</td><td>{{ collect($odm['ordres_reparation'])->map(fn ($or) => $or['numero'] . ' (' . ($or['type'] === 'garantie' ? 'Garantie' : 'Vente') . ($or['client'] ? ', ' . $or['client']['raison_sociale'] : '') . ')')->implode(', ') }}</td></tr>@endif
+        @if ($odm['montant_a_refacturer'] > 0)<tr><td class="libelle">À refacturer</td><td>{{ $odm['montant_a_refacturer_format'] }} (part des clients, avancée par Neemba)</td></tr>@endif
         @if ($odm['type'] === 'exterieur')
             <tr><td class="libelle">Hébergement</td><td>{{ $odm['hebergement_exterieur_label'] }}</td></tr>
             @if ($odm['reference_billet'])<tr><td class="libelle">Billet / bon de commande Wanda</td><td>{{ $odm['reference_billet'] }}</td></tr>@endif
@@ -92,43 +93,45 @@
             </thead>
             <tbody>
                 @foreach ($odm['calcul']['participants'] as $c)
-                    @php
-                        /* Q49 : (C) à la charge du client, avancé par Neemba et refacturé ; (CD) payé directement par le client */
-                        $prises = collect($c['lignes'] ?? [])->reject(fn ($l) => $l['sans_objet'])->pluck('prise_en_charge', 'cle');
-                        $repere = fn ($cle) => ['client_avance' => ' (C)', 'client_direct' => ' (CD)'][$prises[$cle] ?? ''] ?? '';
-                    @endphp
                     <tr>
                         <td>{{ $c['nom'] }}</td><td class="droite">{{ $c['jours'] }}</td>
                         <td class="droite">{{ $c['nuits'] }}{{ $c['nuit_rattrapage'] ? ' + 1' : '' }}</td>
                         @if ($odm['type'] === 'exterieur')
                             <td class="droite">{{ $c['indemnite_fcfa'] !== null ? \App\Support\Format::nombre($c['indemnite_fcfa']) : '—' }}</td>
-                            <td class="droite">{{ $c['indemnite'] !== null ? \App\Support\Format::nombre($c['indemnite']) . $repere('indemnite') : 'au paiement' }}</td>
+                            <td class="droite">{{ $c['indemnite'] !== null ? \App\Support\Format::nombre($c['indemnite']) : 'au paiement' }}</td>
                         @else
-                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_1']) }}{{ $repere('indemnite_1') }}</td>
-                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_2']) }}{{ $repere('indemnite_2') }}</td>
+                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_1']) }}</td>
+                            <td class="droite">{{ \App\Support\Format::nombre($c['indemnite_ligne_2']) }}</td>
                         @endif
-                        <td class="droite">{{ \App\Support\Format::nombre($c['hebergement']) }}{{ $repere('hebergement') }}</td>
-                        <td class="droite">{{ $c['rattrapage'] ? \App\Support\Format::nombre($c['rattrapage']) . $repere('rattrapage') : '—' }}</td>
+                        <td class="droite">{{ \App\Support\Format::nombre($c['hebergement']) }}</td>
+                        <td class="droite">{{ $c['rattrapage'] ? \App\Support\Format::nombre($c['rattrapage']) : '—' }}</td>
                         <td class="droite total">{{ $c['total'] !== null ? \App\Support\Format::nombre($c['total']) : '—' }}</td>
                     </tr>
+                    {{-- Spec v2.3 (RG-M12-31) : parts des clients, sous le participant --}}
+                    @foreach (collect($c['lignes'] ?? [])->flatMap(fn ($l) => collect($l['parts'])->where('payeur', 'client')->map(fn ($p) => $p + ['ligne' => $l['libelle']])) as $part)
+                        <tr class="part-client">
+                            <td colspan="7">&nbsp;&nbsp;dont {{ mb_strtolower($part['ligne']) }} : {{ $part['client']['raison_sociale'] ?? 'client non renseigné' }}
+                                ({{ str_replace('.', ',', (string) round($part['pourcentage'], 2)) }} %{{ $part['ordre_reparation'] ? ', OR ' . $part['ordre_reparation'] : '' }}, {{ $part['code_analytique_effectif'] }})</td>
+                            <td class="droite">{{ $part['montant'] !== null ? \App\Support\Format::nombre($part['montant']) : '—' }}</td>
+                        </tr>
+                    @endforeach
                 @endforeach
                 <tr>
                     <td colspan="7" class="droite total">Total de l'ordre de mission</td>
                     <td class="droite total">{{ $odm['calcul']['total'] !== null ? \App\Support\Format::nombre($odm['calcul']['total']) : '—' }}</td>
                 </tr>
-                @if (($odm['calcul']['montant_refacturable'] ?? 0) > 0 || ($odm['calcul']['montant_client_direct'] ?? 0) > 0)
+                @if (($odm['calcul']['recapitulatif']['client'] ?? 0) > 0)
+                    {{-- RG-M12-34 : récapitulatif Neemba / clients --}}
                     <tr>
-                        <td colspan="7" class="droite">dont à la charge de Neemba</td>
-                        <td class="droite">{{ \App\Support\Format::nombre(($odm['calcul']['montant_bon'] ?? 0) - ($odm['calcul']['montant_refacturable'] ?? 0)) }}</td>
+                        <td colspan="7" class="droite">dont part Neemba</td>
+                        <td class="droite">{{ \App\Support\Format::nombre($odm['calcul']['recapitulatif']['neemba']) }}</td>
                     </tr>
-                    <tr>
-                        <td colspan="7" class="droite">dont avancé par Neemba, à refacturer au client (C)</td>
-                        <td class="droite">{{ \App\Support\Format::nombre($odm['calcul']['montant_refacturable'] ?? 0) }}</td>
-                    </tr>
-                    <tr>
-                        <td colspan="7" class="droite">dont payé directement par le client (CD)</td>
-                        <td class="droite">{{ \App\Support\Format::nombre($odm['calcul']['montant_client_direct'] ?? 0) }}</td>
-                    </tr>
+                    @foreach ($odm['calcul']['recapitulatif']['par_client'] as $c)
+                        <tr>
+                            <td colspan="7" class="droite">dont {{ $c['client']['raison_sociale'] }}{{ collect($c['par_or'])->pluck('or')->filter()->isNotEmpty() ? ' (OR ' . collect($c['par_or'])->pluck('or')->filter()->implode(', ') . ')' : '' }}, avancé par Neemba et refacturé</td>
+                            <td class="droite">{{ \App\Support\Format::nombre($c['montant']) }}</td>
+                        </tr>
+                    @endforeach
                 @endif
             </tbody>
         </table>
@@ -137,9 +140,6 @@
         @endif
         @if ($odm['type'] === 'exterieur' && $odm['calcul']['taux'])
             <p class="mention">Indemnité estimée au taux 1 FCFA = {{ str_replace('.', ',', (string) $odm['calcul']['taux']['taux']) }} GNF ; recalculée au taux du jour du paiement.</p>
-        @endif
-        @if (($odm['calcul']['montant_refacturable'] ?? 0) > 0 || ($odm['calcul']['montant_client_direct'] ?? 0) > 0)
-            <p class="mention">(C) : à la charge du client, avancé par Neemba et refacturé. (CD) : payé directement par le client, hors bon de caisse.</p>
         @endif
         <p class="mention">Indemnités forfaitaires : aucun justificatif d'utilisation n'est exigé au retour (RG-M12-29).</p>
     @endif
