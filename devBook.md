@@ -4023,3 +4023,56 @@ Dans l'ordre du formulaire papier :
   - 6 participants avec prise en charge mixte (deux pages, signatures non coupées) ;
   - ODM extérieur ;
   - brouillon.
+
+## 40. Version v40 — Génération sélective des bons d'un ODM ; accès à l'ODM depuis la fiche du bon (13 Octobre 2026)
+
+Branche `odm-generation-selective`, partie de `odm-pdf`. Commits locaux, non poussés, non déployés.
+
+### 40.1 Demande et choix de l'utilisateur (13/10)
+
+- **Génération des bons depuis l'ODM** : globale, mais aussi individuelle (un bon) ou par sélection (cases à cocher).
+- **Bons générés** : soumis aussitôt, comme avant ; pas d'étape de brouillon.
+- **Mode groupé** (paramètre `odm_mode_generation`) : la sélection forme un bon groupé, versé au participant désigné parmi les participants choisis. Les autres pourront former un autre bon groupé.
+- **Fiche du bon** : le lien vers l'ODM, jusque-là un petit lien en bas de page, devient visible.
+
+### 40.2 Génération (`GenererBonsOdm`)
+
+- **Option `participants`** (identifiants d'utilisateurs) :
+  - absente : tous les participants sans bon actif ;
+  - liste : ces participants seulement ;
+  - vide : le bon provisoire seul.
+- **Participant étranger à l'ODM** : refusé avec MSG-APP-053. Les participants qui ont déjà leur bon sont ignorés ; si plus rien n'est à générer, MSG-APP-030.
+- **`participantsSansBon()`** : participants présents sans bon actif (jamais généré, ou annulé). Il sert :
+  - à la génération ;
+  - à la clôture (bons au réel, Q26) ;
+  - au statut « Payé ».
+- **Mode groupé** : `bonGroupe()` reçoit les participants retenus. Avant, un seul bon groupé était possible par ODM.
+- **Correction RG-M12-21** (`PaiementOdm::apresPaiement`) : l'ODM ne passe « Payé » que si tous ses bons actifs sont payés **et** que chaque participant a le sien. Sans cela, une génération partielle aurait rendu l'ODM « Payé », et la génération du reste serait devenue impossible.
+
+### 40.3 Écrans
+
+- **Fiche de l'ODM, bloc « Bons de caisse de l'ordre de mission »** :
+  - progression « x / n bons générés » ;
+  - tableau des participants : case à cocher, nom et n° OM, montant, bon généré (numéro, statut, lien) ou « À générer », bouton « Générer ce bon » ;
+  - boutons « Générer la sélection (n) · total » et « Générer tous les bons (m) » ;
+  - fenêtre de confirmation : liste et total, bénéficiaire du bon groupé, bon provisoire éventuel.
+- **Fiche du bon** :
+  - bandeau en tête, aux couleurs Neemba : « Bon généré depuis un ordre de mission », n°, destinations, période, nombre de participants, statut, bouton « Ouvrir l'ordre de mission » ;
+  - bouton « Voir l'ordre de mission » dans la section « Ordre de mission » ;
+  - le bouton n'est proposé qu'à qui peut ouvrir l'ODM (`estVisiblePar`).
+
+### 40.4 Vérifications
+
+- **`GenerationBonsOdmTest`** : 4 tests ajoutés.
+  1. génération sélective puis reste, avec participant étranger refusé ;
+  2. bon groupé par sélection ;
+  3. pas « Payé » tant qu'un participant attend son bon ;
+  4. bandeau de l'ODM sur la fiche du bon.
+- **Total** : **306 tests PHP** et **71 tests JavaScript** passent.
+- **Parcours dans Edge** (instance jetable) : 17 vérifications, aucune erreur JavaScript.
+  1. ODM à 3 participants ;
+  2. un bon seul ;
+  3. sélection ;
+  4. « Générer tous les bons » ;
+  5. bandeau et accès à l'ODM depuis le bon ;
+  6. téléphone, sans défilement horizontal.
