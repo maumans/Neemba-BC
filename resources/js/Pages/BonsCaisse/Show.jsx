@@ -148,17 +148,23 @@ const couleurAction = {
     'modification_ventilation': 'text-purple-500',
 };
 
-/** Bandeau en tête de la fiche d'un bon lié à un ordre de mission, avec l'accès direct à l'ODM */
+/** Bandeau en tête de la fiche d'un bon lié à un ordre de mission : tout le bandeau mène à l'ODM */
 function BandeauOrdreMission({ odm }) {
+    const Conteneur = odm.accessible ? Link : 'div';
+
     return (
-        <div className="mb-6 overflow-hidden rounded-lg border border-neemba-300 bg-gradient-to-r from-neemba-50 to-white shadow-sm" data-testid="bandeau-odm">
+        <Conteneur
+            {...(odm.accessible ? { href: route('odm.show', odm.id), 'aria-label': `Ouvrir l'ordre de mission ${odm.numero}` } : {})}
+            className={`group mb-6 block overflow-hidden rounded-lg border border-neemba-300 bg-gradient-to-r from-neemba-50 to-white shadow-sm ${odm.accessible ? 'cursor-pointer transition hover:border-neemba-500 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-neemba-500' : ''}`}
+            data-testid="bandeau-odm"
+        >
             <div className="flex flex-col gap-3 border-l-4 border-l-neemba-400 p-4 sm:flex-row sm:items-center">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-marine-950 text-neemba-400">
                     <Plane className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
                     <p className="text-xs font-semibold uppercase tracking-wider text-neemba-800">Bon généré depuis un ordre de mission</p>
-                    <p className="text-base font-semibold text-marine-950">
+                    <p className="text-base font-semibold text-marine-950 group-hover:underline">
                         Ordre de mission {odm.numero}
                         {odm.libelle_prolongation && <span className="ml-1 text-sm font-normal text-gray-600">({odm.libelle_prolongation})</span>}
                     </p>
@@ -170,14 +176,12 @@ function BandeauOrdreMission({ odm }) {
                     </p>
                 </div>
                 {odm.accessible && (
-                    <Link href={route('odm.show', odm.id)} className="shrink-0">
-                        <Button className="w-full bg-marine-950 text-white hover:bg-marine-800 sm:w-auto">
-                            Ouvrir l'ordre de mission <ArrowRight className="ml-1.5 h-4 w-4" />
-                        </Button>
-                    </Link>
+                    <span className="inline-flex shrink-0 items-center justify-center rounded-md bg-marine-950 px-4 py-2 text-sm font-medium text-white transition group-hover:bg-marine-800">
+                        Ouvrir l'ordre de mission <ArrowRight className="ml-1.5 h-4 w-4 transition group-hover:translate-x-0.5" />
+                    </span>
                 )}
             </div>
-        </div>
+        </Conteneur>
     );
 }
 

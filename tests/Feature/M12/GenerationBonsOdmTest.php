@@ -389,4 +389,23 @@ class GenerationBonsOdmTest extends TestCase
             ->where('odmLie.participants', 2)
             ->where('odmLie.accessible', true));
     }
+
+    /** L'ODM tient lieu de justificatif : le valideur du bon (chef de service) ouvre l'ODM depuis le bandeau ; un tiers non */
+    public function test_le_valideur_du_bon_ouvre_l_odm(): void
+    {
+        $odm = $this->odmValide();
+        $this->generer($odm);
+        $bon = BonCaisse::orderBy('id')->first();
+        $chefService = User::where('role', 'responsable_service')->sole();
+        $this->assertSame('EN_ATTENTE_CHEF_SERVICE', $bon->statut);
+
+        $this->actingAs($chefService)->get(route('bons-caisse.show', $bon))
+            ->assertInertia(fn (Assert $page) => $page->where('odmLie.accessible', true));
+        $this->actingAs($chefService)->get(route('odm.show', $odm))->assertOk();
+        $this->actingAs($chefService)->get(route('odm.pdf', $odm))->assertOk();
+
+        $tiers = User::factory()->create(['service' => 'Logistique']);
+        $this->actingAs($tiers)->get(route('odm.show', $odm))->assertForbidden();
+        $this->actingAs($tiers)->get(route('bons-caisse.show', $bon))->assertForbidden();
+    }
 }

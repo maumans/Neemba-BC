@@ -283,7 +283,14 @@ class OrdreMission extends Model
 
     public function estVisiblePar(User $utilisateur): bool
     {
-        return static::visiblesPar($utilisateur)->whereKey($this->id)->exists();
+        return static::visiblesPar($utilisateur)->whereKey($this->id)->exists() || $this->estJustificatifVisiblePar($utilisateur);
+    }
+
+    /** L'ODM tient lieu de justificatif de ses bons : qui peut ouvrir l'un d'eux (valideur, caissier…) le consulte */
+    public function estJustificatifVisiblePar(User $utilisateur): bool
+    {
+        return $this->bons()->where('genere_par_odm', true)->get()
+            ->contains(fn (BonCaisse $bon) => \App\Services\BonCaisse\VisibiliteBon::peutVoir($bon, $utilisateur));
     }
 
     /** Demandeur et initiateur, tant que l'ODM est en brouillon ou rejeté */

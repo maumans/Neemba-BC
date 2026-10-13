@@ -427,83 +427,8 @@ class BonCaisseController extends Controller
         /** @var \App\Models\User $utilisateur */
         $utilisateur = Auth::user();
 
-        /* Restriction de visibilité cohérente avec index() (strict + suivi) :
-         * 1. Propriétaire (demandeur ou initiateur du bon) → toujours autorisé
-         * 2. Administrateur → accès global sauf brouillons des autres
-         * 3. Validateur → bon en attente à son niveau OU bon déjà validé par lui
-         * 4. Caissier → bons à payer/régulariser de son site
-         */
+        abort_unless(\App\Services\BonCaisse\VisibiliteBon::peutVoir($bonCaisse, $utilisateur), 403, 'Vous n\'avez pas les droits pour accéder à ce bon de caisse.');
         $estProprietaire = $bonCaisse->demandeur_id === $utilisateur->id || $bonCaisse->initiateur_id === $utilisateur->id;
-
-        if (!$estProprietaire) {
-            $roles = array_unique(array_merge([$utilisateur->role], method_exists($utilisateur, 'rolesValidationEffectifs') ? $utilisateur->rolesValidationEffectifs() : []));
-            $autorise = false;
-
-            /* Administrateur : accès global sauf brouillons */
-            if (in_array('administrateur', $roles) && $bonCaisse->statut !== 'BROUILLON') {
-                $autorise = true;
-            }
-
-            /* Bénéficiaire (RG-BC-32) : consultation dès la soumission */
-            if ($bonCaisse->beneficiaire_id === $utilisateur->id && $bonCaisse->statut !== 'BROUILLON') {
-                $autorise = true;
-            }
-
-            /* M16 : la Comptabilité consulte les bons payés qu'elle impute */
-            if ($utilisateur->aLeRole(\App\Models\Imputation::ROLES) && in_array($bonCaisse->statut, \App\Services\Odm\PaiementOdm::STATUTS_PAYES, true)) {
-                $autorise = true;
-            }
-
-            /* Vérifier si le bon est déjà validé par cet utilisateur (suivi) */
-            if (!$autorise) {
-                $dejaValide = Validation::where('bon_caisse_id', $bonCaisse->id)
-                    ->where('validateur_id', $utilisateur->id)
-                    ->whereIn('statut', ['approuve', 'rejete'])
-                    ->exists();
-                if ($dejaValide) {
-                    $autorise = true;
-                }
-            }
-
-            /* Vérifier si le bon est en attente au niveau du validateur */
-            if (!$autorise) {
-                $roleStatutMap = [
-                    'responsable_service' => 'EN_ATTENTE_CHEF_SERVICE',
-                    'controle_gestion' => 'EN_ATTENTE_CDG',
-                    'daf' => 'EN_ATTENTE_DAF',
-                    'directeur_pays' => 'EN_ATTENTE_DP',
-                ];
-
-                foreach ($roles as $r) {
-                    if (!isset($roleStatutMap[$r])) continue;
-
-                    if ($bonCaisse->statut === $roleStatutMap[$r]) {
-                        /* Chef de service : restreindre aux services accessibles */
-                        if ($r === 'responsable_service') {
-                            if (in_array($bonCaisse->service, CircuitBon::servicesChef($utilisateur))) {
-                                $autorise = true;
-                                break;
-                            }
-                        } else {
-                            $autorise = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            /* Caissier : bons de son site à payer/régulariser */
-            if (!$autorise && in_array('caissier', $roles)) {
-                if (in_array($bonCaisse->statut, ['APPROUVE', 'PAYE', 'EN_ATTENTE_REGULARISATION', 'REGULARISE', 'ARCHIVE'])
-                    && (!$utilisateur->site || $bonCaisse->site === $utilisateur->site)) {
-                    $autorise = true;
-                }
-            }
-
-            if (!$autorise) {
-                abort(403, 'Vous n\'avez pas les droits pour accéder à ce bon de caisse.');
-            }
-        }
 
         $bonCaisse->load([
             'demandeur',
