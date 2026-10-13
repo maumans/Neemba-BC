@@ -52,6 +52,9 @@ import {
     Timer,
     SkipForward,
     BookOpen,
+    Plane,
+    ArrowRight,
+    Users,
 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Badge } from '@/Components/ui/badge';
@@ -145,14 +148,44 @@ const couleurAction = {
     'modification_ventilation': 'text-purple-500',
 };
 
+/** Bandeau en tête de la fiche d'un bon lié à un ordre de mission, avec l'accès direct à l'ODM */
+function BandeauOrdreMission({ odm }) {
+    return (
+        <div className="mb-6 overflow-hidden rounded-lg border border-neemba-300 bg-gradient-to-r from-neemba-50 to-white shadow-sm" data-testid="bandeau-odm">
+            <div className="flex flex-col gap-3 border-l-4 border-l-neemba-400 p-4 sm:flex-row sm:items-center">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-marine-950 text-neemba-400">
+                    <Plane className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-neemba-800">Bon généré depuis un ordre de mission</p>
+                    <p className="text-base font-semibold text-marine-950">
+                        Ordre de mission {odm.numero}
+                        {odm.libelle_prolongation && <span className="ml-1 text-sm font-normal text-gray-600">({odm.libelle_prolongation})</span>}
+                    </p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
+                        {odm.destinations.length > 0 && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{odm.destinations.join(', ')}</span>}
+                        <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{odm.periode}</span>
+                        <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" />{odm.participants} participant{odm.participants > 1 ? 's' : ''}</span>
+                        <span className="rounded bg-white px-1.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200">{odm.statut_label}</span>
+                    </p>
+                </div>
+                {odm.accessible && (
+                    <Link href={route('odm.show', odm.id)} className="shrink-0">
+                        <Button className="w-full bg-marine-950 text-white hover:bg-marine-800 sm:w-auto">
+                            Ouvrir l'ordre de mission <ArrowRight className="ml-1.5 h-4 w-4" />
+                        </Button>
+                    </Link>
+                )}
+            </div>
+        </div>
+    );
+}
+
 /** Spec v2.3 : lignes de l'ODM payées par ce bon et leurs parts, en lecture seule (frais OM répartis, RG-M12-36) */
 function RepartitionDuBon({ repartition }) {
     return (
         <div className="space-y-2" data-testid="repartition-bon">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Prise en charge des frais</p>
-                <Link href={route('odm.show', repartition.odm.id)} className="text-xs text-neemba-700 hover:underline">Voir l'ordre de mission {repartition.odm.libelle}</Link>
-            </div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Prise en charge des frais</p>
             {repartition.participants.map((p) => (
                 <div key={p.nom} className="rounded-md border">
                     {repartition.participants.length > 1 && <p className="border-b bg-gray-50 px-3 py-1 text-xs font-medium">{p.nom}</p>}
@@ -216,6 +249,7 @@ export default function Show({
     fraisOrangeMoney = null,
     etapesValidation = [],
     rejet = null,
+    odmLie = null,
     ageBon = null,
 }) {
     const { auth, flash } = usePage().props;
@@ -480,6 +514,8 @@ export default function Show({
                     )}
                 </div>
             )}
+
+            {odmLie && <BandeauOrdreMission odm={odmLie} />}
 
             <BandeauPiecesDejaUtilisees pieces={bonCaisse.pieces_jointes} />
 
@@ -905,7 +941,16 @@ export default function Show({
                                         {bonCaisse.ordre_mission && (
                                             <>
                                                 <Separator />
-                                                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ordre de Mission</p>
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ordre de Mission</p>
+                                                    {odmLie?.accessible && (
+                                                        <Link href={route('odm.show', odmLie.id)}>
+                                                            <Button size="sm" variant="outline" className="border-neemba-400 text-marine-950 hover:bg-neemba-50">
+                                                                <Plane className="mr-1.5 h-4 w-4" /> Voir l'ordre de mission <ArrowRight className="ml-1 h-4 w-4" />
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+                                                </div>
                                                 <div className="grid grid-cols-2 gap-3 text-sm">
                                                     <div>
                                                         <p className="text-gray-500">Numéro</p>

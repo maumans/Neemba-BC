@@ -144,6 +144,8 @@ class OrdreMissionController extends Controller
     public function genererBons(Request $request, OrdreMission $odm)
     {
         $donnees = $request->validate([
+            'participants' => ['nullable', 'array'],
+            'participants.*' => ['integer'],
             'beneficiaire_groupe_id' => ['nullable', 'integer'],
             'bp' => ['nullable', 'array'],
             'bp.montant' => ['nullable'],
@@ -153,6 +155,8 @@ class OrdreMissionController extends Controller
         $bp = !empty($donnees['bp']['montant']) || !empty($donnees['bp']['motif']) ? $donnees['bp'] : null;
 
         $bons = \App\Services\Odm\GenererBonsOdm::executer($odm, Auth::user(), [
+            /* Absent : tous les participants sans bon ; sinon la sélection (vide : le BP seul) */
+            'participants' => $request->has('participants') ? array_map('intval', $donnees['participants'] ?? []) : null,
             'beneficiaire_groupe_id' => $donnees['beneficiaire_groupe_id'] ?? null,
             'bp' => $bp,
         ]);

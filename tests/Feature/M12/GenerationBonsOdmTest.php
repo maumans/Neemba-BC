@@ -315,4 +315,78 @@ class GenerationBonsOdmTest extends TestCase
         $this->assertSame('PAYE', $odm->fresh()->statut);
         $this->assertSame('paiement', $odm->historique()->reorder('id', 'desc')->value('action'));
     }
+
+    /** Génération sélective : les participants cochés d'abord, les autres ensuite ; un participant étranger est refusé */
+    public function test_la_generation_selective(): void
+    {
+        $odm = $this->odmValide();
+        $intrus = User::factory()->create();
+
+        $this->generer($odm, ['participants' => [$intrus->id]])->assertSessionHasErrors('participants');
+        $this->assertSame(0, BonCaisse::count());
+
+        $this->generer($odm, ['participants' => [$this->thierno->id]])->assertSessionHas('success');
+        $this->assertSame([$this->thierno->id], BonCaisse::pluck('beneficiaire_id')->all());
+        $this->assertSame('BONS_GENERES', $odm->fresh()->statut);
+        $this->actingAs($this->demandeur)->get(route('odm.show', $odm))->assertInertia(fn (Assert $page) => $page
+            ->where('generation.reste_a_generer', 1)
+            ->where('generation.participants.0.a_un_bon', true)
+            ->where('generation.participants.0.bon.numero', BonCaisse::sole()->numero)
+            ->where('generation.participants.1.bon', null));
+
+        /* Déjà généré : rien de nouveau */
+        $this->generer($odm, ['participants' => [$this->thierno->id]])->assertSessionHas('error', 'Tous les bons de cet ordre de mission sont déjà générés.');
+        /* Sans sélection : tous ceux qui restent */
+        $this->generer($odm)->assertSessionHas('success');
+        $this->assertSame([$this->thierno->id, $this->yacouba->id], BonCaisse::orderBy('id')->pluck('beneficiaire_id')->all());
+    }
+
+    /** Mode groupé : la sélection forme un bon groupé ; les autres en formeront un autre */
+    public function test_un_bon_groupe_par_selection(): void
+    {
+        Parametre::majValeur('odm_mode_generation', 'groupe');
+        $odm = $this->odmValide();
+
+        $this->generer($odm, ['participants' => [$this->thierno->id], 'beneficiaire_groupe_id' => $this->yacouba->id])->assertSessionHas('success');
+        $premier = BonCaisse::sole();
+        $this->assertEquals(3250000, (float) $premier->montant);
+        $this->assertSame($this->thierno->id, $premier->beneficiaire_id);   // le désigné doit faire partie de la sélection
+        $this->assertStringContainsString('bon groupé de 1 participant(s), versé à BAH Thierno', $premier->motif);
+
+        $this->generer($odm, ['participants' => [$this->yacouba->id]])->assertSessionHas('success');
+        $this->assertSame(2, BonCaisse::count());
+        $this->assertSame([$premier->id], $odm->participants()->where('user_id', $this->thierno->id)->pluck('bon_caisse_id')->all());
+    }
+
+    /** RG-M12-21 : pas « Payé » tant qu'un participant n'a pas son bon, même si les bons générés sont payés */
+    public function test_l_odm_n_est_pas_paye_tant_qu_un_participant_attend_son_bon(): void
+    {
+        $odm = $this->odmValide();
+        $this->generer($odm, ['participants' => [$this->thierno->id]]);
+        $premier = BonCaisse::sole();
+        $premier->update(['statut' => 'APPROUVE']);
+        $this->payer($premier)->assertSessionHas('success');
+        $this->assertSame('BONS_GENERES', $odm->fresh()->statut);
+
+        $this->generer($odm)->assertSessionHas('success');
+        $second = BonCaisse::where('beneficiaire_id', $this->yacouba->id)->sole();
+        $second->update(['statut' => 'APPROUVE']);
+        $this->payer($second)->assertSessionHas('success');
+        $this->assertSame('PAYE', $odm->fresh()->statut);
+    }
+
+    /** Fiche du bon : bandeau de l'ordre de mission, avec l'accès réservé à qui peut ouvrir l'ODM */
+    public function test_le_bandeau_de_l_odm_sur_la_fiche_du_bon(): void
+    {
+        $odm = $this->odmValide();
+        $this->generer($odm);
+        $bon = BonCaisse::orderBy('id')->first();
+
+        $this->actingAs($this->demandeur)->get(route('bons-caisse.show', $bon))->assertInertia(fn (Assert $page) => $page
+            ->where('odmLie.id', $odm->id)
+            ->where('odmLie.numero', 'N°1/AT/26')
+            ->where('odmLie.destinations', ['Kouroussa'])
+            ->where('odmLie.participants', 2)
+            ->where('odmLie.accessible', true));
+    }
 }

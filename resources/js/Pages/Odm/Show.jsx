@@ -139,32 +139,60 @@ function ActionsVisa({ odm, visa }) {
     );
 }
 
-/** Génération des bons d'un ODM validé (US-08, RG-M12-13 à RG-M12-15) */
+/**
+ * Génération des bons (US-08) : globale (tous les participants sans bon), par sélection (cases à cocher) ou pour un seul
+ * participant. Chaque bon est soumis aussitôt ; en mode groupé, la sélection forme un bon groupé. Les participants laissés
+ * de côté restent à générer (ou reçoivent leur bon au réel à la clôture, Q26).
+ */
 function GenerationBons({ odm, generation }) {
-    const premier = generation.participants[0]?.user_id ?? '';
-    const form = useForm({ beneficiaire_groupe_id: premier, bp: { montant: '', motif: '', beneficiaire_id: premier } });
+    const participants = generation.participants;
+    const sansBon = participants.filter((p) => !p.a_un_bon);
+    const premier = sansBon[0]?.user_id ?? participants[0]?.user_id ?? '';
+    const form = useForm({ participants: [], beneficiaire_groupe_id: premier, bp: { montant: '', motif: '', beneficiaire_id: premier } });
     const [avecBp, setAvecBp] = useState(false);
+    const [selection, setSelection] = useState([]);
+    /* Participants de la génération à confirmer (null : boîte fermée ; [] : le bon provisoire seul) */
+    const [aConfirmer, setAConfirmer] = useState(null);
     const groupe = generation.mode === 'groupe';
-    const rien = generation.reste_a_generer === 0 && !avecBp;
+    const generes = participants.length - generation.reste_a_generer;
+    const bloque = generation.sans_taux || form.processing;
 
-    const generer = () => {
-        form.transform((d) => ({ ...d, bp: avecBp ? d.bp : null }));
-        form.post(route('odm.generer-bons', odm.id), { preserveScroll: true });
+    const total = (ids) => participants.filter((p) => ids.includes(p.user_id)).reduce((somme, p) => somme + (p.total ?? 0), 0);
+    const basculer = (id) => setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+    const toutCoche = sansBon.length > 0 && selection.length === sansBon.length;
+    const concernes = aConfirmer ? participants.filter((p) => aConfirmer.includes(p.user_id)) : [];
+    const designe = aConfirmer?.includes(form.data.beneficiaire_groupe_id) ? form.data.beneficiaire_groupe_id : aConfirmer?.[0];
+
+    const confirmer = () => {
+        const ids = aConfirmer;
+        form.transform((d) => ({ ...d, participants: ids, beneficiaire_groupe_id: groupe ? designe : null, bp: avecBp ? d.bp : null }));
+        form.post(route('odm.generer-bons', odm.id), {
+            preserveScroll: true,
+            onSuccess: () => { setAConfirmer(null); setSelection([]); setAvecBp(false); },
+            onError: () => setAConfirmer(null),
+        });
     };
 
     return (
         <Card className="border-green-200 bg-green-50/40">
             <CardContent className="space-y-3 p-4">
-                <p className="flex items-center gap-2 text-sm font-semibold text-green-900">
-                    <FileText className="h-4 w-4" /> Bons de caisse de l'ordre de mission
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-green-900">
+                        <FileText className="h-4 w-4" /> Bons de caisse de l'ordre de mission
+                    </p>
+                    <div className="flex items-center gap-2 text-xs text-gray-600" data-testid="progression-bons">
+                        <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-200">
+                            <div className="h-full rounded-full bg-green-600" style={{ width: `${participants.length ? (generes / participants.length) * 100 : 0}%` }} />
+                        </div>
+                        {generes} / {participants.length} bon{participants.length > 1 ? 's' : ''} généré{participants.length > 1 ? 's' : ''}
+                    </div>
+                </div>
                 <p className="text-sm text-gray-700">
                     {groupe
-                        ? 'Un bon groupé, du total de l\'ODM, versé au n° Orange Money du participant désigné.'
+                        ? 'Mode groupé : les participants choisis forment un bon groupé, versé au n° Orange Money de celui que vous désignez.'
                         : 'Un bon définitif par participant, du montant de ses indemnités.'}
-                    {' '}Neemba avance aussi la part des clients, refacturée ensuite.
-                    {' '}Chaque bon est soumis aussitôt et suit son propre circuit (chef de service, CDG, Finance, DP au-delà du seuil).
-                    L'ODM tient lieu de justificatif.
+                    {' '}Générez tous les bons, ceux que vous cochez, ou un seul. Chaque bon est soumis aussitôt et suit son propre circuit ;
+                    {' '}Neemba avance aussi la part des clients, refacturée ensuite. L'ODM tient lieu de justificatif.
                 </p>
                 {generation.sans_taux && (
                     <p className="flex items-start gap-2 rounded-md bg-amber-50 p-2 text-sm text-amber-800">
@@ -172,23 +200,56 @@ function GenerationBons({ odm, generation }) {
                         Aucun taux FCFA → GNF n'a encore été saisi : la Trésorerie doit le saisir avant la génération.
                     </p>
                 )}
-                <ul className="space-y-1 text-sm">
-                    {generation.participants.map((p) => (
-                        <li key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
-                            <span>{p.nom}{p.numero_om && <span className="ml-1 font-mono text-xs text-gray-500">OM {p.numero_om}</span>}</span>
-                            <span className="tabular-nums">{p.total !== null ? formaterMontant(p.total) : '—'}{p.a_un_bon && <span className="ml-2 text-xs text-green-700">bon généré</span>}</span>
-                        </li>
-                    ))}
-                </ul>
-                {groupe && generation.reste_a_generer > 0 && (
-                    <div>
-                        <label htmlFor="beneficiaire-groupe" className="text-sm font-medium">Bon versé à</label>
-                        <select id="beneficiaire-groupe" className="mt-1 h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
-                            value={form.data.beneficiaire_groupe_id} onChange={(e) => form.setData('beneficiaire_groupe_id', Number(e.target.value))}>
-                            {generation.participants.map((p) => <option key={p.user_id} value={p.user_id}>{p.nom}</option>)}
-                        </select>
-                    </div>
-                )}
+
+                <div className="overflow-x-auto rounded-md border bg-white">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+                                <th className="w-10 px-3 py-2">
+                                    <input type="checkbox" aria-label="Tout cocher" checked={toutCoche} disabled={sansBon.length === 0 || bloque}
+                                        onChange={() => setSelection(toutCoche ? [] : sansBon.map((p) => p.user_id))} />
+                                </th>
+                                <th className="px-2 py-2 font-medium">Participant</th>
+                                <th className="px-2 py-2 text-right font-medium">Montant</th>
+                                <th className="px-2 py-2 font-medium">Bon de caisse</th>
+                                <th className="px-3 py-2" />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {participants.map((p) => (
+                                <tr key={p.user_id} className={`border-b last:border-b-0 ${selection.includes(p.user_id) ? 'bg-neemba-50' : ''}`}>
+                                    <td className="px-3 py-2">
+                                        {p.a_un_bon
+                                            ? <CheckCircle2 className="h-4 w-4 text-green-600" aria-label="Bon généré" />
+                                            : <input type="checkbox" aria-label={`Choisir ${p.nom}`} checked={selection.includes(p.user_id)} disabled={bloque} onChange={() => basculer(p.user_id)} />}
+                                    </td>
+                                    <td className="px-2 py-2">
+                                        <p className="font-medium">{p.nom}</p>
+                                        {p.numero_om && <p className="font-mono text-xs text-gray-500">OM {p.numero_om}</p>}
+                                    </td>
+                                    <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums">{p.total !== null ? formaterMontant(p.total) : '—'}</td>
+                                    <td className="px-2 py-2">
+                                        {p.bon ? (
+                                            <Link href={route('bons-caisse.show', p.bon.id)} className="inline-flex flex-wrap items-center gap-1.5 hover:underline">
+                                                <span className="font-mono text-xs">{p.bon.numero}</span>
+                                                <BadgeStatut statut={p.bon.statut} />
+                                                {p.bon.groupe && <span className="text-xs text-gray-500">groupé</span>}
+                                            </Link>
+                                        ) : <span className="text-xs text-gray-500">À générer</span>}
+                                    </td>
+                                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                                        {!p.a_un_bon && (
+                                            <Button size="sm" variant="outline" disabled={bloque} onClick={() => setAConfirmer([p.user_id])}>
+                                                Générer ce bon
+                                            </Button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
                 {generation.bp_autorise && (
                     <div className="space-y-2 rounded-md border bg-white p-3">
                         <label className="flex items-center gap-2 text-sm font-medium">
@@ -206,7 +267,7 @@ function GenerationBons({ odm, generation }) {
                                     <label htmlFor="bp-beneficiaire" className="text-xs text-gray-600">Bénéficiaire</label>
                                     <select id="bp-beneficiaire" className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
                                         value={form.data.bp.beneficiaire_id} onChange={(e) => form.setData('bp', { ...form.data.bp, beneficiaire_id: Number(e.target.value) })}>
-                                        {generation.participants.map((p) => <option key={p.user_id} value={p.user_id}>{p.nom}</option>)}
+                                        {participants.map((p) => <option key={p.user_id} value={p.user_id}>{p.nom}</option>)}
                                     </select>
                                 </div>
                                 <div className="sm:col-span-2">
@@ -214,17 +275,78 @@ function GenerationBons({ odm, generation }) {
                                     <Textarea id="bp-motif" rows={2} value={form.data.bp.motif} onChange={(e) => form.setData('bp', { ...form.data.bp, motif: e.target.value })} />
                                     {form.errors.bp_motif && <p className="mt-1 text-xs text-red-600">{form.errors.bp_motif}</p>}
                                 </div>
-                                <p className="text-xs text-gray-500 sm:col-span-2">À régulariser 3 jours ouvrés après le retour de mission.</p>
+                                <p className="text-xs text-gray-500 sm:col-span-2">À régulariser 3 jours ouvrés après le retour de mission. Il part avec la prochaine génération.</p>
                             </div>
                         )}
                     </div>
                 )}
-                {(form.errors.general || form.errors.bp) && <p className="text-sm text-red-600">{form.errors.general ?? form.errors.bp}</p>}
-                <Button size="sm" onClick={generer} disabled={form.processing || rien || generation.sans_taux}>
-                    <FileText className="mr-1 h-4 w-4" />
-                    {generation.reste_a_generer > 0 ? 'Générer les bons de caisse' : 'Générer le bon provisoire'}
-                </Button>
+                {(form.errors.general || form.errors.bp || form.errors.participants) && (
+                    <p className="text-sm text-red-600">{form.errors.general ?? form.errors.bp ?? form.errors.participants}</p>
+                )}
+
+                <div className="flex flex-wrap items-center gap-2">
+                    {sansBon.length > 0 ? (
+                        <>
+                            <Button size="sm" disabled={bloque || selection.length === 0} onClick={() => setAConfirmer(selection)}>
+                                <FileText className="mr-1 h-4 w-4" />
+                                Générer la sélection ({selection.length}){selection.length > 0 && ` · ${formaterMontant(total(selection))}`}
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={bloque} onClick={() => setAConfirmer(sansBon.map((p) => p.user_id))}>
+                                Générer tous les bons ({sansBon.length})
+                            </Button>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-sm text-green-800">Tous les participants ont leur bon de caisse.</p>
+                            {avecBp && <Button size="sm" disabled={bloque} onClick={() => setAConfirmer([])}><FileText className="mr-1 h-4 w-4" /> Générer le bon provisoire</Button>}
+                        </>
+                    )}
+                </div>
             </CardContent>
+
+            <Dialog open={aConfirmer !== null} onOpenChange={(ouvert) => !ouvert && !form.processing && setAConfirmer(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {concernes.length === 0 ? 'Générer le bon provisoire'
+                                : groupe ? `Générer un bon groupé pour ${concernes.length} participant${concernes.length > 1 ? 's' : ''}`
+                                    : `Générer ${concernes.length} bon${concernes.length > 1 ? 's' : ''} de caisse`}
+                        </DialogTitle>
+                        <DialogDescription>Les bons sont soumis aussitôt et partent dans leur circuit de validation.</DialogDescription>
+                    </DialogHeader>
+                    {concernes.length > 0 && (
+                        <ul className="divide-y rounded-md border text-sm">
+                            {concernes.map((p) => (
+                                <li key={p.user_id} className="flex justify-between gap-3 px-3 py-2">
+                                    <span>{p.nom}</span>
+                                    <span className="tabular-nums">{p.total !== null ? formaterMontant(p.total) : '—'}</span>
+                                </li>
+                            ))}
+                            {concernes.length > 1 && (
+                                <li className="flex justify-between gap-3 bg-gray-50 px-3 py-2 font-semibold">
+                                    <span>Total</span><span className="tabular-nums">{formaterMontant(total(aConfirmer))}</span>
+                                </li>
+                            )}
+                        </ul>
+                    )}
+                    {groupe && concernes.length > 1 && (
+                        <div>
+                            <label htmlFor="beneficiaire-groupe" className="text-sm font-medium">Bon groupé versé à</label>
+                            <select id="beneficiaire-groupe" className="mt-1 h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                                value={designe} onChange={(e) => form.setData('beneficiaire_groupe_id', Number(e.target.value))}>
+                                {concernes.map((p) => <option key={p.user_id} value={p.user_id}>{p.nom}</option>)}
+                            </select>
+                        </div>
+                    )}
+                    {avecBp && <p className="text-sm text-gray-700">Avec le bon provisoire de {form.data.bp.montant ? `${form.data.bp.montant} GNF` : 'montant à saisir'}.</p>}
+                    <DialogFooter>
+                        <Button variant="outline" disabled={form.processing} onClick={() => setAConfirmer(null)}>Annuler</Button>
+                        <Button disabled={form.processing} onClick={confirmer}>
+                            <FileText className="mr-1 h-4 w-4" /> {form.processing ? 'Génération…' : 'Générer et soumettre'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Card>
     );
 }

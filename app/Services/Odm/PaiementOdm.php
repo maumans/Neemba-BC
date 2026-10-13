@@ -78,7 +78,7 @@ final class PaiementOdm
         }
     }
 
-    /** RG-M12-21 : statut « Payé » de l'ODM quand tous ses bons actifs sont payés */
+    /** RG-M12-21 : statut « Payé » de l'ODM quand tous ses bons actifs sont payés et que chaque participant a le sien */
     public static function apresPaiement(BonCaisse $bon, ?User $caissier = null): void
     {
         if (!$bon->odm_id || !$bon->genere_par_odm) {
@@ -89,7 +89,8 @@ final class PaiementOdm
             return;
         }
         $actifs = GenererBonsOdm::bonsActifs($odm);
-        if ($actifs->isNotEmpty() && $actifs->every(fn (BonCaisse $b) => in_array($b->statut, self::STATUTS_PAYES, true))) {
+        if ($actifs->isNotEmpty() && $actifs->every(fn (BonCaisse $b) => in_array($b->statut, self::STATUTS_PAYES, true))
+            && GenererBonsOdm::participantsSansBon($odm)->isEmpty()) {
             $odm->update(['statut' => 'PAYE']);
             HistoriqueOdm::enregistrer($odm, 'paiement', 'BONS_GENERES', 'PAYE', $caissier?->id,
                 'Tous les bons de l\'ordre de mission sont payés : ' . $actifs->pluck('numero')->implode(', ') . '.');

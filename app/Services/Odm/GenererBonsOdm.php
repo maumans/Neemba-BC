@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\DB;
  * Génération des bons de caisse d'un ODM validé (RG-M12-13 à RG-M12-15, RG-M12-29 ; RG-M03-15, RG-M03-22).
  *
  * - Un BD par participant (défaut) ou un bon groupé versé au n° OM d'un participant désigné (paramètre, PO-03).
+ * - Génération globale (tous les participants sans bon) ou sélective (les participants cochés, ou un seul) : les autres
+ *   restent à générer plus tard ; en mode groupé, la sélection forme un bon groupé.
  * - Champs repris de l'ODM et verrouillés : bénéficiaire, montant, motif, site, service, code analytique, OR.
  *   Catégorie « mission », mode souhaité Orange Money (décision finale du caissier). L'ODM tient lieu de justificatif.
  * - Chaque bon est soumis aussitôt et suit son propre circuit complet (chef de service → CDG → Finance → DP).
@@ -40,7 +42,8 @@ final class GenererBonsOdm
     public const STATUTS_INACTIFS = ['ANNULE'];
 
     /**
-     * @param array{beneficiaire_groupe_id?: ?int, bp?: ?array{montant: int|float|string, motif: string, beneficiaire_id?: ?int}} $options
+     * @param array{participants?: ?array<int>, beneficiaire_groupe_id?: ?int, bp?: ?array{montant: int|float|string, motif: string, beneficiaire_id?: ?int}} $options
+     *        participants : utilisateurs dont générer le bon (null : tous ceux qui n'en ont pas ; [] : aucun, BP seul)
      * @return Collection<int, BonCaisse> bons générés
      */
     public static function executer(OrdreMission $odm, User $auteur, array $options = []): Collection
@@ -49,7 +52,14 @@ final class GenererBonsOdm
             $odm = OrdreMission::whereKey($odm->id)->lockForUpdate()->firstOrFail();
             self::verifier($odm, $auteur);
 
-            $bons = self::bonsManquants($odm, $auteur, $options['beneficiaire_groupe_id'] ?? null);
+            $selection = $options['participants'] ?? null;
+            if ($selection !== null) {
+                $inconnus = array_diff($selection, $odm->participantsActifs()->pluck('user_id')->all());
+                if ($inconnus) {
+                    throw new ErreurMetier('PARTICIPANT_INCONNU', 'MSG-APP-053', [], 'RG-M12-13', 'participants', 422);
+                }
+            }
+            $bons = $selection === [] ? collect() : self::bonsManquants($odm, $auteur, $options['beneficiaire_groupe_id'] ?? null, $selection);
 
             if (!empty($options['bp'])) {
                 $bons->push(self::bonProvisoire($odm, $auteur, $options['bp']));
@@ -70,30 +80,35 @@ final class GenererBonsOdm
     }
 
     /**
-     * BD des participants qui n'ont pas de bon actif (ou bon groupé s'il n'y en a pas), créés et soumis.
-     * Sert à la génération et à la clôture d'un ODM (bons régénérés au réel, décision Q26). À appeler dans une transaction.
+     * BD des participants qui n'ont pas de bon actif (ou un bon groupé pour eux), créés et soumis ; limités à la sélection
+     * si elle est donnée (identifiants d'utilisateurs). Sert à la génération et à la clôture d'un ODM (bons régénérés au
+     * réel, décision Q26). À appeler dans une transaction.
      */
-    public static function bonsManquants(OrdreMission $odm, User $auteur, ?int $beneficiaireGroupeId = null): Collection
+    public static function bonsManquants(OrdreMission $odm, User $auteur, ?int $beneficiaireGroupeId = null, ?array $selection = null): Collection
     {
+        $sansBon = self::participantsSansBon($odm)
+            ->filter(fn (ParticipantOdm $p) => $selection === null || in_array($p->user_id, $selection, true))->values();
+        if ($sansBon->isEmpty()) {
+            return collect();
+        }
         if ($odm->type === 'exterieur') {
             self::estimerAuDernierTaux($odm);
+            $sansBon->each->refresh();
         }
 
-        $bons = collect();
         if (Parametre::valeur('odm_mode_generation', 'par_participant') === 'groupe') {
-            if (!self::bonsActifs($odm)->where('type_bon', 'BD')->count()) {
-                $bons->push(self::bonGroupe($odm, $auteur, $beneficiaireGroupeId));
-            }
-
-            return $bons;
-        }
-        foreach ($odm->participantsActifs()->with(['utilisateur', 'bonCaisse'])->get() as $participant) {
-            if (!$participant->bonCaisse || in_array($participant->bonCaisse->statut, self::STATUTS_INACTIFS, true)) {
-                $bons->push(self::bonParticipant($odm, $participant, $auteur));
-            }
+            return collect([self::bonGroupe($odm, $sansBon, $auteur, $beneficiaireGroupeId)]);
         }
 
-        return $bons;
+        return $sansBon->map(fn (ParticipantOdm $p) => self::bonParticipant($odm, $p, $auteur));
+    }
+
+    /** Participants présents sans bon actif (jamais généré, ou annulé) */
+    public static function participantsSansBon(OrdreMission $odm): Collection
+    {
+        return $odm->participantsActifs()->with(['utilisateur', 'bonCaisse'])->get()
+            ->filter(fn (ParticipantOdm $p) => !$p->bonCaisse || in_array($p->bonCaisse->statut, self::STATUTS_INACTIFS, true))
+            ->values();
     }
 
     /** Contrôles préalables (RG-M12-13, RG-M12-15) */
@@ -153,10 +168,9 @@ final class GenererBonsOdm
         return self::soumettre($bon, $auteur);
     }
 
-    /** Bon groupé (RG-M12-14) : total de l'ODM, versé au n° OM du participant désigné */
-    private static function bonGroupe(OrdreMission $odm, User $auteur, ?int $beneficiaireId): BonCaisse
+    /** Bon groupé (RG-M12-14) : total des participants retenus, versé au n° OM du participant désigné */
+    private static function bonGroupe(OrdreMission $odm, Collection $participants, User $auteur, ?int $beneficiaireId): BonCaisse
     {
-        $participants = $odm->participantsActifs()->with('utilisateur')->get();
         $designe = $participants->firstWhere('user_id', $beneficiaireId) ?? $participants->first();
         $total = (float) $participants->sum(fn (ParticipantOdm $p) => (float) $p->total);
 

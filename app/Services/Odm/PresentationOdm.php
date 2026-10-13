@@ -412,8 +412,8 @@ final class PresentationOdm
     }
 
     /**
-     * Génération des bons (US-08) : mode, participants sans bon actif, BP possible, ODM extérieur sans aucun taux.
-     * Null si l'utilisateur ne peut pas générer.
+     * Génération des bons (US-08) : mode, participants avec leur bon actif éventuel (génération globale ou sélective),
+     * BP possible, ODM extérieur sans aucun taux. Null si l'utilisateur ne peut pas générer.
      */
     public static function generation(OrdreMission $odm, \App\Models\User $utilisateur): ?array
     {
@@ -424,20 +424,29 @@ final class PresentationOdm
         }
         $actifs = GenererBonsOdm::bonsActifs($odm);
         $mode = Parametre::valeur('odm_mode_generation', 'par_participant');
-        $participants = $odm->participantsActifs()->with('bonCaisse')->get()->map(fn (ParticipantOdm $p) => [
-            'user_id' => $p->user_id,
-            'nom' => $p->nom,
-            'numero_om' => $p->numero_om,
-            'total' => $p->total !== null ? (float) $p->total : null,
-            'a_un_bon' => $p->bonCaisse !== null && !in_array($p->bonCaisse->statut, GenererBonsOdm::STATUTS_INACTIFS, true),
-        ])->values();
+        $participants = $odm->participantsActifs()->with('bonCaisse')->get()->map(function (ParticipantOdm $p) {
+            $bon = $p->bonCaisse && !in_array($p->bonCaisse->statut, GenererBonsOdm::STATUTS_INACTIFS, true) ? $p->bonCaisse : null;
+
+            return [
+                'user_id' => $p->user_id,
+                'nom' => $p->nom,
+                'numero_om' => $p->numero_om,
+                'total' => $p->total !== null ? (float) $p->total : null,
+                'a_un_bon' => $bon !== null,
+                'bon' => $bon ? [
+                    'id' => $bon->id,
+                    'numero' => $bon->numero ?? 'Brouillon',
+                    'statut' => $bon->statut,
+                    'statut_label' => \App\Models\BonCaisse::STATUTS_LABELS[$bon->statut] ?? $bon->statut,
+                    'groupe' => $bon->odm_participant_id === null,
+                ] : null,
+            ];
+        })->values();
 
         return [
             'mode' => $mode,
             'participants' => $participants->all(),
-            'reste_a_generer' => $mode === 'groupe'
-                ? ($actifs->where('type_bon', 'BD')->isEmpty() ? 1 : 0)
-                : $participants->where('a_un_bon', false)->count(),
+            'reste_a_generer' => $participants->where('a_un_bon', false)->count(),
             'bp_autorise' => (bool) Parametre::valeur('odm_genere_bp', true) && $actifs->where('type_bon', 'BP')->isEmpty(),
             'sans_taux' => $odm->type === 'exterieur' && !TauxChange::dernier(),
             'total' => $odm->total !== null ? (float) $odm->total : null,

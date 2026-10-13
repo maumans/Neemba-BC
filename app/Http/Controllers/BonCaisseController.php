@@ -594,6 +594,17 @@ class BonCaisseController extends Controller
                 : null,
             /* Spec v2.3 : répartition (lecture seule) des lignes de l'ODM payées par ce bon */
             'repartitionOdm' => \App\Services\Odm\RepartitionOdm::pourBon($bonCaisse),
+            /* Bandeau « ordre de mission » en tête de la fiche ; le lien n'est proposé qu'à qui peut ouvrir l'ODM */
+            'odmLie' => ($odm = $bonCaisse->ordreMission) ? [
+                'id' => $odm->id,
+                'numero' => $odm->numero ?? 'Brouillon',
+                'libelle_prolongation' => $odm->libelle_prolongation,
+                'destinations' => $odm->destinations ?? [],
+                'periode' => \App\Services\Odm\PresentationOdm::periode($odm),
+                'participants' => $odm->participantsActifs()->count(),
+                'statut_label' => $odm->statut_label,
+                'accessible' => $odm->estVisiblePar(Auth::user()),
+            ] : null,
             'rejet' => self::rejet($bonCaisse),
             'ageBon' => $bonCaisse->date_soumission && !in_array($bonCaisse->statut, ['PAYE', 'REGULARISE', 'ARCHIVE', 'ANNULE', 'REJETE'], true)
                 ? Format::dureeEntre($bonCaisse->date_soumission)
