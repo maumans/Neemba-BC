@@ -3960,3 +3960,66 @@ Ensuite :
 - renseigner les comptes et codes journaux dans Paramétrage → Comptabilité ;
 - attribuer le rôle « Comptabilité » aux comptables ;
 - vérifier que le planificateur tourne (alerte de 8 h).
+
+## 39. Version v39 — PDF de l'ordre de mission sur le modèle papier de Neemba (13 Octobre 2026)
+
+Branche `odm-pdf`, partie de `m16-imputation`. Commits locaux, non poussés, non déployés.
+
+### 39.1 Origine
+
+Neemba a fourni son formulaire papier, `docs/ODM .xlsm` (fiches N°285 et N°282, non commitées). Le PDF de l'ODM (RG-M12-23) en reprend les rubriques, aux couleurs de l'application.
+
+Choix de l'utilisateur (13/10) :
+- **une seule page pour l'ODM**, avec tous les passagers et une ligne de calcul par participant ;
+- **rubrique « Service concerné »** cochée selon le service émetteur : Technique et Aftermarket → SERVICE, Location → LOCATION, Logistique → LOGISTIQUE, les autres → ADMINISTRATION ; BUS n'est jamais coché ;
+- **signatures** : le visa électronique (nom, date et heure, état), plus un cadre pour une signature ou un cachet manuscrit.
+
+### 39.2 Contenu du PDF
+
+Dans l'ordre du formulaire papier :
+1. **En-tête** : logo (`public/logo.png`) et adresse de Neemba Guinée ; titre « ORDRE DE MISSION », puis « INDEMNITÉS N°… du <date> ».
+   - La date est celle de la validation, à défaut celle de la soumission.
+   - Une prolongation affiche son libellé et le n° du segment précédent ; un ODM extérieur porte la pastille « Mission à l'étranger ».
+2. **Phrase** « Autorisons la(es) personne(s) suivante(s) à se rendre en mission à : » + destinations.
+3. **Service concerné** : n° d'OR et les 5 cases.
+4. **Mission** : clients, demandeur, destinations, type, but, dates, véhicule, code analytique.
+5. **Prise en charge** : une ligne par indemnité (repas, déplacement ; une seule ligne pour un ODM extérieur), plus l'hébergement.
+   - Colonnes Neemba / client, avec le montant et les codes clients, calculés à partir des parts v2.3 ; le pourcentage fait foi.
+   - « Autres à préciser » : base vie, hébergement à l'étranger, billet.
+6. **Passagers** : noms et prénoms séparés, matricule, service, n° Orange Money.
+7. **Calcul** : barèmes en en-tête (125 000 / jour, 500 000 / nuit), une ligne par participant (montant, frais de retrait OM, total versé), ligne TOTAL, montant en lettres ; encadré du montant de l'ODM avec la répartition Neemba / clients (RG-M12-34).
+8. **Visas et signatures** : le demandeur, puis une colonne par étape du circuit de la version en cours ; avant la soumission, le circuit prévu, « À venir ».
+9. **Pied de page** sur chaque page : n° de l'ODM, date d'édition, « Page x / y ».
+   - Le numéro de page est écrit par le contrôleur, car DomPDF ne connaît pas `counter(pages)` en CSS.
+10. **Filigrane** tant que l'ODM n'est pas validé : « BROUILLON », « NON VALIDÉ » (en circuit ou rejeté) ou « ANNULÉ ».
+
+**Charte graphique**, reprise de `tailwind.config.js` :
+- or `#fdc911` : bandeau, filets, cases cochées ;
+- marine `#0f172a` / `#1e3a8a` : titres, en-têtes de tableau, encadré du montant ;
+- violet : parts client ;
+- police : DejaVu Sans.
+
+### 39.3 Code
+
+- **`PresentationOdm::pdf()`** s'appuie sur `detail()` et ajoute :
+  - la rubrique ;
+  - la grille de prise en charge (`priseEnCharge`) ;
+  - les passagers ;
+  - la date du titre ;
+  - le filigrane ;
+  - les signataires (`signataires`) ;
+  - l'adresse (`ADRESSE_PDF`).
+- **`OrdreMission`** : `RUBRIQUES_PDF`, `RUBRIQUE_PAR_SERVICE`, `STATUTS_VALIDES`.
+- **`resources/views/exports/odm-pdf.blade.php`** est réécrit : une page, sans la fiche d'indemnités séparée.
+- **Piège DomPDF** : une remise à zéro `* { margin: 0 }` annule les marges de `@page`, qui sont portées par la racine du document.
+
+### 39.4 Vérifications
+
+- **`ImpressionTableauOdmTest`** : le test du PDF est mis à jour et 3 tests sont ajoutés (rubrique selon le service, prise en charge mixte avec code client, filigrane d'un brouillon).
+- **Total** : **302 tests PHP**, tous verts.
+- **Relecture visuelle** des PDF convertis en images, sur 5 cas :
+  - équivalent de la fiche N°285 : 28 jours en base vie, 7 000 000 + 56 000 = 7 056 000 GNF ;
+  - équivalent de la fiche N°282 : 11 jours, 10 nuits ;
+  - 6 participants avec prise en charge mixte (deux pages, signatures non coupées) ;
+  - ODM extérieur ;
+  - brouillon.

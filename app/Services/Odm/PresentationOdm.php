@@ -213,6 +213,150 @@ final class PresentationOdm
         ];
     }
 
+    /** Adresse de Neemba Guinée, reprise du formulaire papier */
+    public const ADRESSE_PDF = ['Neemba Guinée', 'Km 10 – Route du Niger, Commune de Matam', 'B.P. 336 Conakry – Guinée', 'Tél. : +224 626 26 41 41 · info.guinee@neemba.com'];
+
+    /** Intitulés des signataires du formulaire papier, par niveau du circuit */
+    private const SIGNATAIRES_PDF = [
+        'chef_atelier' => "Chef d'atelier, chef d'équipe ou suppléant",
+        'daf' => 'Directeur Administratif et Financier',
+        'rh' => 'Ressources humaines',
+        'directeur_pays' => 'Directeur Pays',
+    ];
+
+    /**
+     * PDF de l'ordre de mission, sur le modèle papier de Neemba (« ODM .xlsm », RG-M12-23) : rubrique « Service concerné »,
+     * prise en charge par élément (parts v2.3), passagers, calcul par participant, signataires (demandeur, puis étapes).
+     */
+    public static function pdf(OrdreMission $odm): array
+    {
+        $detail = self::detail($odm);
+        $calcul = $detail['calcul'];
+        $valide = in_array($odm->statut, OrdreMission::STATUTS_VALIDES, true);
+        $date = $odm->date_validation ?? $odm->date_soumission;
+
+        return $detail + [
+            'entite' => $odm->entite,
+            'adresse' => self::ADRESSE_PDF,
+            'rubrique' => OrdreMission::RUBRIQUE_PAR_SERVICE[$odm->service] ?? 'ADMINISTRATION',
+            'date_titre' => $date ? Format::date($date) : null,
+            'filigrane' => match (true) {
+                $valide => null,
+                $odm->statut === 'ANNULE' => 'ANNULÉ',
+                $odm->statut === 'BROUILLON' => 'BROUILLON',
+                default => 'NON VALIDÉ',
+            },
+            'passagers' => $odm->participantsActifs()->with('utilisateur')->get()->map(fn (ParticipantOdm $p) => [
+                'nom' => $p->utilisateur?->name ?? $p->nom,
+                'prenoms' => $p->utilisateur ? ($p->utilisateur->prenom ?? '') : '',
+                'matricule' => $p->matricule,
+                'service' => $p->service,
+                'numero_om' => $p->numero_om,
+            ])->values()->all(),
+            'prise_en_charge' => self::priseEnCharge($odm, $calcul),
+            'signataires' => self::signataires($odm, $detail),
+        ];
+    }
+
+    /**
+     * Grille « Prise en charge » du PDF : pour chaque rubrique (les deux indemnités, ou l'indemnité d'un ODM extérieur, puis
+     * l'hébergement), ce qui est à la charge de Neemba et des clients. L'indemnité est une seule ligne de frais (Q53) :
+     * ses parts s'appliquent aux deux demi-indemnités. Le pourcentage fait foi (RG-M12-31).
+     */
+    private static function priseEnCharge(OrdreMission $odm, array $calcul): array
+    {
+        $rubriques = [];
+        $cumuler = function (string $cle, string $libelle, ?float $montant, array $parts) use (&$rubriques) {
+            $rubriques[$cle] ??= ['libelle' => $libelle, 'neemba' => false, 'client' => false, 'montant_neemba' => 0.0, 'montant_client' => 0.0, 'clients' => [], 'a_la_cloture' => false, 'autres' => []];
+            foreach ($parts as $part) {
+                $rubriques[$cle][$part['payeur']] = true;
+                $rubriques[$cle]['montant_' . $part['payeur']] += $montant !== null ? $montant * $part['pourcentage'] / 100 : 0;
+                if ($part['payeur'] === 'client' && isset($part['client']['code'])) {
+                    $rubriques[$cle]['clients'][$part['client']['code']] = $part['client']['code'];
+                }
+            }
+            $rubriques[$cle]['a_la_cloture'] = $rubriques[$cle]['a_la_cloture'] || $montant === null;
+        };
+
+        foreach ($calcul['participants'] as $c) {
+            foreach ($c['lignes'] as $ligne) {
+                if ($ligne['element'] === 'indemnite' && $c['indemnite_ligne_1'] !== null) {
+                    $cumuler('nourriture', $calcul['libelle_indemnite_1'], (float) $c['indemnite_ligne_1'], $ligne['parts']);
+                    $cumuler('deplacement', $calcul['libelle_indemnite_2'], (float) $c['indemnite_ligne_2'], $ligne['parts']);
+                } elseif ($ligne['element'] === 'indemnite') {
+                    $cumuler('indemnite', 'Indemnité de mission', $ligne['montant'], $ligne['parts']);
+                } elseif ((float) $ligne['montant'] > 0 || $ligne['a_la_cloture']) {
+                    $cumuler('hebergement', 'Hébergement', $ligne['montant'], $ligne['parts']);
+                }
+            }
+        }
+
+        /* « Autres à préciser » : logement en base vie, hébergement à l'étranger, billet */
+        $rubriques['hebergement'] ??= ['libelle' => 'Hébergement', 'neemba' => false, 'client' => false, 'montant_neemba' => 0.0, 'montant_client' => 0.0, 'clients' => [], 'a_la_cloture' => false, 'autres' => []];
+        $baseVie = collect($calcul['participants'])->where('base_vie', true)->count();
+        if ($baseVie > 0) {
+            $rubriques['hebergement']['autres'][] = $baseVie === count($calcul['participants']) ? 'Logé en base vie' : "Logé en base vie ({$baseVie} pers.)";
+        }
+        if ($odm->type === 'exterieur' && $odm->hebergement_exterieur) {
+            $rubriques['hebergement']['autres'][] = OrdreMission::HEBERGEMENTS_EXTERIEURS[$odm->hebergement_exterieur];
+        }
+        if (!$rubriques['hebergement']['neemba'] && !$rubriques['hebergement']['client'] && !$rubriques['hebergement']['autres']) {
+            $rubriques['hebergement']['autres'][] = 'Aucune nuitée';
+        }
+        if ($odm->reference_billet) {
+            $premiere = array_key_first($rubriques);
+            $rubriques[$premiere]['autres'][] = 'Billet : ' . $odm->reference_billet;
+        }
+
+        return collect(['nourriture', 'deplacement', 'indemnite', 'hebergement'])
+            ->filter(fn ($cle) => isset($rubriques[$cle]))
+            ->map(fn ($cle) => array_merge($rubriques[$cle], [
+                'montant_neemba' => round($rubriques[$cle]['montant_neemba']),
+                'montant_client' => round($rubriques[$cle]['montant_client']),
+                'clients' => array_values($rubriques[$cle]['clients']),
+            ]))->values()->all();
+    }
+
+    /** Signataires du PDF : le demandeur, puis chaque étape du circuit de la version en cours (le circuit prévu, avant la soumission) */
+    private static function signataires(OrdreMission $odm, array $detail): array
+    {
+        $signataires = [[
+            'titre' => 'Le Demandeur',
+            'nom' => $detail['demandeur'],
+            'au_titre_de' => $detail['initiateur'] ? 'saisi par ' . $detail['initiateur'] : null,
+            'date' => $detail['date_soumission_format'],
+            'etat' => $odm->date_soumission ? 'vise' : 'attente',
+            'etat_label' => $odm->date_soumission ? 'Soumis' : 'Non soumis',
+        ]];
+        $etapes = $odm->etapes()->where('version', $odm->version)->orderBy('niveau')->with(['valideur', 'auTitreDe'])->get();
+        if ($etapes->isEmpty()) {
+            foreach (OrdreMission::niveauxDuCircuit() as $role) {
+                $signataires[] = ['titre' => self::SIGNATAIRES_PDF[$role] ?? $role, 'nom' => null, 'au_titre_de' => null, 'date' => null, 'etat' => 'attente', 'etat_label' => 'À venir'];
+            }
+        }
+        foreach ($etapes as $etape) {
+            $signataires[] = [
+                'titre' => self::SIGNATAIRES_PDF[$etape->role] ?? $etape->libelle,
+                'nom' => $etape->valideur?->nom_complet,
+                'au_titre_de' => $etape->auTitreDe ? 'au titre de ' . $etape->auTitreDe->nom_complet : null,
+                'date' => $etape->date_decision ? Format::dateHeure($etape->date_decision) : null,
+                'etat' => match ($etape->statut) {
+                    'validee' => 'vise',
+                    'rejetee' => 'rejete',
+                    'sautee' => 'saute',
+                    default => 'attente',
+                },
+                'etat_label' => match ($etape->statut) {
+                    'validee' => 'Visé',
+                    'sautee' => 'Étape sautée',
+                    default => \App\Models\EtapeOdm::STATUTS[$etape->statut] ?? $etape->statut,
+                },
+            ];
+        }
+
+        return $signataires;
+    }
+
     /**
      * Onglet « Validations » : une ligne par niveau et par version (visé, rejeté, en cours, à venir, sauté, non atteint),
      * avec « au titre de » pour un suppléant et l'échéance de l'étape en cours (§6.7).

@@ -68,6 +68,13 @@ class OrdreMission extends Model
     /** RG-M12-02 (PO-06) : nature technique pré-cochée pour ces services */
     public const SERVICES_TECHNIQUES = ['Technique', 'Aftermarket'];
 
+    /** Rubrique « Service concerné » du formulaire papier de Neemba (PDF) ; les services absents vont en ADMINISTRATION */
+    public const RUBRIQUES_PDF = ['SERVICE', 'BUS', 'LOCATION', 'ADMINISTRATION', 'LOGISTIQUE'];
+    public const RUBRIQUE_PAR_SERVICE = ['Technique' => 'SERVICE', 'Aftermarket' => 'SERVICE', 'Location' => 'LOCATION', 'Logistique' => 'LOGISTIQUE'];
+
+    /** Statuts d'un ODM validé : le PDF ne porte plus de filigrane */
+    public const STATUTS_VALIDES = ['VALIDE', 'BONS_GENERES', 'PAYE', 'CLOTURE'];
+
     protected $fillable = [
         'numero', 'prefixe', 'sequence', 'annee',
         'type', 'technique',

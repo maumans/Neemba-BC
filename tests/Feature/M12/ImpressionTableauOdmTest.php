@@ -65,7 +65,12 @@ class ImpressionTableauOdmTest extends TestCase
         return $odm->fresh();
     }
 
-    /** RG-M12-23 : ordre de mission et fiche d'indemnités, avec les visas horodatés */
+    private function htmlPdf(OrdreMission $odm): string
+    {
+        return view('exports.odm-pdf', ['odm' => PresentationOdm::pdf($odm), 'edite_le' => '01/09/2026 08:00'])->render();
+    }
+
+    /** RG-M12-23 : ordre de mission sur le modèle papier de Neemba, avec les visas horodatés */
     public function test_le_pdf_de_l_ordre_de_mission(): void
     {
         $odm = $this->odmValide();
@@ -73,20 +78,70 @@ class ImpressionTableauOdmTest extends TestCase
         $this->actingAs($this->demandeur)->get(route('odm.pdf', $odm))->assertOk()->assertHeader('content-type', 'application/pdf');
         $this->actingAs(User::factory()->create(['service' => 'Logistique']))->get(route('odm.pdf', $odm))->assertForbidden();
 
-        $html = view('exports.odm-pdf', [
-            'odm' => PresentationOdm::detail($odm) + ['entite' => null],
-            'etapes' => PresentationOdm::etapes($odm),
-            'edite_le' => '01/09/2026 08:00',
-        ])->render();
-
+        $html = $this->htmlPdf($odm);
         foreach ([
-            'ORDRE DE MISSION — AUTORISATION DE CIRCULER', "FICHE D'INDEMNITÉS DE MISSION", 'N°1/AT/26', 'BAH Thierno', '20865',
-            '11022219 (Garantie)', 'Indemnité de repas', 'Indemnité de déplacement', 'Calcul par participant (figé à la validation)',
-            'Arrêté à la somme de trois millions deux cent cinquante mille francs guinéens.',
-            "Chef d'atelier / chef d'équipe", 'Thomas BANGOURA', 'Mohamed DIAKITE', 'Mamadou LO', 'Visé',
+            'ORDRE DE MISSION', 'INDEMNITÉS N°1/AT/26 du 01/09/2026', 'Autorisons la(es) personne(s) suivante(s) à se rendre en mission à :',
+            'Km 10 – Route du Niger', 'Kouroussa', 'Société Minière de Dinguiraye (SMD)', '11022219 (Garantie)',
+            'BAH', 'Thierno', '20865', 'Indemnité de repas', 'Indemnité de déplacement', '125 000 / jour', '500 000 / nuit',
+            '3 250 000', 'Entièrement à la charge de Neemba Guinée', 'Barèmes figés à la validation',
+            'Arrêté à la somme de <em>trois millions deux cent cinquante mille francs guinéens</em>.',
+            'Le Demandeur', 'Philippe KOLIE', "Chef d'atelier, chef d'équipe ou suppléant", 'Thomas BANGOURA',
+            'Directeur Administratif et Financier', 'Mohamed DIAKITE', 'Directeur Pays', 'Mamadou LO', 'Visé', 'Signature / cachet',
         ] as $texte) {
-            $this->assertStringContainsString(e($texte), $html, $texte);
+            $this->assertStringContainsString(str_replace(['&lt;em&gt;', '&lt;/em&gt;'], ['<em>', '</em>'], e($texte)), str_replace(\App\Support\Format::ESPACE_INSECABLE, ' ', $html), $texte);
         }
+        /* Validé : pas de filigrane ; rubrique SERVICE cochée pour le service Technique */
+        $this->assertStringNotContainsString('class="filigrane"', $html);
+        $this->assertSame('SERVICE', PresentationOdm::pdf($odm)['rubrique']);
+    }
+
+    /** PDF : rubrique « Service concerné » du formulaire papier selon le service émetteur */
+    public function test_la_rubrique_service_concerne_du_pdf(): void
+    {
+        $odm = $this->odmValide();
+
+        foreach (['Aftermarket' => 'SERVICE', 'Location' => 'LOCATION', 'Logistique' => 'LOGISTIQUE', 'DAF' => 'ADMINISTRATION', 'Direction' => 'ADMINISTRATION'] as $service => $rubrique) {
+            $odm->forceFill(['service' => $service])->save();
+            $this->assertSame($rubrique, PresentationOdm::pdf($odm->fresh())['rubrique'], $service);
+        }
+        $this->assertStringContainsString('choix choix-on"><span class="case case-on">✓</span> ADMINISTRATION', $this->htmlPdf($odm->fresh()));
+    }
+
+    /** PDF : prise en charge partagée entre Neemba et un client (spec v2.3, RG-M12-31, RG-M12-34) */
+    public function test_la_prise_en_charge_mixte_dans_le_pdf(): void
+    {
+        $smd = \App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye']);
+        $moitie = ['parts' => [
+            ['payeur' => 'neemba', 'pourcentage' => 50],
+            ['payeur' => 'client', 'client_id' => $smd->id, 'ordre_reparation' => '11022219', 'pourcentage' => 50],
+        ]];
+        $odm = $this->odmValide(['participants' => [['user_id' => $this->thierno->id, 'lignes' => ['indemnite' => $moitie, 'hebergement' => $moitie]]]]);
+
+        $lignes = collect(PresentationOdm::pdf($odm)['prise_en_charge'])->keyBy('libelle');
+        $this->assertSame([true, true, 312500.0, 312500.0, ['SMD']], [$lignes['Indemnité de repas']['neemba'], $lignes['Indemnité de repas']['client'],
+            $lignes['Indemnité de repas']['montant_neemba'], $lignes['Indemnité de repas']['montant_client'], $lignes['Indemnité de repas']['clients']]);
+        $this->assertSame(1000000.0, $lignes['Hébergement']['montant_client']);
+
+        $html = str_replace(\App\Support\Format::ESPACE_INSECABLE, ' ', $this->htmlPdf($odm));
+        foreach (['<span class="code-client">SMD</span>', '<td>dont Neemba Guinée</td><td class="droite">1 625 000</td>', 'dont SMD · OR 11022219'] as $texte) {
+            $this->assertStringContainsString($texte, $html, $texte);
+        }
+    }
+
+    /** PDF : filigrane tant que l'ODM n'est pas validé */
+    public function test_le_filigrane_d_un_odm_non_valide(): void
+    {
+        $odm = OrdreMission::findOrFail($this->actingAs($this->demandeur)->postJson(route('api.odm.creer'), [
+            'service' => 'Technique', 'code_analytique' => 'TECZZZ', 'technique' => true, 'but' => 'Visite',
+            'destinations' => ['Boké'], 'date_depart' => '2026-09-22', 'date_retour_prevue' => '2026-09-23',
+            'participants' => [['user_id' => $this->thierno->id]],
+        ])->json('odm.id'));
+
+        $html = $this->htmlPdf($odm);
+        $this->assertStringContainsString('<div class="filigrane">BROUILLON</div>', $html);
+        $this->assertStringContainsString('INDEMNITÉS — brouillon', $html);
+        $this->assertStringContainsString('Non soumis', $html);
+        $this->actingAs($this->demandeur)->get(route('odm.pdf', $odm))->assertOk();
     }
 
     /** US-14 : tableau de bord du DAF, missions en cours, dérogations, ODM à refacturer (SC-28) */

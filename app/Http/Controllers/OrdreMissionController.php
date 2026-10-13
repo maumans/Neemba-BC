@@ -212,10 +212,16 @@ class OrdreMissionController extends Controller
         abort_unless($odm->estVisiblePar(Auth::user()), 403);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.odm-pdf', [
-            'odm' => PresentationOdm::detail($odm) + ['entite' => $odm->entite],
-            'etapes' => PresentationOdm::etapes($odm),
+            'odm' => PresentationOdm::pdf($odm),
             'edite_le' => \App\Support\Format::dateHeure(now()),
         ])->setPaper('a4', 'portrait');
+        /* « Page x / y » dans le pied de page : DomPDF ne connaît pas counter(pages) en CSS */
+        $pdf->render();
+        $pdf->getDomPDF()->getCanvas()->page_script(function (int $page, int $pages, $canvas, $metriques) {
+            $texte = "Page {$page} / {$pages}";
+            $police = $metriques->getFont('DejaVu Sans');
+            $canvas->text($canvas->get_width() - 24 - $metriques->getTextWidth($texte, $police, 6.6), $canvas->get_height() - 21, $texte, $police, 6.6, [0.42, 0.45, 0.5]);
+        });
 
         return $pdf->stream('ordre-de-mission-' . str_replace(['°', '/'], ['', '-'], $odm->numero ?? "brouillon-{$odm->id}") . '.pdf');
     }
