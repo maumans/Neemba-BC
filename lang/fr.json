@@ -114,5 +114,16 @@
     "MSG-APP-062": "Indiquez le type (vente ou garantie) de l'OR :numero.",
     "MSG-APP-063": "Le n° Orange Money diffère de celui du référentiel : indiquez le motif de la modification.",
     "MSG-APP-064": ":nombre pièce(s) scannée(s) sous 300 dpi : acceptée(s), mais une image plus nette évite un rejet.",
-    "MSG-APP-065": "Saisissez la référence du paiement : n° de transaction Orange Money ou MTN, n° de chèque ou référence du virement."
+    "MSG-APP-065": "Saisissez la référence du paiement : n° de transaction Orange Money ou MTN, n° de chèque ou référence du virement.",
+    "MSG-APP-066": "Ce bon n’est pas un bon provisoire en attente de régularisation : il ne se justifie pas.",
+    "MSG-APP-067": "La justification n’est plus modifiable : elle est en cours de visa ou déjà visée.",
+    "MSG-APP-068": "Une justification compte au plus 10 lignes.",
+    "MSG-APP-069": "Ajoutez au moins une ligne de dépense.",
+    "MSG-APP-070": "Ligne :ligne incomplète : intitulé, code analytique actif, montant et pièce justificative sont obligatoires.",
+    "MSG-APP-071": "Il reste :restant GNF à justifier : ajoutez des dépenses ou portez ce montant dans « À retourner en caisse ».",
+    "MSG-APP-072": "Justification incomplète. :detail",
+    "MSG-APP-073": "Vous ne pouvez pas viser cette étape de la justification.",
+    "MSG-APP-074": "Aucun reliquat n’est à encaisser pour ce bon provisoire.",
+    "MSG-APP-075": "La retenue sur salaire n’est possible qu’après l’email d’information de la DRH à l’intéressé.",
+    "MSG-APP-076": "Vous ne pouvez pas encaisser ce reliquat : :motif"
 }

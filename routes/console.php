@@ -8,8 +8,14 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-/* Relance quotidienne des BP non régularisés dans les délais */
-Schedule::command('bons:relancer-regularisation')->dailyAt('08:00');
+/* RG-M07-04 : relance des BP non régularisés chaque vendredi, au nom du caissier, avec les copies prévues */
+Schedule::command('bons:relancer-regularisation')->fridays()->at('08:00');
+
+/* RG-M07-05 : BP dont l'échéance est dépassée transmis aux RH */
+Schedule::command('bons:transmettre-bp-rh')->dailyAt('08:15');
+
+/* RG-M07-07 : rapport mensuel des BP non régularisés au Directeur Pays */
+Schedule::command('bons:rapport-bp-mensuel')->monthlyOn(1, '08:00');
 
 /* Génération et envoi automatique du rapport journalier de caisse (J+0 avant 8h) */
 Schedule::command('rapports:envoyer-quotidien')->dailyAt('07:30');

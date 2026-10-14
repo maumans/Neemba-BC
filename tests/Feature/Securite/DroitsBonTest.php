@@ -14,20 +14,21 @@ class DroitsBonTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_seul_le_demandeur_regularise_son_bp(): void
+    /** Spec v2.3 (RG-M07-03) : seul le demandeur justifie son BP ; la régularisation passe par les visas de la justification */
+    public function test_seul_le_demandeur_justifie_son_bp(): void
     {
         $demandeur = User::factory()->create();
         $bon = BonCaisse::factory()->provisoire()->statut('EN_ATTENTE_REGULARISATION')->create(['demandeur_id' => $demandeur->id]);
 
         $this->actingAs(User::factory()->create())
-            ->post(route('bons-caisse.regulariser', $bon), ['motif_regularisation' => 'Justificatifs fournis'])
+            ->put(route('bons-caisse.justification.enregistrer', $bon), ['lignes' => []])
             ->assertForbidden();
-        $this->assertSame('EN_ATTENTE_REGULARISATION', $bon->fresh()->statut);
+        $this->assertNull($bon->justification()->first());
 
         $this->actingAs($demandeur)
-            ->post(route('bons-caisse.regulariser', $bon), ['motif_regularisation' => 'Justificatifs fournis'])
+            ->put(route('bons-caisse.justification.enregistrer', $bon), ['lignes' => []])
             ->assertSessionHas('success');
-        $this->assertSame('REGULARISE', $bon->fresh()->statut);
+        $this->assertSame(['brouillon', 'EN_ATTENTE_REGULARISATION'], [$bon->justification()->sole()->statut, $bon->fresh()->statut]);
     }
 
     public function test_le_pdf_d_un_bon_suit_les_droits_de_sa_fiche(): void

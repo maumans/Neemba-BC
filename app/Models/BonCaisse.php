@@ -36,6 +36,8 @@ class BonCaisse extends Model
      * Champs remplissables en masse
      */
     protected $fillable = [
+        'bp_regularise_id',
+        'suivi_rh',
         'reference_paiement',
         'types_or',
         'numero_om',
@@ -117,6 +119,7 @@ class BonCaisse extends Model
             'types_or' => 'array',
             'doublon_probable' => 'array',
             'derogation_bp' => 'array',
+            'suivi_rh' => 'array',
             'lie_mission' => 'boolean',
             'genere_par_odm' => 'boolean',
             'montant_fcfa' => 'decimal:2',
@@ -308,6 +311,18 @@ class BonCaisse extends Model
     public function imputation(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Imputation::class);
+    }
+
+    /** Lot E (RG-M07-03) : justification du BP (Annexe 3) */
+    public function justification(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(JustificationBp::class, 'bon_caisse_id');
+    }
+
+    /** Lot E (RG-M07-08) : BP régularisé par ce BD de complément */
+    public function bpRegularise(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'bp_regularise_id');
     }
 
     /** Spec v2.3, RG-M03-11, RG-M03-18 : caisse émettrice (rattachement du demandeur), qui numérote le bon */
@@ -821,41 +836,21 @@ class BonCaisse extends Model
             : [];
 
         if ($this->type_bon === 'BP') {
-            /* BP : vérifier si des pièces de régularisation ont été pré-uploadées */
-            if ($this->aDesPiecesRegularisation()) {
-                /* Pré-régularisé → passer directement à REGULARISE (Q14 : pas d'archivage automatique) */
-                $this->statut = 'PAYE';
-                $this->date_regularisation = now();
-                $this->save();
+            /* Spec v2.3, RG-M07-03 : le BP attend sa justification (Annexe 3) et ses visas, même si des pièces ont été
+             * jointes avant le paiement (elles sont reprises dans les lignes de la justification) */
+            $this->statut = 'EN_ATTENTE_REGULARISATION';
+            $this->date_limite_regularisation = $this->dateLimiteRegularisation()->toDateString();
+            $this->save();
 
-                HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'PAYE', $caissier->id,
-                    $textePaiement,
-                    [...$metaFrais, 'mode_paiement' => $modePaiement, 'date_paiement' => $this->date_paiement->toIso8601String()],
-                );
-
-                /* Auto-régularisation */
-                $this->statut = 'REGULARISE';
-                $this->save();
-                HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_REGULARISATION, 'PAYE', 'REGULARISE', $caissier->id,
-                    'Bon provisoire auto-régularisé (pièces fournies avant paiement).',
-                );
-
-            } else {
-                /* Pas de pièces → attente de régularisation (workflow standard) */
-                $this->statut = 'EN_ATTENTE_REGULARISATION';
-                $this->date_limite_regularisation = $this->dateLimiteRegularisation()->toDateString();
-                $this->save();
-
-                HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'EN_ATTENTE_REGULARISATION', $caissier->id,
-                    $textePaiement,
-                    [
-                        ...$metaFrais,
-                        'mode_paiement' => $modePaiement,
-                        'date_paiement' => $this->date_paiement->toIso8601String(),
-                        'date_limite_regularisation' => $this->date_limite_regularisation?->format('Y-m-d'),
-                    ],
-                );
-            }
+            HistoriqueAction::enregistrer($this, HistoriqueAction::ACTION_PAIEMENT, $statutAvant, 'EN_ATTENTE_REGULARISATION', $caissier->id,
+                $textePaiement,
+                [
+                    ...$metaFrais,
+                    'mode_paiement' => $modePaiement,
+                    'date_paiement' => $this->date_paiement->toIso8601String(),
+                    'date_limite_regularisation' => $this->date_limite_regularisation?->format('Y-m-d'),
+                ],
+            );
         } else {
             /* BD : le bon reste « Payé » (SFD §1.4, Q14) ; l'archivage est une action à part */
             $this->statut = 'PAYE';

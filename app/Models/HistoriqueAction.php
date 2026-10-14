@@ -71,6 +71,8 @@ class HistoriqueAction extends Model
     /* Lot A (spec v2.3) : doublon probable confirmé, dérogation « BP en retard » */
     const ACTION_DOUBLON = 'doublon_confirme';
     const ACTION_DEROGATION = 'derogation';
+    /** Lot E (RG-M07-05) : BP en retard transmis aux RH, information de la DRH, retenue */
+    const ACTION_SUIVI_RH = 'suivi_rh';
 
     /** Labels lisibles pour chaque action */
     const ACTIONS_LABELS = [
@@ -96,6 +98,7 @@ class HistoriqueAction extends Model
         'imputation' => 'Imputation comptable',
         'doublon_confirme' => 'Doublon probable confirmé',
         'derogation' => 'Dérogation « BP en retard »',
+        'suivi_rh' => 'Suivi RH du BP en retard',
     ];
 
     /** Icônes pour chaque action (noms Lucide) */

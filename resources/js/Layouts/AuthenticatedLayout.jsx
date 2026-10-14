@@ -167,7 +167,7 @@ const navigationItems = [
         label: "BP en Retard",
         href: "bons-caisse.bp-en-retard",
         icon: ClipboardList,
-        roles: ["daf", "directeur_pays", "administrateur"],
+        roles: ["daf", "directeur_pays", "dp_adjoint", "rh", "administrateur"],
     },
     {
         label: "Modifications Admin",

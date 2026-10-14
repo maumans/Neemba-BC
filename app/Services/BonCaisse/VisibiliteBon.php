@@ -45,6 +45,16 @@ final class VisibiliteBon
                 $autorise = true;
             }
 
+            /* Lot E (RG-M07-03) : initiateur de la justification, valideur de l'étape en cours ou qui a déjà visé */
+            if (!$autorise && $bon->type_bon === 'BP' && JustifierBp::concerne($bon, $utilisateur)) {
+                $autorise = true;
+            }
+
+            /* RG-M07-05 : les RH suivent les BP en retard qui leur sont transmis */
+            if (!$autorise && $bon->suivi_rh !== null && $utilisateur->aLeRole('rh')) {
+                $autorise = true;
+            }
+
             /* Vérifier si le bon est déjà validé par cet utilisateur (suivi) */
             if (!$autorise) {
                 $dejaValide = \App\Models\Validation::where('bon_caisse_id', $bon->id)

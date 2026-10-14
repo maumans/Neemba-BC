@@ -86,6 +86,7 @@ import { Input } from '@/Components/ui/input';
 import { Combobox } from '@/Components/ui/combobox';
 import BadgeStatut from '@/Components/BadgeStatut';
 import BandeauPiecesDejaUtilisees from '@/Components/BandeauPiecesDejaUtilisees';
+import CarteJustificationBp from '@/Components/CarteJustificationBp';
 import { msg, msgErreur } from '@/utils/messages';
 
 /** Dates au format SFD §1.4 (JJ/MM/AAAA, JJ/MM/AAAA HH:MM, fuseau Africa/Conakry) */
@@ -328,6 +329,8 @@ export default function Show({
     codesAnalytiques = [],
     peutPreRegulariser = false,
     aDesPiecesRegularisation = false,
+    justification = null,
+    bpRegularise = null,
     motifsRejet = {},
     modesCaissier = {},
     modesAvecReference = [],
@@ -368,7 +371,6 @@ export default function Show({
     const [annulationEnCours, setAnnulationEnCours] = useState(false);
     const [showArchiverDialog, setShowArchiverDialog] = useState(false);
     const [showApprouverDialog, setShowApprouverDialog] = useState(false);
-    const [showRegulariserDialog, setShowRegulariserDialog] = useState(false);
     const [previewPieceId, setPreviewPieceId] = useState(null);
 
     /* États pour la validation OTP */
@@ -399,13 +401,6 @@ export default function Show({
     });
     const rejeterForm = useForm({ motif_rejet: '', commentaire: '' });
     const complementForm = useForm({ commentaire: '' });
-
-    /* Formulaire pour la régularisation avec upload + motif */
-    const regularisationForm = useForm({
-        pieces_jointes: [],
-        motif_regularisation: '',
-    });
-    const [fichiersRegul, setFichiersRegul] = useState([]);
 
     /* Formulaire pour la pré-régularisation */
     const preRegularisationForm = useForm({
@@ -515,14 +510,6 @@ export default function Show({
         complementForm.post(route('validations.demander-complement', bonCaisse.id), {
             preserveScroll: true,
             onSuccess: () => setShowComplementDialog(false),
-        });
-    };
-
-    /** Régulariser avec upload de fichiers */
-    const regulariser = () => {
-        regularisationForm.post(route('bons-caisse.regulariser', bonCaisse.id), {
-            forceFormData: true,
-            preserveScroll: true,
         });
     };
 
@@ -678,8 +665,8 @@ export default function Show({
                                     </div>
                                 </div>
 
-                                {/* Barre de délai de régularisation pour les BP */}
-                                {bonCaisse.type_bon === 'BP' && bonCaisse.date_limite_regularisation && (
+                                {/* Barre de délai de régularisation pour les BP (sans objet une fois régularisé) */}
+                                {bonCaisse.type_bon === 'BP' && bonCaisse.date_limite_regularisation && bonCaisse.statut === 'EN_ATTENTE_REGULARISATION' && (
                                     (() => {
                                         const maintenant = new Date();
                                         const limite = new Date(bonCaisse.date_limite_regularisation);
@@ -770,7 +757,7 @@ export default function Show({
                                     <div className="mt-3 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center gap-2">
                                         <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
                                         <span className="text-xs text-emerald-700 font-medium">
-                                            ✅ Justificatifs de régularisation déjà fournis — la régularisation sera automatique au paiement
+                                            Justificatifs joints à l'avance : vous les reprendrez dans la justification après le paiement
                                         </span>
                                     </div>
                                 )}
@@ -1542,6 +1529,13 @@ export default function Show({
                         </motion.div>
                     )}
 
+                    {/* Lot E (M07) : justification du BP (Annexe 3), reliquat, complément, suivi RH */}
+                    {(justification || bpRegularise) && (
+                        <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.28 }}>
+                            <CarteJustificationBp bonId={bonCaisse.id} montant={bonCaisse.montant} justification={justification} bpRegularise={bpRegularise} />
+                        </motion.div>
+                    )}
+
                     {/* Actions */}
                     <motion.div
                         initial={{ opacity: 0, x: 10 }}
@@ -1847,93 +1841,19 @@ export default function Show({
                                     </>
                                 )}
 
-                                {/* Régulariser un BP (statut EN_ATTENTE_REGULARISATION) */}
-                                {bonCaisse.statut === 'EN_ATTENTE_REGULARISATION' && estDemandeur && (
-                                    <div className="space-y-3">
-                                        <div>
-                                            <Label htmlFor="motif_regularisation" className="text-sm font-medium">
-                                                Motif de régularisation <span className="text-red-500">*</span>
-                                            </Label>
-                                            <Textarea
-                                                id="motif_regularisation"
-                                                placeholder="Décrivez le motif de régularisation (ex: achat effectué, justificatifs obtenus, etc.)"
-                                                value={regularisationForm.data.motif_regularisation}
-                                                onChange={(e) => regularisationForm.setData('motif_regularisation', e.target.value)}
-                                                rows={3}
-                                                className="mt-1"
-                                            />
-                                            {regularisationForm.errors.motif_regularisation && (
-                                                <p className="text-xs text-red-500 mt-1">{regularisationForm.errors.motif_regularisation}</p>
-                                            )}
-                                        </div>
-                                        <div className="border-2 border-dashed rounded-lg p-4 text-center">
-                                            <Upload className="h-6 w-6 mx-auto text-gray-400 mb-1" />
-                                            <Label
-                                                htmlFor="regul_pieces"
-                                                className="cursor-pointer text-neemba-600 hover:text-neemba-700 font-medium text-sm"
-                                            >
-                                                Ajouter les justificatifs
-                                            </Label>
-                                            <input
-                                                id="regul_pieces"
-                                                type="file"
-                                                multiple
-                                                className="hidden"
-                                                accept=".pdf,.jpg,.jpeg,.png"
-                                                onChange={(e) => {
-                                                    const files = Array.from(e.target.files);
-                                                    setFichiersRegul(files);
-                                                    regularisationForm.setData('pieces_jointes', files);
-                                                }}
-                                            />
-                                            <p className="text-[10px] text-gray-400 mt-1">PDF, JPG, PNG</p>
-                                        </div>
-                                        {fichiersRegul.length > 0 && (
-                                            <div className="space-y-1">
-                                                {fichiersRegul.map((f, i) => (
-                                                    <p key={i} className="text-xs text-gray-600 truncate">
-                                                        {f.name}
-                                                    </p>
-                                                ))}
-                                            </div>
-                                        )}
-                                        <Dialog open={showRegulariserDialog} onOpenChange={setShowRegulariserDialog}>
-                                            <DialogTrigger asChild>
-                                                <Button className="w-full" disabled={regularisationForm.processing || fichiersRegul.length === 0 || regularisationForm.data.motif_regularisation.trim().length < 5}>
-                                                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                                                    Régulariser
-                                                </Button>
-                                            </DialogTrigger>
-                                            <DialogContent>
-                                                <DialogHeader>
-                                                    <DialogTitle>Régulariser le bon</DialogTitle>
-                                                    <DialogDescription>Confirmez-vous la soumission de ces justificatifs pour régulariser le bon de caisse ?</DialogDescription>
-                                                </DialogHeader>
-                                                <div className="py-2">
-                                                    <p className="text-sm text-gray-600"><span className="font-medium">Motif :</span> {regularisationForm.data.motif_regularisation}</p>
-                                                </div>
-                                                <DialogFooter>
-                                                    <Button variant="outline" onClick={() => setShowRegulariserDialog(false)}>Annuler</Button>
-                                                    <Button onClick={() => { setShowRegulariserDialog(false); regulariser(); }}>Confirmer</Button>
-                                                </DialogFooter>
-                                            </DialogContent>
-                                        </Dialog>
-                                    </div>
-                                )}
-
-                                {/* Régularisation : uploader les justificatifs + motif avant paiement */}
+                                {/* Justificatifs joints avant le paiement : repris dans les lignes de la justification (RG-M07-03) */}
                                 {peutPreRegulariser && !aDesPiecesRegularisation && (
                                     <div className="space-y-3 p-3 bg-gradient-to-br from-orange-50 to-amber-50 rounded-lg border border-orange-200">
                                         <p className="text-sm font-semibold text-orange-800 flex items-center gap-2">
                                             <Upload className="h-4 w-4" />
-                                            Régulariser ce bon provisoire
+                                            Joindre des justificatifs à l'avance
                                         </p>
                                         <p className="text-xs text-orange-600">
-                                            Fournissez vos justificatifs et le motif de régularisation.
+                                            Facultatif : après le paiement, vous établirez la justification (lignes de dépense et visas) avec ces pièces.
                                         </p>
                                         <div className="space-y-1">
                                             <Label htmlFor="pre_regul_motif" className="text-xs font-medium text-orange-700">
-                                                Motif de régularisation <span className="text-red-500">*</span>
+                                                Objet des justificatifs <span className="text-red-500">*</span>
                                             </Label>
                                             <Textarea
                                                 id="pre_regul_motif"
@@ -1983,7 +1903,7 @@ export default function Show({
                                             onClick={preRegulariser}
                                         >
                                             <CheckCircle2 className="mr-2 h-4 w-4" />
-                                            Régulariser
+                                            Joindre les justificatifs
                                         </Button>
                                     </div>
                                 )}
@@ -1993,10 +1913,10 @@ export default function Show({
                                     <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-center">
                                         <CheckCircle2 className="h-5 w-5 mx-auto text-emerald-600 mb-1" />
                                         <p className="text-xs font-medium text-emerald-700">
-                                            Justificatifs de régularisation déjà fournis
+                                            Justificatifs joints à l'avance
                                         </p>
                                         <p className="text-[10px] text-emerald-600 mt-0.5">
-                                            La régularisation sera automatique au paiement
+                                            Repris dans la justification après le paiement
                                         </p>
                                     </div>
                                 )}

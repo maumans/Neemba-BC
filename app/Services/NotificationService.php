@@ -283,6 +283,9 @@ class NotificationService
      */
     public static function notifierRelanceRegularisation(BonCaisse $bon): void
     {
+        /* RG-M07-04 : relance au nom du caissier qui a payé le BP ; en copie le directeur du département, le Chef comptable,
+         * la Trésorerie et le DAF */
+        $expediteur = $bon->caissier;
         $joursRetard = $bon->jours_restants_regularisation;
         $retardLabel = $joursRetard !== null && $joursRetard < 0
             ? abs($joursRetard) . ' jour(s) de retard'
@@ -293,24 +296,27 @@ class NotificationService
             'date_limite' => $bon->date_limite_regularisation?->format('Y-m-d'),
         ];
 
-        /* Notifier le demandeur */
+        /* Notifier la personne concernée (l'initiateur de la justification : le directeur d'accueil pour un visiteur) */
         self::creerEtDiffuser(
-            destinataire: $bon->demandeur,
+            destinataire: \App\Services\BonCaisse\JustifierBp::initiateurDe($bon) ?? $bon->demandeur,
             bon: $bon,
-            expediteur: null,
+            expediteur: $expediteur,
             type: Notification::TYPE_RELANCE_REGULARISATION,
             titre: 'Régularisation en retard',
             message: "Votre bon provisoire {$bon->numero} ({$bon->montant_format}) est en attente de régularisation ({$retardLabel}). Veuillez fournir les justificatifs au plus vite.",
             metadata: $metadata,
         );
 
-        /* Notifier le(s) responsable(s) de service du demandeur */
-        $responsables = self::destinatairesParRole('responsable_service', $bon);
-        foreach ($responsables as $responsable) {
+        /* En copie : responsable(s) du service du demandeur, Chef comptable, Trésorerie, DAF */
+        $copies = self::destinatairesParRole('responsable_service', $bon)
+            ->merge(User::actifs()->where(fn ($q) => $q->whereIn('role', ['chef_comptable', 'tresorerie', 'daf'])
+                ->orWhereHas('roles', fn ($r) => $r->whereIn('role', ['chef_comptable', 'tresorerie', 'daf'])))->get())
+            ->unique('id');
+        foreach ($copies as $responsable) {
             self::creerEtDiffuser(
                 destinataire: $responsable,
                 bon: $bon,
-                expediteur: null,
+                expediteur: $expediteur,
                 type: Notification::TYPE_RELANCE_REGULARISATION,
                 titre: 'BP en retard de régularisation — Action requise',
                 message: "{$bon->demandeur?->nom_complet} n'a pas encore régularisé le bon provisoire {$bon->numero} ({$bon->montant_format}). Retard : {$retardLabel}. Veuillez relancer votre collaborateur.",
@@ -713,6 +719,32 @@ class NotificationService
         foreach ($destinataires as $destinataire) {
             self::creerEtDiffuserSimple($destinataire, $expediteur, $type, $titre, $message,
                 $type === 'tiers_propose' ? ['lien' => route('tiers.index', ['statut' => 'propose'])] : []);
+        }
+    }
+
+    /** Lot E (RG-M07-03) : justification d'un BP à viser, rejetée, visée ; lien vers l'écran de justification */
+    public static function notifierJustification(\App\Models\JustificationBp $justification, ?User $expediteur, \Illuminate\Support\Collection $destinataires, string $titre, string $message): void
+    {
+        $bon = $justification->bon;
+        foreach ($destinataires->filter()->unique('id') as $destinataire) {
+            self::creerEtDiffuser($destinataire, $bon, $expediteur, 'justification_bp', $titre, $message,
+                ['lien' => route('bons-caisse.justification', $bon)]);
+        }
+    }
+
+    /** Lot E (RG-M07-05, RG-M07-07) : BP en retard transmis aux RH ; suivi RH ; rapport mensuel au DP */
+    public static function notifierSuiviBp(BonCaisse $bon, ?User $expediteur, \Illuminate\Support\Collection $destinataires, string $type, string $titre, string $message): void
+    {
+        foreach ($destinataires->filter()->unique('id') as $destinataire) {
+            self::creerEtDiffuser($destinataire, $bon, $expediteur, $type, $titre, $message);
+        }
+    }
+
+    /** RG-M07-07 : rapport mensuel des BP non régularisés (notification sans bon, lien vers le tableau des BP en retard) */
+    public static function notifierRapportBp(\Illuminate\Support\Collection $destinataires, string $titre, string $message): void
+    {
+        foreach ($destinataires->filter()->unique('id') as $destinataire) {
+            self::creerEtDiffuserSimple($destinataire, null, 'rapport_bp', $titre, $message, ['lien' => route('bons-caisse.bp-en-retard')]);
         }
     }
 

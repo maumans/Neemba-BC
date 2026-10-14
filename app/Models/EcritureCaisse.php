@@ -21,6 +21,7 @@ class EcritureCaisse extends Model
         'ajustement' => 'Ajustement',
         'correction_solde' => 'Correction du solde (double validation)',
         'reversement_odm' => "Reversement d'un trop-perçu de mission",
+        'retrocession_bp' => 'Reliquat de BP rétrocédé en caisse',
     ];
 
     protected $fillable = [

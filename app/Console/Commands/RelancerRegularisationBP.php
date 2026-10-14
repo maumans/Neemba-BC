@@ -9,13 +9,13 @@ use Illuminate\Console\Command;
 
 /**
  * Commande Artisan : Relance automatique des BP non régularisés
- * 
- * Vérifie quotidiennement les bons provisoires en attente de régularisation
- * dont la date limite est dépassée ou proche, et enregistre une relance
- * dans l'historique pour chaque bon concerné.
- * 
+ *
+ * RG-M07-04 (spec v2.3) : chaque vendredi, relance des BP dont l'échéance est dépassée, au nom du caissier qui les a payés,
+ * adressée à la personne concernée avec en copie le directeur de son département, le Chef comptable, la Trésorerie et le
+ * DAF. Une justification en cours de visa n'est pas relancée : la personne a fait sa part.
+ *
  * Usage : php artisan bons:relancer-regularisation
- * Planification recommandée : quotidienne via le scheduler Laravel
+ * Planification : chaque vendredi à 8 h (routes/console.php)
  */
 class RelancerRegularisationBP extends Command
 {
@@ -31,7 +31,8 @@ class RelancerRegularisationBP extends Command
         $bonsEnRetard = BonCaisse::enAttenteRegularisation()
             ->whereNotNull('date_limite_regularisation')
             ->where('date_limite_regularisation', '<', now())
-            ->with('demandeur')
+            ->whereDoesntHave('justification', fn ($q) => $q->whereIn('statut', ['en_validation', 'validee']))
+            ->with('demandeur', 'caissier')
             ->get();
 
         $nbRelances = 0;

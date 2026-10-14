@@ -552,6 +552,9 @@ class BonCaisseController extends Controller
             'soldeCaisseSite' => $soldeCaisseSite,
             'codesAnalytiques' => CodeAnalytique::actifs()->with('service')->orderBy('code')->get(),
             'peutPreRegulariser' => $estProprietaire && $bonCaisse->peutPreRegulariser(),
+            /* Lot E (RG-M07-03, RG-M07-08) : justification du BP, reliquat à encaisser, BD de complément */
+            'justification' => \App\Http\Controllers\JustificationBpController::resume($bonCaisse, $utilisateur),
+            'bpRegularise' => $bonCaisse->bp_regularise_id ? $bonCaisse->bpRegularise?->only(['id', 'numero']) : null,
             'aDesPiecesRegularisation' => $bonCaisse->aDesPiecesRegularisation(),
             'motifsRejet' => \App\Models\MotifRejet::options(),
             /* RG-M06-07 : modes que le caissier peut retenir ; RG-M06-04 : modes qui exigent une référence */
@@ -790,62 +793,8 @@ class BonCaisseController extends Controller
     }
 
     /**
-     * Régulariser un bon provisoire
-     */
-    public function regulariser(Request $request, BonCaisse $bonCaisse)
-    {
-        /* Seul le demandeur (ou l'initiateur) régularise son BP, comme le propose l'écran */
-        abort_unless(in_array(Auth::id(), [$bonCaisse->demandeur_id, $bonCaisse->initiateur_id], true), 403, 'Seul le demandeur peut régulariser ce bon.');
-
-        /* Validation du motif de régularisation (obligatoire) */
-        $request->validate([
-            'motif_regularisation' => ['required', 'string', 'min:5', 'max:1000'],
-        ], [
-            'motif_regularisation.required' => 'Le motif de régularisation est obligatoire.',
-            'motif_regularisation.min' => 'Le motif doit contenir au moins 5 caractères.',
-        ]);
-
-        /* Upload des pièces justificatives de régularisation */
-        if ($request->hasFile('pieces_jointes')) {
-            $request->validate([
-                'pieces_jointes' => ['required', 'array'],
-                'pieces_jointes.*' => [
-                    'file',
-                    'mimes:' . implode(',', BonCaisse::FORMATS_FICHIERS_AUTORISES),
-                    'max:' . (BonCaisse::TAILLE_MAX_FICHIER / 1024),
-                ],
-            ]);
-
-            foreach ($request->file('pieces_jointes') as $fichier) {
-                $chemin = $fichier->store('pieces_jointes/' . $bonCaisse->id . '/regularisation', 'public');
-
-                PieceJointe::create([
-                    'bon_caisse_id' => $bonCaisse->id,
-                    'type_document' => 'justificatif',
-                    'nom_fichier' => $fichier->getClientOriginalName(),
-                    'chemin_fichier' => $chemin,
-                    'taille' => $fichier->getSize(),
-                    'mime_type' => $fichier->getMimeType(),
-                ]);
-
-                $bonCaisse->enregistrerAjoutPieceJointe($fichier->getClientOriginalName(), Auth::id());
-            }
-        }
-
-        if ($bonCaisse->regulariser(Auth::id(), $request->input('motif_regularisation'))) {
-            NotificationService::notifierRegularisation($bonCaisse->fresh(['demandeur', 'caissier']), Auth::user());
-
-            return redirect()
-                ->route('bons-caisse.show', $bonCaisse)
-                ->with('success', 'Bon régularisé avec succès.');
-        }
-
-        return back()->with('error', 'Impossible de régulariser ce bon.');
-    }
-
-    /**
      * Pré-régulariser un BP : uploader les justificatifs avant le paiement
-     * Le statut ne change pas, mais les pièces sont enregistrées pour auto-régularisation au paiement
+     * Le statut ne change pas ; les pièces sont reprises dans la justification après le paiement (RG-M07-03)
      */
     public function preRegulariser(Request $request, BonCaisse $bonCaisse)
     {
@@ -897,7 +846,7 @@ class BonCaisseController extends Controller
 
         return redirect()
             ->route('bons-caisse.show', $bonCaisse)
-            ->with('success', 'Régularisation enregistrée avec succès. La finalisation sera automatique lors du paiement.');
+            ->with('success', 'Justificatifs joints. Après le paiement, établissez la justification du BP avec ces pièces.');
     }
 
     /** POST /bons-caisse/{bon}/derogation-bp — RG-M07-06 : le DAF accorde ou refuse la dérogation, avec un motif */
@@ -986,7 +935,7 @@ class BonCaisseController extends Controller
             ->enAttenteRegularisation()
             ->whereNotNull('date_limite_regularisation')
             ->where('date_limite_regularisation', '<', now())
-            ->with('demandeur', 'caissier')
+            ->with('demandeur', 'caissier', 'justification')
             ->latest('date_limite_regularisation');
 
         /* Filtres */
@@ -1017,6 +966,8 @@ class BonCaisseController extends Controller
             'sites'        => $sites,
             'services'     => $services,
             'filtres'      => $request->only(['site', 'service']),
+            /* RG-M07-05 : les RH tracent l'information de la DRH puis la retenue */
+            'peutSuivreRh' => Auth::user()->aLeRole(['rh', 'administrateur']),
         ]);
     }
 }

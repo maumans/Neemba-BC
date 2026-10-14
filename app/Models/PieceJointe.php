@@ -83,6 +83,7 @@ class PieceJointe extends Model
         'bon_commande'     => 'Bon de commande',
         'rapport_journalier' => 'Rapport journalier',
         'justificatif'     => 'Justificatif de régularisation',
+        'justificatif_bp'  => 'Justificatif de BP (Annexe 3)',
         'autre'            => 'Autre',
     ];
 

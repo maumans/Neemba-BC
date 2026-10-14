@@ -39,6 +39,16 @@ import {
 import { formaterNombre } from '@/utils/nombreEnLettres';
 import { useState } from 'react';
 
+/* Lot E (RG-M07-03, RG-M07-05) : état de la justification et du suivi RH */
+const LIBELLES_JUSTIFICATION = { brouillon: 'Brouillon', en_validation: 'En visa', rejetee: 'Rejetée, à corriger', validee: 'Visée' };
+
+function suiviRh(suivi) {
+    if (!suivi) return '—';
+    if (suivi.retenue) return 'Retenue opérée';
+    if (suivi.information_drh) return 'DRH : intéressé informé';
+    return 'Transmis aux RH';
+}
+
 export default function BPEnRetard({
     bonsEnRetard,
     stats = {},
@@ -105,9 +115,9 @@ export default function BPEnRetard({
             >
                 <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
                 <p className="text-sm text-red-700">
-                    Ces bons provisoires ont dépassé leur délai de régularisation.
-                    Les demandeurs et leurs responsables ont été notifiés automatiquement.
-                    Une action est requise pour chaque ligne.
+                    Ces bons provisoires ont dépassé leur délai de régularisation. Chaque vendredi, la personne concernée est relancée
+                    au nom du caissier (copie : son directeur, le Chef comptable, la Trésorerie, le DAF). Le lendemain de l'échéance,
+                    le BP est transmis aux RH : information de la DRH, puis retenue sur salaire (RG-M07-04, RG-M07-05).
                 </p>
             </motion.div>
 
@@ -246,6 +256,8 @@ export default function BPEnRetard({
                                                 <Clock className="h-3 w-3 inline mr-1" />
                                                 Retard
                                             </TableHead>
+                                            <TableHead>Justification</TableHead>
+                                            <TableHead>Suivi RH</TableHead>
                                             <TableHead />
                                         </TableRow>
                                     </TableHeader>
@@ -283,6 +295,12 @@ export default function BPEnRetard({
                                                         <Badge variant={badgeRetard(jours)}>
                                                             {jours}j
                                                         </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-xs">
+                                                        {LIBELLES_JUSTIFICATION[bon.justification?.statut] ?? 'À établir'}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs">
+                                                        {suiviRh(bon.suivi_rh)}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Link href={route('bons-caisse.show', bon.id)}>

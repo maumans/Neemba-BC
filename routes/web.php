@@ -60,8 +60,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     /* Tableau de bord BP en retard de régularisation (DAF, DP, Admin) */
     Route::get('/bons-caisse/bp-en-retard', [BonCaisseController::class, 'bpEnRetard'])
-        ->middleware('role:daf,directeur_pays,administrateur')
+        ->middleware('role:daf,directeur_pays,dp_adjoint,rh,administrateur')
         ->name('bons-caisse.bp-en-retard');
+    /* RG-M07-05 : information de la DRH puis retenue sur salaire, tracées */
+    Route::post('/bons-caisse/{bonCaisse}/suivi-rh', [\App\Http\Controllers\JustificationBpController::class, 'suiviRh'])
+        ->middleware('role:rh,administrateur')
+        ->name('bons-caisse.suivi-rh');
 
     /* Pages : liste, assistant (création, reprise d'un brouillon, correction après rejet), fiche.
      * L'enregistrement passe par l'API de l'assistant ; un bon ne se supprime pas, il s'annule (RG-BC-31). */
@@ -135,8 +139,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/bons-caisse/{bonCaisse}/payer', [BonCaisseController::class, 'payer'])
         ->middleware('role:caissier')
         ->name('bons-caisse.payer');
-    Route::post('/bons-caisse/{bonCaisse}/regulariser', [BonCaisseController::class, 'regulariser'])
-        ->name('bons-caisse.regulariser');
+    /* Lot E (RG-M07-03, RG-M07-08) : justification du BP conforme à l'Annexe 3, visas, reliquat */
+    Route::get('/bons-caisse/{bonCaisse}/justification', [\App\Http\Controllers\JustificationBpController::class, 'show'])
+        ->name('bons-caisse.justification');
+    Route::put('/bons-caisse/{bonCaisse}/justification', [\App\Http\Controllers\JustificationBpController::class, 'enregistrer'])
+        ->name('bons-caisse.justification.enregistrer');
+    Route::post('/bons-caisse/{bonCaisse}/justification/pieces', [\App\Http\Controllers\JustificationBpController::class, 'ajouterPiece'])
+        ->name('bons-caisse.justification.piece');
+    Route::post('/bons-caisse/{bonCaisse}/justification/soumettre', [\App\Http\Controllers\JustificationBpController::class, 'soumettre'])
+        ->name('bons-caisse.justification.soumettre');
+    Route::post('/bons-caisse/{bonCaisse}/justification/viser', [\App\Http\Controllers\JustificationBpController::class, 'viser'])
+        ->name('bons-caisse.justification.viser');
+    Route::post('/bons-caisse/{bonCaisse}/justification/reliquat', [\App\Http\Controllers\JustificationBpController::class, 'encaisserReliquat'])
+        ->name('bons-caisse.justification.reliquat');
     Route::post('/bons-caisse/{bonCaisse}/pre-regulariser', [BonCaisseController::class, 'preRegulariser'])
         ->name('bons-caisse.pre-regulariser');
     /* RG-M07-06 : le DAF accorde ou refuse la dérogation « BP en retard » d'un bon */
