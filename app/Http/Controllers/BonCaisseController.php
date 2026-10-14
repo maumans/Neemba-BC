@@ -756,6 +756,9 @@ class BonCaisseController extends Controller
      */
     public function regulariser(Request $request, BonCaisse $bonCaisse)
     {
+        /* Seul le demandeur (ou l'initiateur) régularise son BP, comme le propose l'écran */
+        abort_unless(in_array(Auth::id(), [$bonCaisse->demandeur_id, $bonCaisse->initiateur_id], true), 403, 'Seul le demandeur peut régulariser ce bon.');
+
         /* Validation du motif de régularisation (obligatoire) */
         $request->validate([
             'motif_regularisation' => ['required', 'string', 'min:5', 'max:1000'],
@@ -864,6 +867,9 @@ class BonCaisseController extends Controller
      */
     public function exportPdf(BonCaisse $bonCaisse)
     {
+        /* Mêmes droits que la fiche du bon */
+        abort_unless(\App\Services\BonCaisse\VisibiliteBon::peutVoir($bonCaisse, Auth::user()), 403, "Vous n'avez pas les droits pour accéder à ce bon de caisse.");
+
         $bonCaisse->load(['demandeur', 'initiateur', 'validations.validateur', 'caissier', 'piecesJointes']);
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('exports.bon-caisse-pdf', [

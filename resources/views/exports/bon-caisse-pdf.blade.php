@@ -201,7 +201,7 @@
                 <th style="width: 20%;">CHEF DE SER</th>
                 <th style="width: 20%;">RCDG</th>
                 <th style="width: 20%;">DAF</th>
-                <th style="width: 20%;">DP (&gt; {{ \App\Support\Format::nombre($seuildp) }})</th>
+                <th style="width: 20%;">DP (&gt; {{ \App\Support\Format::nombre($seuilDP) }})</th>
             </tr>
         </thead>
         <tbody>

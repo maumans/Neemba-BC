@@ -400,7 +400,7 @@ Ces questions ne sont pas tranchées par la spécification. Elles seront report�
 
 ### 9.3 À obtenir
 
-- [ ] Les **fiches ODM N°282 et N°285/AT/26** (reçues par Addvalis le 05/10), pour reproduire la mise en page du PDF
+- [x] Les **fiches ODM N°282 et N°285/AT/26** : classeur « ODM .xlsm » reçu le 13/10, PDF refait sur ce modèle (devBook §39)
 - [ ] Le **fil « Neemba Service_Mission »**, modèle de prolongation (reçu le 06/10)
 - [ ] La **liste de diffusion** de chaque service (chef d'atelier, logistique, assistante…)
 - [ ] Le **dernier numéro** de chaque carnet d'ODM, pour reprendre la séquence
