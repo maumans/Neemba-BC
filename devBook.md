@@ -4281,3 +4281,69 @@ Ensuite :
 - saisir le numéro de départ de chaque carnet (Atelier : « BC N° 0005xxx ») et ses chiffres ;
 - activer la caisse Atelier ;
 - rattacher les utilisateurs de l'Atelier et les caissiers à leur caisse.
+
+## 44. Version v44 — Conformité v2.3, lot D « saisie et paiement » (14 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
+
+### 44.1 Saisie (D1)
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M03-13 | OR facultatifs, proposés pour toutes les catégories. Format : 8 chiffres commençant par 110 (MSG-M03-07). Chaque OR porte un type, vente ou garantie (`bons_caisse.types_or`, MSG-APP-062). `references_or` garde la liste des numéros, utilisée par les exports et la comptabilité. Les anciens OR restent sans type. Les bons d'ODM reprennent le type des OR de l'ODM. |
+| RG-M03-05 | Motif de 10 à 250 caractères. |
+| RG-M03-14 | Motif d'urgence choisi dans la liste paramétrable (MSG-M03-08). La justification libre devient facultative (« Précisions »). |
+| RG-M03-15 | Un BD est justifié par une facture ou une proforma seulement (MSG-M03-09). Le reçu, le ticket carburant et le devis ne suffisent plus. |
+| RG-M03-16 | Un scan sous 300 dpi est signalé (MSG-APP-064) sans bloquer, et une pièce peu lisible compte comme justificatif. |
+| RG-M03-09 | Si le mode Orange Money est choisi, l'assistant affiche l'estimation des frais (MSG-M03-06, route `api.referentiels.frais-om`, paliers du serveur). |
+| RG-M03-10 | `bons_caisse.numero_om` est obligatoire en Orange Money. Il est pré-rempli depuis le référentiel du bénéficiaire (salarié, visiteur ou tiers). S'il est modifié, un motif est obligatoire (MSG-APP-063) ; la modification est tracée au journal. Les bons d'ODM reprennent le n° OM du participant. |
+
+### 44.2 Validation et paiement (D2)
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M04-04 | Table `motifs_rejet` avec la liste initiale de la spec, tenue dans Paramétrage → « Motifs de rejet » (ajout, modification, désactivation). Les motifs de la SFD v1.3 sont repris désactivés : les rejets passés restent lisibles. |
+| RG-M06-04 | `bons_caisse.reference_paiement` est obligatoire pour Orange Money, MTN Money, chèque et virement (MSG-APP-065). Elle est saisie au paiement et affichée sur la fiche. |
+| RG-M06-07, §6.2 | Le caissier choisit parmi espèces, Orange Money, chèque et virement. Le mode « Autre » n'est plus proposé. MTN Money est ajouté, inactif par défaut (paramètre `mode_mtn_actif`) ; il est payé hors caisse, avec son code journal en M16. Les colonnes de mode passent d'une énumération à une chaîne. |
+| RG-M06-01 (révision du lot C) | Le caissier décide du mode. Un caissier rattaché à une caisse paie donc les bons qu'elle émet, ceux qu'elle paie dans le mode qu'il retient (la caisse OM paie tout bon en OM), et les anciens bons de son site sans caisse émettrice. Défaut relevé au parcours : Youssouf TOURE ne pouvait plus payer un ancien bon souhaité en OM. |
+
+### 44.3 Données
+
+Migrations :
+- `2026_10_17_000004_lot_d_saisie` : `types_or`, `numero_om`, `motif_numero_om` ;
+- `2026_10_17_000005_lot_d_validation_paiement` : `motifs_rejet`, `reference_paiement`, modes en chaîne, paramètre `mode_mtn_actif`.
+
+Chacune a été vérifiée sur une copie de la base (aller, retour, aller), puis appliquée en dev.
+
+### 44.4 Vérifications
+
+- **`tests/Feature/LotD/SaisieV23Test.php`** (3 tests) : n° OM ; estimation des frais ; motif et justificatifs.
+- **`tests/Feature/LotD/ValidationPaiementV23Test.php`** (2 tests) : motifs de rejet ; référence et modes du paiement.
+- **`NumerotationCaisseTest`** : un test ajouté, le caissier et le mode qu'il retient.
+- **Tests adaptés** :
+  - scan faible non bloquant ;
+  - facture exigée en plus du ticket ;
+  - motif d'urgence de la liste ;
+  - OR 110 avec type ;
+  - référence dans les paiements des tests existants.
+- **Total** : **330 tests PHP** et **71 tests JavaScript** passent.
+- **Parcours dans Edge**, sur une copie de la base de dev : 16 vérifications, aucune erreur JavaScript.
+  1. n° OM repris et modifié avec motif ;
+  2. estimation des frais ;
+  3. OR refusé, puis OR « Garantie » ;
+  4. fiche du bon ;
+  5. rejet par Thierry GOMIS avec un motif de la spec ;
+  6. paiement par chèque par Youssouf TOURE, référence exigée ;
+  7. téléphone.
+- **Incident** : un build du front a échoué par manque de mémoire (Windows, fichier d'échange plein). L'instance de test a été arrêtée avant tout parcours ; le build relancé a réussi.
+
+### 44.5 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_17_000004, 2026_10_17_000005
+```
+
+Ensuite :
+- relire la liste des motifs de rejet et des motifs d'urgence ;
+- activer MTN Money si Neemba l'utilise ;
+- prévenir les demandeurs qu'un BD exige désormais une facture ou une proforma.
