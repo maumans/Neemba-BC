@@ -4347,3 +4347,70 @@ Ensuite :
 - relire la liste des motifs de rejet et des motifs d'urgence ;
 - activer MTN Money si Neemba l'utilise ;
 - prévenir les demandeurs qu'un BD exige désormais une facture ou une proforma.
+
+## 45. Version v45 — Conformité v2.3, lot E « régularisation des BP » (14 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
+
+### 45.1 Justification conforme à l'Annexe 3 (RG-M07-03)
+
+| Élément | Mise en œuvre |
+|---|---|
+| Écran | `BonsCaisse/Justification.jsx`, route `bons-caisse.justification`, ouvert depuis l'encart « Justification » de la fiche du BP (`Components/CarteJustificationBp.jsx`). |
+| En-tête | Date, nom, prénom, matricule, département de la personne qui a reçu l'avance, montant de l'avance, motif, date limite. |
+| Lignes | Jusqu'à 10 : intitulé, code analytique actif, n° de compte, montant, pièce. La pièce se dépose depuis la ligne (type « Justificatif de BP (Annexe 3) », empreinte et qualité contrôlées comme toute pièce) ou se choisit parmi les pièces du BP, y compris celles jointes avant le paiement. |
+| Calculs | Montant justifié ; montant à retourner en caisse (déclaré, au plus l'écart, zéro par défaut) ; restant à justifier (doit être nul pour soumettre, MSG-APP-071) ; trop justifié à percevoir. Mêmes règles côté serveur (`JustifierBp::calculs`) et écran (`utils/justification.js`). |
+| Visas | Initiateur → N+1 de l'initiateur (chef de son service) → Contrôle de gestion → Comptabilité (comptable ou Chef comptable). Suppléants par délégation « validation » ; demandeur, bénéficiaire et initiateur exclus ; une étape sans valideur possible est sautée et tracée, sauf la Comptabilité. Un rejet exige un motif (10 caractères) et renvoie à l'initiateur ; la resoumission ouvre une nouvelle version. |
+| Visiteur (RG-M07-01) | L'initiateur est le directeur du département d'accueil du visiteur ; il ouvre et soumet la justification. |
+| Visibilité | Le valideur de l'étape en cours, ceux qui ont visé et l'initiateur consultent le BP. |
+
+### 45.2 Issue de la régularisation (RG-M07-08)
+
+- Au dernier visa, le BP passe « Régularisé ».
+- Trop justifié : un BD de complément est créé, approuvé, numéroté par la caisse émettrice du BP et lié à lui (`bons_caisse.bp_regularise_id`) ; le caissier le paie comme tout bon. Sa fiche rappelle le BP régularisé.
+- Reliquat : le caissier l'encaisse depuis la fiche du BP (« Encaisser le reliquat ») ; écriture d'entrée « Reliquat de BP rétrocédé en caisse » (`retrocession_bp`) dans la caisse espèces du BP.
+- Le paiement d'un BP ne le régularise plus, même si des pièces ont été jointes à l'avance (elles sont reprises dans la justification). L'ancienne régularisation directe par le demandeur (`bons-caisse.regulariser`) est retirée.
+- Écart avec la spec : la spec écrit « un BD du montant réel lié au BP ». Le montant réel est porté par les lignes de la justification (avec leur code analytique) ; seul le trop justifié donne lieu à un BD, pour ne pas décaisser deux fois l'avance. Voir Q69.
+
+### 45.3 Suivi des BP en retard
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M07-04 | `bons:relancer-regularisation` chaque vendredi à 8 h (au lieu de chaque jour) : notification au nom du caissier qui a payé le BP, à la personne concernée (le directeur d'accueil pour un visiteur), en copie le chef de son service, le Chef comptable, la Trésorerie et le DAF. Une justification en cours de visa n'est pas relancée. |
+| RG-M07-05 | `bons:transmettre-bp-rh` chaque jour à 8 h 15 : un BP dont l'échéance est dépassée est transmis aux RH (`bons_caisse.suivi_rh`), notifiés. Les RH tracent sur la fiche l'email d'information de la DRH, puis seulement la retenue sur salaire (MSG-APP-075) ; l'intéressé, puis le DAF, sont notifiés. Le tableau « BP en retard » est ouvert aux RH et au DP adjoint, avec l'état de la justification et du suivi RH. |
+| RG-M07-07 | `bons:rapport-bp-mensuel` le 1er du mois à 8 h : notification au Directeur Pays et à son adjoint (nombre et montant des BP non régularisés, en retard, transmis aux RH), avec le lien vers le tableau. |
+
+### 45.4 Données
+
+Migration `2026_10_18_000001_lot_e_justification_bp` :
+- tables `justifications_bp`, `justification_lignes`, `justification_visas` ;
+- `bons_caisse.bp_regularise_id`, `bons_caisse.suivi_rh` ;
+- type de pièce `justificatif_bp`.
+
+Vérifiée sur une copie de la base (aller, retour, aller), puis appliquée en dev.
+
+### 45.5 Vérifications
+
+- **`tests/Feature/LotE/JustificationBpTest.php`** (6 tests) : circuit complet et reliquat ; BD de complément ; contrôles et rejet ; étape sautée et visiteur ; paiement sans régularisation ; relance, suivi RH, rapport mensuel.
+- **`tests/js/justification.test.js`** : calculs de l'écran.
+- **`DroitsBonTest`** : le test de l'ancienne régularisation directe devient « seul le demandeur justifie son BP ».
+- **Total** : **336 tests PHP** et **74 tests JavaScript** passent.
+- **Parcours dans Edge**, sur une copie de la base de dev : 26 vérifications, aucune erreur JavaScript.
+  1. Souadou BARRY établit la justification (2 lignes, pièces déposées depuis les lignes, 200 000 GNF à retourner) ;
+  2. Thierry GOMIS rejette, Souadou corrige et resoumet (version 2) ;
+  3. visas de Thierry GOMIS, Maimouna BARRY, Mamadou Alpha BAH : BP régularisé ;
+  4. Youssouf TOURE encaisse le reliquat (solde et registre) ;
+  5. BP en retard transmis aux RH ; information de la DRH puis retenue tracées (rôle RH donné à Raby TOUNKARA dans la copie seulement) ;
+  6. téléphone.
+
+### 45.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_18_000001
+```
+
+Ensuite :
+- vérifier que le planificateur tourne (relance du vendredi, transmission RH, rapport mensuel) ;
+- donner le rôle « Ressources humaines » aux personnes de la DRH ;
+- donner le rôle « Comptabilité » aux comptables qui visent les justifications ;
+- prévenir les demandeurs : un BP se régularise désormais par la justification et ses visas.
