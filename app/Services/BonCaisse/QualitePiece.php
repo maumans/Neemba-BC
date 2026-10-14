@@ -7,7 +7,8 @@ namespace App\Services\BonCaisse;
  *
  * - PDF produit par un logiciel (texte sélectionnable) : conforme, sans contrôle de résolution (TC-BC-017).
  * - Image ou PDF scanné : résolution effective = grand côté en pixels ÷ 11,69 pouces (grand côté d'une page A4).
- *   Moins de 150 dpi : illisible (bloquant) ; 150 à 299 : qualité moyenne ; 300 et plus : conforme.
+ *   Moins de 150 dpi : illisible ; 150 à 299 : qualité moyenne ; 300 et plus : conforme. Spec v2.3 (RG-M03-16) : sous
+ *   300 dpi, simple alerte, la soumission n'est pas bloquée.
  *   Ex. TC-BC-016 : 1 100 px → 94 dpi, illisible ; 3 000 px → 257 dpi, moyenne ; 4 000 px → 342 dpi, conforme.
  * - Résolution impossible à mesurer : qualité non renseignée (aucun blocage).
  */

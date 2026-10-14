@@ -36,7 +36,7 @@ class StabilisationTest extends TestCase
         $otp = $this->otpVerifie($bon);
 
         $this->actingAs($this->utilisateur('caissier'))
-            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money'])
+            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'reference_paiement' => 'MP261017.1530.A12345'])
             ->assertRedirect(route('bons-caisse.show', $bon));
 
         $site->refresh();
@@ -54,7 +54,7 @@ class StabilisationTest extends TestCase
         $this->otpVerifie($bon);
 
         $this->actingAs($this->utilisateur('caissier'))
-            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'virement'])
+            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'virement', 'reference_paiement' => 'VIR-ECO-2026-0412'])
             ->assertRedirect(route('bons-caisse.show', $bon));
 
         $this->assertEquals(1000000, (float) $site->fresh()->solde_especes);
@@ -104,7 +104,7 @@ class StabilisationTest extends TestCase
         $this->actingAs($demandeur)
             ->get(route('bons-caisse.show', $bon))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('motifsRejet', BonCaisse::MOTIFS_REJET));
+                ->where('motifsRejet', \App\Models\MotifRejet::options()));
     }
 
     /* ------------------------------------------------------------------

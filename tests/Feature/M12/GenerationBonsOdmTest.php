@@ -98,7 +98,7 @@ class GenerationBonsOdmTest extends TestCase
             'expires_at' => now()->addMinutes(5), 'verified_at' => now(), 'is_used' => false,
         ]);
 
-        return $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => $mode]);
+        return $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => $mode, 'reference_paiement' => $mode === 'especes' ? null : 'MP261017.1530.A12345']);
     }
 
     /* ------------------------------------------------------------------ */

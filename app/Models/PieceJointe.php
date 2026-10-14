@@ -89,8 +89,8 @@ class PieceJointe extends Model
     /** Types proposés dans l'assistant, dans l'ordre de la SFD (E-03.6) */
     const TYPES_PIECE_ASSISTANT = ['facture', 'recu', 'recu_carburant', 'proforma', 'demande_achat', 'email', 'bon_travail', 'autre'];
 
-    /** Pièces qui justifient un bon définitif (RG-BC-15) ; « devis » conservé pour les anciens bons */
-    const JUSTIFICATIFS_BD = ['facture', 'recu', 'recu_carburant', 'proforma', 'devis'];
+    /** Spec v2.3, RG-M03-15 : un bon définitif est justifié par une facture ou une proforma */
+    const JUSTIFICATIFS_BD = ['facture', 'proforma'];
 
     /** Types de classification IA */
     const CLASSIFICATIONS_IA = [

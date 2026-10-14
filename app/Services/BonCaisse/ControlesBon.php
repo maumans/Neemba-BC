@@ -154,7 +154,7 @@ class ControlesBon
             $pieces->count() . ' fichier(s) dont au moins un justificatif');
     }
 
-    /** RG-BC-16 : une pièce illisible bloque ; une pièce de qualité moyenne est signalée */
+    /** Spec v2.3, RG-M03-16 : un scan sous 300 dpi est signalé, sans bloquer la soumission */
     private static function qualitePieces(BonCaisse $bon): array
     {
         $pieces = $bon->piecesActives;
@@ -162,16 +162,11 @@ class ControlesBon
             return self::controle(5, 'QUALITE', 'Qualité des pièces', self::OK, 'Sans objet');
         }
 
-        $illisibles = $pieces->filter(fn (PieceJointe $piece) => $piece->qualite === QualitePiece::ILLISIBLE || $piece->qualite_ok === false);
-        if ($illisibles->isNotEmpty()) {
-            return self::controle(5, 'QUALITE', 'Qualité des pièces', self::BLOQUANT,
-                __('MSG-BC-018'), 'MSG-BC-018', [], 4, 'pieces');
-        }
-
-        $moyennes = $pieces->where('qualite', QualitePiece::MOYENNE)->count();
-        if ($moyennes > 0) {
-            return self::controle(5, 'QUALITE_MOYENNE', 'Qualité des pièces', self::AVERTISSEMENT,
-                "{$moyennes} pièce(s) de qualité moyenne : lisible(s), mais une photo plus nette évite un rejet.", null, [], 4, 'pieces');
+        $faibles = $pieces->filter(fn (PieceJointe $piece) => in_array($piece->qualite, [QualitePiece::ILLISIBLE, QualitePiece::MOYENNE], true)
+            || $piece->qualite_ok === false)->count();
+        if ($faibles > 0) {
+            return self::controle(5, 'QUALITE_FAIBLE', 'Qualité des pièces', self::AVERTISSEMENT,
+                __('MSG-APP-064', ['nombre' => $faibles]), 'MSG-APP-064', ['nombre' => $faibles], 4, 'pieces');
         }
 
         return self::controle(5, 'QUALITE', 'Qualité des pièces', self::OK,

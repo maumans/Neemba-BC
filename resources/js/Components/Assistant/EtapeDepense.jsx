@@ -1,8 +1,13 @@
 /**
  * Étape 3 « Dépense » (E-03.5, US-BC-05 à US-BC-07) : motif, catégorie, montant, mode de paiement,
- * caisse payeuse, véhicule / OR selon la catégorie, lien avec une mission pour un BP.
+ * caisse payeuse, véhicule selon la catégorie, OR, lien avec une mission pour un BP.
+ * Spec v2.3 : motif de 10 à 250 caractères (RG-M03-05) ; OR de 8 chiffres commençant par 110, type vente ou garantie
+ * (RG-M03-13) ; Orange Money : estimation des frais (RG-M03-09) et n° OM repris du référentiel, motif s'il est modifié
+ * (RG-M03-10).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import TelephoneInput from '@/Components/TelephoneInput';
 import { Info, X } from 'lucide-react';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
@@ -24,31 +29,49 @@ import { msg } from '@/utils/messages';
 import { nombreEnLettres } from '@/utils/nombreEnLettres';
 import Champ from './Champ';
 
-/** N° d'OR sous forme d'étiquettes « OR 11022219 » (RG-BC-13) */
-function EtiquettesOr({ valeurs = [], onChange, erreur }) {
+const TYPES_OR = { vente: 'Vente', garantie: 'Garantie' };
+
+/** N° d'OR sous forme d'étiquettes « OR 11022219 · Vente » (RG-M03-13) : le type se choisit avant d'ajouter, se change d'un clic */
+function EtiquettesOr({ valeurs = [], types = {}, onChange, erreur }) {
     const [saisie, setSaisie] = useState('');
+    const [type, setType] = useState('vente');
     const [erreurSaisie, setErreurSaisie] = useState(null);
 
     const valider = () => {
+        const numero = saisie.replace(/\s/g, '');
         const { liste, erreur: cle } = ajouterOr(valeurs, saisie);
         setErreurSaisie(cle ? msg(cle) : null);
         if (!cle) {
-            onChange(liste);
+            onChange(liste, numero ? { ...types, [numero]: types[numero] ?? type } : types);
             setSaisie('');
         }
     };
+    const retirer = (numero) => {
+        const { [numero]: _retire, ...reste } = types;
+        onChange(valeurs.filter((v) => v !== numero), reste);
+    };
 
     return (
-        <Champ champ="references_or" libelle="N° d'OR" erreur={erreurSaisie ?? erreur} aide="8 chiffres ; Entrée pour ajouter. Plusieurs OR possibles.">
+        <Champ champ="references_or" libelle="N° d'OR (facultatif)" erreur={erreurSaisie ?? erreur}
+            aide="8 chiffres commençant par 110 ; choisissez le type puis Entrée. Cliquez sur le type d'un OR pour le changer.">
             <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input px-2 py-1">
                 {valeurs.map((numero) => (
                     <span key={numero} className="inline-flex items-center gap-1 rounded bg-marine-50 px-2 py-0.5 text-xs font-medium text-marine-800">
                         OR {numero}
-                        <button type="button" onClick={() => onChange(valeurs.filter((v) => v !== numero))} aria-label={`Retirer l'OR ${numero}`}>
+                        <button type="button" className="rounded bg-white px-1 text-[11px] text-marine-700 ring-1 ring-marine-200 hover:bg-marine-100"
+                            onClick={() => onChange(valeurs, { ...types, [numero]: types[numero] === 'garantie' ? 'vente' : 'garantie' })}
+                            aria-label={`Type de l'OR ${numero} : ${TYPES_OR[types[numero]] ?? 'à choisir'}`}>
+                            {TYPES_OR[types[numero]] ?? 'type ?'}
+                        </button>
+                        <button type="button" onClick={() => retirer(numero)} aria-label={`Retirer l'OR ${numero}`}>
                             <X className="h-3 w-3" />
                         </button>
                     </span>
                 ))}
+                <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Type du prochain OR"
+                    className="h-7 rounded border border-gray-200 bg-white px-1 text-xs">
+                    {Object.entries(TYPES_OR).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
                 <input
                     id="champ-references_or"
                     value={saisie}
@@ -66,6 +89,7 @@ function EtiquettesOr({ valeurs = [], onChange, erreur }) {
                     }}
                     onBlur={valider}
                     placeholder={valeurs.length ? '' : 'Ex. 11022219'}
+                    aria-label="N° d'OR"
                     className="min-w-[8rem] flex-1 border-0 p-1 text-sm focus:outline-none focus:ring-0"
                 />
             </div>
@@ -73,7 +97,44 @@ function EtiquettesOr({ valeurs = [], onChange, erreur }) {
     );
 }
 
-export default function EtapeDepense({ donnees, changer, erreurs, categories, modesPaiement, caisses, seuilDP, dateDuJour }) {
+/** RG-M03-09 : estimation des frais Orange Money, pour information (calcul du serveur, paliers paramétrés) */
+function EstimationFraisOm({ montant }) {
+    const [estimation, setEstimation] = useState(null);
+    useEffect(() => {
+        if (!montant) {
+            setEstimation(null);
+            return undefined;
+        }
+        let actif = true;
+        const minuterie = setTimeout(() => {
+            axios.get(route('api.referentiels.frais-om'), { params: { montant } })
+                .then(({ data }) => actif && setEstimation(data.estimation))
+                .catch(() => actif && setEstimation(null));
+        }, 300);
+
+        return () => {
+            actif = false;
+            clearTimeout(minuterie);
+        };
+    }, [montant]);
+
+    return estimation ? (
+        <p className="flex items-start gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800" data-testid="estimation-frais-om">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" /> {estimation.message}
+        </p>
+    ) : null;
+}
+
+export default function EtapeDepense({ donnees, changer, erreurs, categories, modesPaiement, caisses, seuilDP, dateDuJour, numeroOmReferentiel = null }) {
+    const orangeMoney = donnees.mode_paiement === 'orange_money';
+    const chiffresOm = (valeur) => String(valeur ?? '').replace(/\D/g, '').slice(-9);
+    const omModifie = orangeMoney && numeroOmReferentiel && donnees.numero_om && chiffresOm(donnees.numero_om) !== chiffresOm(numeroOmReferentiel);
+
+    /* RG-M03-10 : n° OM pré-rempli depuis le référentiel du bénéficiaire */
+    useEffect(() => {
+        if (orangeMoney && !donnees.numero_om && numeroOmReferentiel) changer('numero_om', numeroOmReferentiel);
+    }, [orangeMoney, numeroOmReferentiel]);   // eslint-disable-line react-hooks/exhaustive-deps
+
     const categorie = categories.find((c) => c.code === donnees.categorie_depense) ?? null;
     const champs = champsDeLaCategorie(categorie);
     const caisseEspeces = caisses.especes;
@@ -89,7 +150,6 @@ export default function EtapeDepense({ donnees, changer, erreurs, categories, mo
         const nouveaux = champsDeLaCategorie(categories.find((c) => c.code === code));
         changer('categorie_depense', code);
         if (!nouveaux.vehicule) changer('vehicule', '');
-        if (!nouveaux.or) changer('references_or', []);
     };
 
     return (
@@ -108,7 +168,7 @@ export default function EtapeDepense({ donnees, changer, erreurs, categories, mo
                 <Textarea
                     id="champ-motif"
                     rows={4}
-                    maxLength={200}
+                    maxLength={250}
                     value={donnees.motif ?? ''}
                     onChange={(e) => changer('motif', e.target.value)}
                     placeholder="Ex. Achat de gasoil pour le groupe électrogène de l'atelier"
@@ -188,8 +248,26 @@ export default function EtapeDepense({ donnees, changer, erreurs, categories, mo
                 </div>
             </Champ>
 
-            {(champs.vehicule || champs.or) && (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {orangeMoney && (
+                <div className="space-y-3">
+                    <EstimationFraisOm montant={donnees.montant} />
+                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        <Champ champ="numero_om" libelle="N° Orange Money" obligatoire erreur={erreurs.numero_om}
+                            aide={numeroOmReferentiel ? 'Repris du référentiel du bénéficiaire.' : "Le bénéficiaire n'a pas de n° OM au référentiel : saisissez-le."}>
+                            <TelephoneInput id="champ-numero_om" value={donnees.numero_om ?? ''} onChange={(valeur) => changer('numero_om', valeur)} placeholder="6XX XX XX XX" />
+                        </Champ>
+                        {omModifie && (
+                            <Champ champ="motif_numero_om" libelle="Motif de la modification" obligatoire erreur={erreurs.motif_numero_om}
+                                aide="Le n° diffère de celui du référentiel : la modification est tracée.">
+                                <Input id="champ-motif_numero_om" value={donnees.motif_numero_om ?? ''} maxLength={255}
+                                    onChange={(e) => changer('motif_numero_om', e.target.value)} placeholder="Ex. nouveau numéro communiqué par le bénéficiaire" />
+                            </Champ>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                     {champs.vehicule && (
                         <Champ
                             champ="vehicule"
@@ -207,11 +285,16 @@ export default function EtapeDepense({ donnees, changer, erreurs, categories, mo
                             />
                         </Champ>
                     )}
-                    {champs.or && (
-                        <EtiquettesOr valeurs={donnees.references_or ?? []} onChange={(liste) => changer('references_or', liste)} erreur={erreurs.references_or} />
-                    )}
-                </div>
-            )}
+                    <EtiquettesOr
+                        valeurs={donnees.references_or ?? []}
+                        types={donnees.types_or ?? {}}
+                        onChange={(liste, types) => {
+                            changer('references_or', liste);
+                            changer('types_or', types);
+                        }}
+                        erreur={erreurs.references_or ?? erreurs.types_or}
+                    />
+            </div>
 
             {donnees.type_bon === 'BP' && (
                 <div className="space-y-4 rounded-md border border-gray-200 p-4">

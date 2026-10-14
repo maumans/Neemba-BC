@@ -38,6 +38,7 @@ class ParametrageController extends Controller
             )),
             'codesAnalytiques' => CodeAnalytique::with('service')->orderBy('code')->get(),
             'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
+            'motifsRejet' => \App\Models\MotifRejet::orderBy('ordre')->orderBy('libelle')->get(),
             'typesDocument' => TypeDocument::orderBy('nom')->get(),
             'parametres' => Parametre::orderBy('groupe')->orderBy('libelle')->get(),
             'choixParametres' => Parametre::CHOIX,
@@ -371,6 +372,34 @@ class ParametrageController extends Controller
     {
         $motifUrgence->update(['actif' => !$motifUrgence->actif]);
         return back()->with('success', $motifUrgence->actif ? 'Motif activé.' : 'Motif désactivé.');
+    }
+
+    /* ─── MOTIFS DE REJET (spec v2.3, RG-M04-04) ─────────── */
+
+    public function storeMotifRejet(Request $request)
+    {
+        $validated = $request->validate(['libelle' => ['required', 'string', 'max:255', 'unique:motifs_rejet']]);
+        \App\Models\MotifRejet::create($validated + [
+            'code' => \Illuminate\Support\Str::limit(\Illuminate\Support\Str::slug($validated['libelle'], '_'), 30, '') . '_' . substr(uniqid(), -5),
+            'actif' => true,
+            'ordre' => (int) \App\Models\MotifRejet::max('ordre') + 1,
+        ]);
+
+        return back()->with('success', 'Motif de rejet ajouté.');
+    }
+
+    public function updateMotifRejet(Request $request, \App\Models\MotifRejet $motifRejet)
+    {
+        $motifRejet->update($request->validate(['libelle' => ['required', 'string', 'max:255', 'unique:motifs_rejet,libelle,' . $motifRejet->id]]));
+
+        return back()->with('success', 'Motif de rejet mis à jour.');
+    }
+
+    public function toggleMotifRejet(\App\Models\MotifRejet $motifRejet)
+    {
+        $motifRejet->update(['actif' => !$motifRejet->actif]);
+
+        return back()->with('success', $motifRejet->actif ? 'Motif de rejet activé.' : 'Motif de rejet désactivé.');
     }
 
     /* ─── PARAMETRES SYSTEME ──────────────────────────────── */

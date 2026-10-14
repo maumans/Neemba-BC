@@ -24,11 +24,12 @@ final class ControleCaissier
         if ($bon->beneficiaire_id === $caissier->id) {
             return 'Vous êtes le bénéficiaire de ce bon : un autre caissier doit le payer (RG-M01-04).';
         }
-        /* Lot C (RG-M02-03) : un caissier rattaché à une caisse paie les bons qu'elle émet ou paie ; sinon, ceux de son site */
+        /* Lot C (RG-M02-03) : un caissier rattaché à une caisse paie les bons qu'elle émet, ceux qu'elle paie dans le mode qu'il
+         * retient (RG-M06-07 : le caissier décide du mode), et les anciens bons sans caisse émettrice de son site ; un
+         * caissier sans rattachement reste limité à son site */
         if ($caissier->caisse_id && !$caissier->aLeRole('administrateur')) {
-            $payeuse = $caisse ?? $bon->caissePayeuse();
-            if (!in_array((int) $caissier->caisse_id, array_map('intval', array_filter([$bon->caisse_emettrice_id, $payeuse?->id])), true)) {
-                $libelle = $bon->caisseEmettrice?->libelle ?? $payeuse?->libelle ?? 'une autre caisse';
+            if (!self::caisseDuCaissier($bon, $caissier, $caisse)) {
+                $libelle = $bon->caisseEmettrice?->libelle ?? 'caisse du site ' . $bon->site;
 
                 return "Ce bon relève de la {$libelle} : seul un caissier de cette caisse peut le payer (RG-M06-01).";
             }
@@ -40,6 +41,20 @@ final class ControleCaissier
         }
 
         return null;
+    }
+
+    /** Le bon relève-t-il de la caisse de rattachement du caissier ? (sans mode retenu : la caisse OM paie tout bon en OM) */
+    public static function caisseDuCaissier(BonCaisse $bon, User $caissier, ?Caisse $payeuse = null): bool
+    {
+        $saCaisse = (int) $caissier->caisse_id;
+        if ((int) $bon->caisse_emettrice_id === $saCaisse || ($payeuse && (int) $payeuse->id === $saCaisse)) {
+            return true;
+        }
+        if (!$bon->caisse_emettrice_id && $bon->site && $caissier->site === $bon->site) {
+            return true;
+        }
+
+        return !$payeuse && Caisse::whereKey($saCaisse)->where('type', 'orange_money')->exists();
     }
 
     /** Gestionnaire ou suppléant de la caisse, ou délégué pour le paiement de l'un d'eux */

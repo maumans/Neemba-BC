@@ -185,7 +185,11 @@ class BonCaisseController extends Controller
                     $q->orWhere(function ($q2) use ($utilisateur) {
                         $q2->whereIn('statut', ['APPROUVE', 'PAYE', 'EN_ATTENTE_REGULARISATION', 'REGULARISE', 'ARCHIVE']);
                         if ($utilisateur->caisse_id) {
-                            $q2->where(fn ($q3) => $q3->where('caisse_emettrice_id', $utilisateur->caisse_id)->orWhere('caisse_id', $utilisateur->caisse_id));
+                            /* Lot C : bons de sa caisse (émise ou payée), anciens bons de son site ; caisse OM : tout bon souhaité en OM */
+                            $om = Caisse::whereKey($utilisateur->caisse_id)->where('type', 'orange_money')->exists();
+                            $q2->where(fn ($q3) => $q3->where('caisse_emettrice_id', $utilisateur->caisse_id)->orWhere('caisse_id', $utilisateur->caisse_id)
+                                ->orWhere(fn ($q4) => $q4->whereNull('caisse_emettrice_id')->where('site', $utilisateur->site))
+                                ->when($om, fn ($q4) => $q4->orWhere('mode_paiement', 'orange_money')));
                         } elseif ($utilisateur->site) {
                             $q2->where('site', $utilisateur->site);
                         }
@@ -294,8 +298,9 @@ class BonCaisseController extends Controller
         $validation = $bon->validations->where('statut', 'rejete')->sortByDesc('date_validation')->first();
         $texte = $validation?->commentaire ?? $bon->commentaire_rejet ?? '';
 
-        /* Le commentaire enregistré est « Motif - commentaire » (motifs de BonCaisse::MOTIFS_REJET) */
-        $motif = collect(BonCaisse::MOTIFS_REJET)->first(fn (string $libelle) => str_starts_with($texte, $libelle));
+        /* Le commentaire enregistré est « Motif - commentaire » (motifs paramétrables, actifs ou non, RG-M04-04) */
+        $motif = \App\Models\MotifRejet::orderByRaw('CHAR_LENGTH(libelle) DESC')->pluck('libelle')
+            ->first(fn (string $libelle) => str_starts_with($texte, $libelle));
         $commentaire = $motif ? ltrim(substr($texte, strlen($motif)), ' -') : $texte;
 
         return [
@@ -548,7 +553,10 @@ class BonCaisseController extends Controller
             'codesAnalytiques' => CodeAnalytique::actifs()->with('service')->orderBy('code')->get(),
             'peutPreRegulariser' => $estProprietaire && $bonCaisse->peutPreRegulariser(),
             'aDesPiecesRegularisation' => $bonCaisse->aDesPiecesRegularisation(),
-            'motifsRejet' => BonCaisse::MOTIFS_REJET,
+            'motifsRejet' => \App\Models\MotifRejet::options(),
+            /* RG-M06-07 : modes que le caissier peut retenir ; RG-M06-04 : modes qui exigent une référence */
+            'modesCaissier' => BonCaisse::modesCaissier(),
+            'modesAvecReference' => BonCaisse::MODES_AVEC_REFERENCE,
             /* Spec v2.2 §6.6 : frais si le caissier retient Orange Money (MSG-M03-06) ; null hors paliers (frais saisis) */
             'fraisOrangeMoney' => ($frais = FraisOrangeMoney::calculer((float) $bonCaisse->montant))
                 ? $frais + ['taux_texte' => str_replace('.', ',', (string) $frais['taux'])]
@@ -669,10 +677,13 @@ class BonCaisseController extends Controller
         }
 
         $request->validate([
-            'mode_paiement_effectif' => ['required', Rule::in(array_keys(BonCaisse::MODES_PAIEMENT))],
+            'mode_paiement_effectif' => ['required', Rule::in(array_keys(BonCaisse::modesCaissier()))],
+            /* RG-M06-04 : référence de la transaction OM ou MTN, n° de chèque, référence du virement */
+            'reference_paiement' => [Rule::requiredIf(in_array($request->input('mode_paiement_effectif'), BonCaisse::MODES_AVEC_REFERENCE, true)), 'nullable', 'string', 'max:100'],
             'frais_om' => ['nullable', 'numeric', 'min:0', 'max:1000000000'],
         ], [
             'frais_om.numeric' => 'Les frais Orange Money doivent être un montant en GNF.',
+            'reference_paiement.required' => __('MSG-APP-065'),
             'frais_om.min' => 'Les frais Orange Money ne peuvent pas être négatifs.',
         ]);
 
@@ -748,6 +759,7 @@ class BonCaisseController extends Controller
             }
 
             $otpVerifie->marquerCommeUtilise();
+            $bon->update(['reference_paiement' => $request->filled('reference_paiement') ? trim($request->input('reference_paiement')) : null]);
 
             if ($caisse) {
                 $bon->update(['caisse_id' => $caisse->id]);

@@ -102,7 +102,7 @@ class ClotureOdmTest extends TestCase
         $bon->update(['statut' => 'APPROUVE']);
         OtpValidation::create(['bon_caisse_id' => $bon->id, 'code' => '123456', 'telephone' => '622000000',
             'expires_at' => now()->addMinutes(5), 'verified_at' => now(), 'is_used' => false]);
-        $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money'])->assertSessionHas('success');
+        $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'reference_paiement' => 'MP261017.1530.A12345'])->assertSessionHas('success');
     }
 
     private function bonDe(User $participant): BonCaisse
@@ -268,7 +268,7 @@ class ClotureOdmTest extends TestCase
         $this->assertEquals(1200000, (float) $complement->montant);
         $this->assertSame($odm->id, $complement->odm_id);
         $this->assertFalse($complement->genere_par_odm);
-        $this->assertSame('MSG-BC-017', ReglesSaisie::erreurPieces($complement));   // facture obligatoire
+        $this->assertSame('MSG-M03-09', ReglesSaisie::erreurPieces($complement));   // facture obligatoire
 
         /* Le demandeur complète le bon dans l'assistant : il reste rattaché à l'ODM */
         EnregistrementBon::appliquer($complement, ['motif' => 'Hôtel Pullman Abidjan, 4 nuits, facture jointe'], $this->demandeur);

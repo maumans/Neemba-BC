@@ -100,7 +100,7 @@ class PrerequisTest extends TestCase
         $this->otpVerifie($bon);
 
         $this->actingAs(User::factory()->role('caissier')->create())
-            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money'])
+            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'reference_paiement' => 'MP261017.1530.A12345'])
             ->assertRedirect(route('bons-caisse.show', $bon));
 
         $bon->refresh();
@@ -126,13 +126,13 @@ class PrerequisTest extends TestCase
         $caissier = User::factory()->role('caissier')->create();
 
         $this->actingAs($caissier)
-            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money'])
+            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'reference_paiement' => 'MP261017.1530.A12345'])
             ->assertSessionHas('error', 'Montant hors des paliers Orange Money : saisissez les frais à ajouter au montant versé.');
         $this->assertSame('APPROUVE', $bon->fresh()->statut);
         $this->assertFalse((bool) $otp->fresh()->is_used);
 
         $this->actingAs($caissier)
-            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'frais_om' => 1500])
+            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'frais_om' => 1500, 'reference_paiement' => 'MP261017.1530.A12345'])
             ->assertRedirect(route('bons-caisse.show', $bon));
 
         $bon->refresh();
@@ -166,7 +166,7 @@ class PrerequisTest extends TestCase
         $this->otpVerifie($bon);
 
         $this->actingAs(User::factory()->role('caissier')->create())
-            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money'])
+            ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'reference_paiement' => 'MP261017.1530.A12345'])
             ->assertSessionHas('error');
 
         $this->assertSame('APPROUVE', $bon->fresh()->statut);

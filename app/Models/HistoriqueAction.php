@@ -183,6 +183,13 @@ class HistoriqueAction extends Model
         'motif_urgence' => "Motif d'urgence",
         'justification_urgence' => "Justification de l'urgence",
         'date_demande' => 'Date de la demande',
+        /* Spec v2.3 : n° OM modifié avec motif (RG-M03-10), OR (RG-M03-13), bénéficiaire du référentiel (lot B) */
+        'numero_om' => 'N° Orange Money',
+        'motif_numero_om' => 'Motif de la modification du n° OM',
+        'references_or' => "N° d'OR",
+        'types_or' => "Types d'OR",
+        'tiers_id' => 'Tiers',
+        'visiteur_id' => 'Visiteur du groupe',
     ];
 
     /* ----------------------------------------------------------------

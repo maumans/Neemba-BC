@@ -127,6 +127,21 @@ class EnregistrementBon
         if ($bon->vehicule !== null) {
             $bon->vehicule = mb_strtoupper(trim($bon->vehicule)) ?: null;
         }
+        /* RG-M03-10 : n° OM du référentiel du bénéficiaire, au format +224 ; effacé hors Orange Money */
+        if ($bon->mode_paiement === 'orange_money') {
+            $bon->numero_om = ReglesSaisie::normaliserTelephone($bon->numero_om) ?? ReglesSaisie::numeroOmReferentiel(ReglesSaisie::donneesDu($bon));
+            if (!ReglesSaisie::numeroOmModifie(ReglesSaisie::donneesDu($bon))) {
+                $bon->motif_numero_om = null;
+            }
+        } else {
+            $bon->numero_om = null;
+            $bon->motif_numero_om = null;
+        }
+
+        /* RG-M03-13 : un type par OR présent */
+        if (is_array($bon->types_or)) {
+            $bon->types_or = array_intersect_key($bon->types_or, array_flip((array) $bon->references_or)) ?: null;
+        }
         if (is_array($bon->references_or)) {
             $bon->references_or = array_values(array_unique(array_map('trim', $bon->references_or))) ?: null;
         }

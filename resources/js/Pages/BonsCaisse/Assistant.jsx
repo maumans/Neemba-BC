@@ -61,6 +61,9 @@ function valeursDe(bon, demandeur) {
         mode_paiement: bon?.mode_paiement ?? 'especes',
         vehicule: bon?.vehicule ?? '',
         references_or: bon?.references_or ?? [],
+        types_or: bon?.types_or ?? {},
+        numero_om: bon?.numero_om ?? '',
+        motif_numero_om: bon?.motif_numero_om ?? '',
         lie_mission: Boolean(bon?.lie_mission),
         date_retour_mission: bon?.date_retour_mission ?? '',
     };
@@ -76,6 +79,7 @@ function employeDe(bon, demandeur) {
         nom_complet: bon.beneficiaire,
         libelle: bon.beneficiaire_libelle ?? bon.beneficiaire,
         telephone: bon.telephone_beneficiaire,
+        numero_om: bon.beneficiaire_numero_om ?? null,
     };
 }
 
@@ -665,6 +669,11 @@ export default function Assistant({
                                             caisses={caisses}
                                             seuilDP={seuilDP}
                                             dateDuJour={dateDuJour}
+                                            numeroOmReferentiel={
+                                                donnees.type_beneficiaire === 'employe' ? employeChoisi?.numero_om
+                                                    : donnees.type_beneficiaire === 'tiers' ? referentielChoisi.tiers?.numero_om
+                                                        : referentielChoisi.visiteur?.numero_om
+                                            }
                                         />
                                     )}
                                     {etape === 4 && (

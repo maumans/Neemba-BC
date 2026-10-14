@@ -122,10 +122,14 @@ class SaisieBonTest extends TestCase
     }
 
     /** TC-BC-004 */
-    public function test_une_urgence_exige_une_justification_d_au_moins_10_caracteres(): void
+    /** Spec v2.3, RG-M03-14 : motif choisi dans la liste paramétrable (MSG-M03-08) ; justification libre facultative */
+    public function test_une_urgence_exige_un_motif_de_la_liste(): void
     {
-        $this->etape(1, ['type_bon' => 'BD', 'code_analytique' => 'ADAZZZ', 'niveau_urgence' => 'urgente', 'motif_urgence' => 'Panne', 'justification_urgence' => 'vite'])
-            ->assertJsonPath('erreurs.justification_urgence.0', 'La justification doit comporter au moins 10 caractères.');
+        \App\Models\MotifUrgence::create(['libelle' => 'Panne machine client', 'actif' => true]);
+        $this->etape(1, ['type_bon' => 'BD', 'code_analytique' => 'ADAZZZ', 'niveau_urgence' => 'urgente', 'motif_urgence' => 'Panne'])
+            ->assertJsonPath('erreurs.motif_urgence.0', __('MSG-M03-08'));
+        $this->etape(1, ['type_bon' => 'BD', 'code_analytique' => 'ADAZZZ', 'niveau_urgence' => 'urgente', 'motif_urgence' => 'Panne machine client'])
+            ->assertJsonPath('erreurs', []);
     }
 
     public function test_revenir_a_normale_efface_motif_et_justification(): void
@@ -246,6 +250,7 @@ class SaisieBonTest extends TestCase
     }
 
     /** TC-BC-012, TC-BC-013 */
+    /** Spec v2.3, RG-M03-13 : OR de 8 chiffres commençant par 110 (MSG-M03-07), type vente ou garantie */
     public function test_carburant_exige_le_vehicule_et_un_or_fait_8_chiffres(): void
     {
         $bon = $this->brouillon();
@@ -254,10 +259,15 @@ class SaisieBonTest extends TestCase
 
         $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), ['references_or' => ['1102221']])
             ->assertStatus(422)
-            ->assertJsonPath('errors', fn ($erreurs) => ($erreurs['references_or.0'][0] ?? null) === 'Un numéro d\'OR comporte 8 chiffres (ex. 11022219).');
+            ->assertJsonPath('errors', fn ($erreurs) => ($erreurs['references_or.0'][0] ?? null) === "Numéro d'OR invalide : 8 chiffres commençant par 110.");
+        $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), ['references_or' => ['12022204']])->assertStatus(422);
 
-        $this->etape(3, $this->depense(['categorie_depense' => 'carburant', 'vehicule' => 'be 3424', 'references_or' => ['11022204', '11022205']]), $bon)
+        $this->etape(3, $this->depense(['categorie_depense' => 'carburant', 'vehicule' => 'be 3424', 'references_or' => ['11022204', '11022205'], 'types_or' => ['11022204' => 'vente']]), $bon)
+            ->assertJsonPath('erreurs.types_or.0', "Indiquez le type (vente ou garantie) de l'OR 11022205.");
+        $this->etape(3, $this->depense(['categorie_depense' => 'carburant', 'vehicule' => 'be 3424', 'references_or' => ['11022204', '11022205'],
+            'types_or' => ['11022204' => 'vente', '11022205' => 'garantie']]), $bon)
             ->assertJsonPath('erreurs', []);
+        $this->assertSame(['11022204' => 'vente', '11022205' => 'garantie'], $bon->fresh()->types_or);
         $this->assertSame('BE 3424', $bon->fresh()->vehicule);
     }
 
@@ -279,7 +289,7 @@ class SaisieBonTest extends TestCase
         $bon = $this->bonComplet([], false);
         $this->piece($bon, 'demande_achat');
 
-        $this->etape(4, [], $bon)->assertJsonPath('erreurs.pieces.0', __('MSG-BC-017'));
+        $this->etape(4, [], $bon)->assertJsonPath('erreurs.pieces.0', __('MSG-M03-09'));
     }
 
     public function test_chaque_piece_doit_avoir_un_type(): void

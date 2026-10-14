@@ -7,6 +7,7 @@ use App\Models\HistoriqueAction;
 use App\Models\Validation;
 use App\Services\NotificationService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use App\Services\BonCaisse\CircuitBon;
 use Inertia\Inertia;
@@ -74,7 +75,7 @@ class ValidationController extends Controller
             'modesPaiement' => BonCaisse::MODES_PAIEMENT,
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
             'codesAnalytiques' => \App\Models\CodeAnalytique::where('actif', true)->get(),
-            'motifsRejet' => BonCaisse::MOTIFS_REJET,
+            'motifsRejet' => \App\Models\MotifRejet::options(),
         ]);
     }
 
@@ -181,11 +182,12 @@ class ValidationController extends Controller
         $roleValidation = $droit['role'];
 
         $validated = $request->validate([
-            'motif_rejet' => ['required', 'string', 'in:' . implode(',', array_keys(BonCaisse::MOTIFS_REJET))],
+            /* RG-M04-04 : motif choisi dans la liste paramétrable, complété d'un commentaire libre */
+            'motif_rejet' => ['required', 'string', Rule::in(array_keys(\App\Models\MotifRejet::options()))],
             'commentaire' => ['nullable', 'string', 'max:1000', 'required_if:motif_rejet,autre'],
         ]);
 
-        $motifStr = BonCaisse::MOTIFS_REJET[$validated['motif_rejet']];
+        $motifStr = \App\Models\MotifRejet::options()[$validated['motif_rejet']];
         $commentaireRejetFinal = $motifStr;
         if (!empty($validated['commentaire'])) {
             $commentaireRejetFinal .= " - " . $validated['commentaire'];

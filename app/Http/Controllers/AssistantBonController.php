@@ -325,6 +325,7 @@ class AssistantBonController extends Controller
             'nom' => $t->nom,
             'libelle' => $t->libelle(),
             'telephone' => $t->numero_om ?? $t->telephone,
+            'numero_om' => $t->numero_om,
             'statut' => $t->statut,
             'selectionnable' => $t->estValide(),
         ];
@@ -337,10 +338,26 @@ class AssistantBonController extends Controller
             'nom' => $v->nom_complet,
             'libelle' => $v->libelle() . ($v->enSejour() ? '' : ' — hors période de séjour'),
             'telephone' => $v->numero_om,
+            'numero_om' => $v->numero_om,
             'departement_accueil' => $v->departement_accueil,
             'directeur' => $v->directeur?->nom_complet,
             'selectionnable' => true,
         ];
+    }
+
+    /** GET /api/v1/referentiels/frais-om?montant= — RG-M03-09 : estimation des frais Orange Money, pour information */
+    public function fraisOm(Request $request): JsonResponse
+    {
+        $montant = (float) $request->query('montant');
+        $frais = $montant > 0 ? \App\Services\Paiement\FraisOrangeMoney::calculer($montant) : null;
+
+        return response()->json(['estimation' => $frais ? $frais + [
+            'message' => __('MSG-M03-06', [
+                'frais' => \App\Support\Format::nombre($frais['frais']),
+                'taux' => str_replace('.', ',', (string) $frais['taux']),
+                'montant_verse' => \App\Support\Format::nombre($frais['montant_verse']),
+            ]),
+        ] : null]);
     }
 
     /** GET /api/v1/referentiels/caisse-payeuse?site=&mode=&bon= — RG-BC-11, RG-BC-12 ; la caisse émettrice du bon paie en espèces */
@@ -370,6 +387,7 @@ class AssistantBonController extends Controller
                 . ($utilisateur->matricule ? " — {$utilisateur->matricule}" : '')
                 . ($utilisateur->service ? " — {$utilisateur->service}" : ''),
             'telephone' => ReglesSaisie::normaliserTelephone($utilisateur->telephone),
+            'numero_om' => ReglesSaisie::normaliserTelephone($utilisateur->numero_om),
         ];
     }
 
@@ -435,6 +453,8 @@ class AssistantBonController extends Controller
             'montant_lettres' => $bon->montant_lettres,
             'caisse' => $bon->caisse ? ['libelle' => $bon->caisse->libelle, 'plafond_retrait' => $bon->caisse->plafond_retrait !== null ? (float) $bon->caisse->plafond_retrait : null] : null,
             'beneficiaire_libelle' => $bon->beneficiaireUtilisateur ? self::beneficiaire($bon->beneficiaireUtilisateur)['libelle'] : null,
+            /* RG-M03-10 : n° OM du salarié bénéficiaire, pour le pré-remplissage */
+            'beneficiaire_numero_om' => ReglesSaisie::normaliserTelephone($bon->beneficiaireUtilisateur?->numero_om),
             /* Lot C (RG-M03-11) : caisse émettrice, qui numérote le bon */
             'caisse_emettrice' => $bon->caisseEmettrice ? $bon->caisseEmettrice->libelle . ' (' . $bon->caisseEmettrice->codeNumerotation() . ')' : null,
             'tiers' => $bon->tiers ? self::tiersChoisi($bon->tiers) : null,

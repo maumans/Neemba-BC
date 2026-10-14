@@ -81,16 +81,16 @@ class PiecesEtTicketsTest extends TestCase
     }
 
     /** Une facture illisible ne compte pas comme justificatif et bloque la soumission */
-    public function test_un_scan_illisible_ne_compte_pas_et_bloque_la_soumission(): void
+    /** Spec v2.3, RG-M03-16 : un scan sous 300 dpi est signalé, sans bloquer ; la facture compte comme justificatif */
+    public function test_un_scan_de_faible_resolution_est_signale_sans_bloquer(): void
     {
         $bon = $this->bon();
         $this->deposer($bon, UploadedFile::fake()->createWithContent('facture_scannee.pdf', $this->pdfScanne(1100, 800)), 'facture')
             ->assertJsonPath('piece.qualite', 'illisible');
 
-        $this->etape4($bon)->assertJsonPath('erreurs.pieces.0', __('MSG-BC-017'));
-        $controles = $this->controles($bon);
-        $this->assertSame('bloquant', $controles[5]['niveau']);
-        $this->assertSame('MSG-BC-018', $controles[5]['message_cle']);
+        $this->etape4($bon)->assertJsonPath('erreurs', []);
+        $controle = collect($this->controles($bon))->firstWhere('numero', 5);
+        $this->assertSame(['avertissement', 'MSG-APP-064'], [$controle['niveau'], $controle['message_cle']]);
     }
 
     public function test_une_piece_de_qualite_moyenne_est_signalee_sans_bloquer(): void
@@ -169,6 +169,8 @@ class PiecesEtTicketsTest extends TestCase
             ->assertOk()
             ->assertJsonPath('piece.lecture.statut', 'validee')
             ->assertJsonPath('piece.lecture.avertissements', []);
+        /* Spec v2.3 (RG-M03-15) : le ticket ne suffit plus, une facture justifie le bon définitif */
+        $this->deposer($bon, UploadedFile::fake()->image('facture_station.jpg', 4100, 2000), 'facture');
 
         $this->actingAs($this->souadou)->getJson(route('api.bons.controles', $bon))
             ->assertJsonPath('soumission_possible', true)

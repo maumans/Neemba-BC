@@ -107,6 +107,21 @@ class NumerotationCaisseTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('bonsCaisse.total', 1)->where('bonsCaisse.data.0.numero', $bonAtelier->numero));
     }
 
+    /** RG-M06-07 : le caissier décide du mode ; un ancien bon sans caisse émettrice relève du site ; la caisse OM paie en OM */
+    public function test_le_caissier_et_le_mode_qu_il_retient(): void
+    {
+        $caissier = User::factory()->role('caissier')->create(['site' => 'Conakry', 'caisse_id' => $this->conakry->id]);
+        $ancien = BonCaisse::factory()->approuve()->create(['site' => 'Conakry', 'mode_paiement' => 'orange_money', 'caisse_emettrice_id' => null]);
+        $this->assertNull(ControleCaissier::refus($ancien, $caissier));
+
+        $om = Caisse::factory()->orangeMoney()->create(['code' => 'CKY-OM', 'code_numerotation' => 'OM', 'site_id' => $this->conakry->site_id]);
+        $tresoriere = User::factory()->role('caissier')->create(['site' => 'Conakry', 'caisse_id' => $om->id]);
+        $bonBoke = $this->soumettre($this->demandeur('Boke'));
+        $bonBoke->update(['statut' => 'APPROUVE']);
+        $this->assertNull(ControleCaissier::refus($bonBoke->fresh(), $tresoriere, $om));
+        $this->assertNotNull(ControleCaissier::refus($bonBoke->fresh(), $caissier, $bonBoke->fresh()->caissePayeuse('especes')));
+    }
+
     /** Paramétrage d'une caisse : code, numéro de départ et nombre de chiffres */
     public function test_le_parametrage_de_la_numerotation(): void
     {

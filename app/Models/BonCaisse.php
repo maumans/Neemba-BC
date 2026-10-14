@@ -36,6 +36,10 @@ class BonCaisse extends Model
      * Champs remplissables en masse
      */
     protected $fillable = [
+        'reference_paiement',
+        'types_or',
+        'numero_om',
+        'motif_numero_om',
         'caisse_emettrice_id',
         'tiers_id',
         'visiteur_id',
@@ -110,6 +114,7 @@ class BonCaisse extends Model
     {
         return [
             'references_or' => 'array',
+            'types_or' => 'array',
             'doublon_probable' => 'array',
             'derogation_bp' => 'array',
             'lie_mission' => 'boolean',
@@ -198,6 +203,8 @@ class BonCaisse extends Model
         'orange_money' => 'Orange Money',
         'cheque' => 'Chèque',
         'virement' => 'Virement',
+        /* §6.2 : paramétré, inactif par défaut (paramètre « mode_mtn_actif ») */
+        'mtn_money' => 'MTN Money',
         'autre' => 'Autre',
     ];
 
@@ -207,6 +214,20 @@ class BonCaisse extends Model
     /** Modes de paiement qui sortent d'une caisse ; les autres sont payés hors caisse (RG-BC-12) */
     const MODES_PAIEMENT_CAISSE = ['especes', 'orange_money'];
 
+    /** RG-M06-04 : modes qui exigent une référence au paiement (transaction OM ou MTN, n° de chèque, référence de virement) */
+    const MODES_AVEC_REFERENCE = ['orange_money', 'mtn_money', 'cheque', 'virement'];
+
+    /** RG-M06-07 : modes que le caissier peut retenir (MTN Money s'il est activé ; plus de mode « autre ») */
+    public static function modesCaissier(): array
+    {
+        $modes = ['especes', 'orange_money', 'cheque', 'virement'];
+        if (Parametre::valeur('mode_mtn_actif', false)) {
+            $modes[] = 'mtn_money';
+        }
+
+        return array_intersect_key(self::MODES_PAIEMENT, array_flip($modes));
+    }
+
     /** Niveaux d'urgence */
     const NIVEAUX_URGENCE = [
         'normale' => 'Normale',
@@ -215,14 +236,6 @@ class BonCaisse extends Model
     ];
 
     /** Motifs de rejet prédéfinis */
-    const MOTIFS_REJET = [
-        'budget_insuffisant' => 'Budget insuffisant ou non alloué',
-        'piece_manquante' => 'Pièce justificative manquante',
-        'montant_incorrect' => 'Montant incorrect',
-        'code_analytique_errone' => 'Code analytique erroné',
-        'non_conforme_politique' => 'Non conforme à la politique de dépenses',
-        'autre' => 'Autre (préciser en commentaire)',
-    ];
 
     /** Délai de régularisation en jours pour une mission */
     const DELAI_REGULARISATION_MISSION = 3;

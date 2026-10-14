@@ -18,7 +18,7 @@ export const ETAPES = [
 export const CHAMPS_PAR_ETAPE = {
     1: ['demandeur_id', 'type_bon', 'code_analytique', 'site', 'service', 'niveau_urgence', 'motif_urgence', 'justification_urgence'],
     2: ['type_beneficiaire', 'beneficiaire_id', 'visiteur_id', 'tiers_id', 'beneficiaire', 'telephone_beneficiaire'],
-    3: ['motif', 'categorie_depense', 'montant', 'mode_paiement', 'vehicule', 'references_or', 'lie_mission', 'date_retour_mission'],
+    3: ['motif', 'numero_om', 'motif_numero_om', 'types_or', 'categorie_depense', 'montant', 'mode_paiement', 'vehicule', 'references_or', 'lie_mission', 'date_retour_mission'],
     4: ['pieces'],
 };
 
@@ -85,8 +85,9 @@ export function codesDuService(codes = [], serviceId = null) {
 }
 
 /** Un numéro d'OR : 8 chiffres (RG-BC-13) */
+/** Spec v2.3, RG-M03-13 : 8 chiffres commençant par 110 */
 export function estNumeroOr(valeur) {
-    return /^\d{8}$/.test(String(valeur ?? '').trim());
+    return /^110\d{5}$/.test(String(valeur ?? '').trim());
 }
 
 /**
@@ -96,7 +97,7 @@ export function estNumeroOr(valeur) {
 export function ajouterOr(liste = [], saisie = '') {
     const numero = String(saisie).replace(/\s/g, '');
     if (numero === '') return { liste, erreur: null };
-    if (!estNumeroOr(numero)) return { liste, erreur: 'MSG-BC-014' };
+    if (!estNumeroOr(numero)) return { liste, erreur: 'MSG-M03-07' };
     if (liste.includes(numero)) return { liste, erreur: null };
 
     return { liste: [...liste, numero], erreur: null };
@@ -133,7 +134,7 @@ export function libelleDansUnePhrase(libelle = '') {
 export function compteurMotif(motif = '') {
     const longueur = motif.trim().length;
 
-    return longueur < 10 ? `${longueur}/10 min` : `${longueur}/200`;
+    return longueur < 10 ? `${longueur}/10 min` : `${longueur}/250`;
 }
 
 /** Date au format AAAA-MM-JJ, n jours avant la date du jour fournie (borne de la date de retour de mission) */

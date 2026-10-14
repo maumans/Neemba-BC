@@ -171,10 +171,9 @@ export default function EtapeIdentification({
 
                     <Champ
                         champ="justification_urgence"
-                        libelle="Justification"
-                        obligatoire
+                        libelle="Précisions (facultatif)"
                         erreur={erreurs.justification_urgence}
-                        aide={`${(donnees.justification_urgence ?? '').trim().length}/300 — 10 caractères minimum`}
+                        aide={`${(donnees.justification_urgence ?? '').trim().length}/300`}
                     >
                         <Textarea
                             id="champ-justification_urgence"

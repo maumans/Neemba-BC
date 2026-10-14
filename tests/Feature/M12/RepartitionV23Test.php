@@ -134,7 +134,7 @@ class RepartitionV23Test extends TestCase
         OtpValidation::create(['bon_caisse_id' => $bon->id, 'code' => '123456', 'telephone' => '622000000',
             'expires_at' => now()->addMinutes(5), 'verified_at' => now(), 'is_used' => false]);
 
-        return $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money']);
+        return $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'reference_paiement' => 'MP261017.1530.A12345']);
     }
 
     /* ------------------------------------------------------------------ */

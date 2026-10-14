@@ -73,15 +73,16 @@ describe('assistant — dépense', () => {
     });
 
     it('RG-BC-13 : un OR fait 8 chiffres et n\'est ajouté qu\'une fois', () => {
-        expect(ajouterOr([], '1102221')).toEqual({ liste: [], erreur: 'MSG-BC-014' });
+        expect(ajouterOr([], '1102221')).toEqual({ liste: [], erreur: 'MSG-M03-07' });
+        expect(ajouterOr([], '12022204')).toEqual({ liste: [], erreur: 'MSG-M03-07' });
         expect(ajouterOr([], '1102 2204')).toEqual({ liste: ['11022204'], erreur: null });
         expect(ajouterOr(['11022204'], '11022204')).toEqual({ liste: ['11022204'], erreur: null });
         expect(ajouterOr(['11022204'], '')).toEqual({ liste: ['11022204'], erreur: null });
     });
 
-    it('compte les caractères du motif (n/10 min puis n/200)', () => {
+    it('compte les caractères du motif (n/10 min puis n/250)', () => {
         expect(compteurMotif('Achat')).toBe('5/10 min');
-        expect(compteurMotif('Achat de gasoil')).toBe('15/200');
+        expect(compteurMotif('Achat de gasoil')).toBe('15/250');
     });
 
     it('calcule la borne de la date de retour de mission (aujourd\'hui − 30 j)', () => {

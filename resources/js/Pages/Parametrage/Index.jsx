@@ -329,7 +329,7 @@ const LIBELLES_GROUPES_PARAMETRES = {
     comptabilite: 'Comptabilité (M16)',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
     /* ─── SITES ─── */
     const [siteDialog, setSiteDialog] = useState({ open: false, item: null });
     const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '' });
@@ -537,6 +537,25 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     };
     const toggleMotif = (item) => router.post(route('parametrage.motifs-urgence.toggle', item.id));
 
+    /* ─── MOTIFS DE REJET (spec v2.3, RG-M04-04) ─── */
+    const [rejetDialog, setRejetDialog] = useState({ open: false, item: null });
+    const rejetForm = useForm({ libelle: '' });
+    const openRejetAdd = () => {
+        rejetForm.reset();
+        setRejetDialog({ open: true, item: null });
+    };
+    const openRejetEdit = (item) => {
+        rejetForm.setData({ libelle: item.libelle });
+        setRejetDialog({ open: true, item });
+    };
+    const submitRejet = (e) => {
+        e.preventDefault();
+        const options = { onSuccess: () => setRejetDialog({ open: false, item: null }) };
+        if (rejetDialog.item) rejetForm.put(route('parametrage.motifs-rejet.update', rejetDialog.item.id), options);
+        else rejetForm.post(route('parametrage.motifs-rejet.store'), options);
+    };
+    const toggleRejet = (item) => router.post(route('parametrage.motifs-rejet.toggle', item.id));
+
     return (
         <AuthenticatedLayout header="Paramétrage">
             <Head title="Paramétrage" />
@@ -572,6 +591,9 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                 </TabsTrigger>
                                 <TabsTrigger value="motifs" className="gap-1 px-2 text-xs sm:text-sm">
                                     <AlertTriangle className="h-3.5 w-3.5" /> Motifs d'urgence
+                                </TabsTrigger>
+                                <TabsTrigger value="motifs-rejet" className="gap-1 px-2 text-xs sm:text-sm">
+                                    <AlertTriangle className="h-3.5 w-3.5" /> Motifs de rejet
                                 </TabsTrigger>
                                 <TabsTrigger value="parametres" className="gap-1 px-2 text-xs sm:text-sm">
                                     <SlidersHorizontal className="h-3.5 w-3.5" /> Seuils
@@ -685,6 +707,23 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                     onAdd={openMotifAdd}
                                     onEdit={openMotifEdit}
                                     onToggle={toggleMotif}
+                                    addLabel="Ajouter un motif"
+                                />
+                            </TabsContent>
+
+                            {/* Motifs de rejet (spec v2.3, RG-M04-04) */}
+                            <TabsContent value="motifs-rejet" className="mt-4">
+                                <div className="mb-4 p-4 border border-red-200 bg-red-50/50 rounded-lg">
+                                    <p className="text-sm text-gray-700">
+                                        Motifs proposés au valideur qui rejette un bon, complétés d'un commentaire libre. Un motif se désactive : les rejets passés restent lisibles.
+                                    </p>
+                                </div>
+                                <ParametrageTable
+                                    items={motifsRejet}
+                                    columns={[{ key: 'libelle', label: 'Libellé du motif' }]}
+                                    onAdd={openRejetAdd}
+                                    onEdit={openRejetEdit}
+                                    onToggle={toggleRejet}
                                     addLabel="Ajouter un motif"
                                 />
                             </TabsContent>
@@ -1045,6 +1084,19 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <Label>Libellé du motif *</Label>
                     <Input value={motifForm.data.libelle} onChange={(e) => motifForm.setData('libelle', e.target.value)} placeholder="Ex: Panne machine..." className="mt-1" required />
                     {motifForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{motifForm.errors.libelle}</p>}
+                </div>
+            </FormDialog>
+            <FormDialog
+                open={rejetDialog.open}
+                onClose={() => setRejetDialog({ open: false, item: null })}
+                title={rejetDialog.item ? 'Modifier le motif de rejet' : 'Ajouter un motif de rejet'}
+                onSubmit={submitRejet}
+                processing={rejetForm.processing}
+            >
+                <div>
+                    <Label>Libellé du motif *</Label>
+                    <Input value={rejetForm.data.libelle} onChange={(e) => rejetForm.setData('libelle', e.target.value)} placeholder="Ex : Absence de pièce justificative" className="mt-1" required />
+                    {rejetForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{rejetForm.errors.libelle}</p>}
                 </div>
             </FormDialog>
         </AuthenticatedLayout>

@@ -78,6 +78,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         /* Lot B (spec v2.3, RG-M03-03, RG-M02-06) : tiers validés, visiteurs du groupe, proposition d'un tiers */
         Route::get('/referentiels/tiers', [AssistantBonController::class, 'tiers'])->name('referentiels.tiers');
         Route::get('/referentiels/visiteurs', [AssistantBonController::class, 'visiteurs'])->name('referentiels.visiteurs');
+        Route::get('/referentiels/frais-om', [AssistantBonController::class, 'fraisOm'])->name('referentiels.frais-om');
         Route::post('/tiers', [AssistantBonController::class, 'proposerTiers'])->name('tiers.proposer');
         /* Spec v2.3, §6.5 : clients actifs, pour les sélecteurs des ODM */
         Route::get('/referentiels/clients', [ClientController::class, 'recherche'])->name('referentiels.clients');
@@ -308,6 +309,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/parametrage/motifs-urgence', [ParametrageController::class, 'storeMotifUrgence'])->name('parametrage.motifs-urgence.store');
         Route::put('/parametrage/motifs-urgence/{motifUrgence}', [ParametrageController::class, 'updateMotifUrgence'])->name('parametrage.motifs-urgence.update');
         Route::post('/parametrage/motifs-urgence/{motifUrgence}/toggle', [ParametrageController::class, 'toggleMotifUrgence'])->name('parametrage.motifs-urgence.toggle');
+        /* Spec v2.3, RG-M04-04 : motifs de rejet paramétrables */
+        Route::post('/parametrage/motifs-rejet', [ParametrageController::class, 'storeMotifRejet'])->name('parametrage.motifs-rejet.store');
+        Route::put('/parametrage/motifs-rejet/{motifRejet}', [ParametrageController::class, 'updateMotifRejet'])->name('parametrage.motifs-rejet.update');
+        Route::post('/parametrage/motifs-rejet/{motifRejet}/toggle', [ParametrageController::class, 'toggleMotifRejet'])->name('parametrage.motifs-rejet.toggle');
 
         /* Paramètres système */
         Route::put('/parametrage/parametres/{parametre}', [ParametrageController::class, 'updateParametre'])->name('parametrage.parametres.update');

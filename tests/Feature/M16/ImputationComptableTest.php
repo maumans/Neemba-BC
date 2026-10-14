@@ -115,7 +115,7 @@ class ImputationComptableTest extends TestCase
         $bon->update(['statut' => 'APPROUVE']);
         OtpValidation::create(['bon_caisse_id' => $bon->id, 'code' => '123456', 'telephone' => '622000000',
             'expires_at' => now()->addMinutes(5), 'verified_at' => now(), 'is_used' => false]);
-        $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money'])->assertSessionHas('success');
+        $this->actingAs($this->caissier)->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'orange_money', 'reference_paiement' => 'MP261017.1530.A12345'])->assertSessionHas('success');
 
         return $bon->fresh();
     }

@@ -329,6 +329,8 @@ export default function Show({
     peutPreRegulariser = false,
     aDesPiecesRegularisation = false,
     motifsRejet = {},
+    modesCaissier = {},
+    modesAvecReference = [],
     fraisOrangeMoney = null,
     etapesValidation = [],
     rejet = null,
@@ -347,6 +349,15 @@ export default function Show({
     const [modePaiement, setModePaiement] = useState('especes');
     /* Frais Orange Money saisis par le caissier quand le montant est hors paliers (spec v2.2 §6.6, PO-01) */
     const [fraisOmSaisis, setFraisOmSaisis] = useState('');
+    /* RG-M06-04 : référence du paiement selon le mode (transaction OM ou MTN, n° de chèque, référence de virement) */
+    const [referencePaiement, setReferencePaiement] = useState('');
+    const referenceExigee = modesAvecReference.includes(modePaiement);
+    const LIBELLES_REFERENCE = {
+        orange_money: 'Référence de la transaction Orange Money',
+        mtn_money: 'Référence de la transaction MTN Money',
+        cheque: 'N° du chèque',
+        virement: 'Référence du virement',
+    };
     const fraisOmASaisir = modePaiement === 'orange_money' && !fraisOrangeMoney;
     const [showPaiementForm, setShowPaiementForm] = useState(false);
     const [showRejetDialog, setShowRejetDialog] = useState(false);
@@ -475,6 +486,7 @@ export default function Show({
         }
         executerAction('bons-caisse.payer', {
             mode_paiement_effectif: modePaiement,
+            reference_paiement: referenceExigee ? referencePaiement : null,
             ...(fraisOmASaisir ? { frais_om: fraisOmSaisis } : {}),
         });
     };
@@ -897,6 +909,26 @@ export default function Show({
                                                 </div>
                                             </div>
                                         )}
+                                        {/* Spec v2.3 : OR et leur type (RG-M03-13), n° Orange Money (RG-M03-10) */}
+                                        {(bonCaisse.references_or?.length > 0 || bonCaisse.numero_om) && (
+                                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                                {bonCaisse.references_or?.length > 0 && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">N° d'OR</p>
+                                                        <p className="font-medium">
+                                                            {bonCaisse.references_or.map((numero) => `${numero}${bonCaisse.types_or?.[numero] ? ` (${bonCaisse.types_or[numero] === 'garantie' ? 'Garantie' : 'Vente'})` : ''}`).join(', ')}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {bonCaisse.numero_om && (
+                                                    <div>
+                                                        <p className="text-xs text-gray-500">N° Orange Money</p>
+                                                        <p className="font-medium">{bonCaisse.numero_om}</p>
+                                                        {bonCaisse.motif_numero_om && <p className="text-xs text-amber-700">Modifié : {bonCaisse.motif_numero_om}</p>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                         {bonCaisse.montant_lettres && (
                                             <div>
                                                 <p className="text-xs text-gray-500 mb-1">Montant en lettres</p>
@@ -990,6 +1022,7 @@ export default function Show({
                                                                 <p className="font-medium">
                                                                     {modesPaiement[bonCaisse.mode_paiement_effectif] || bonCaisse.mode_paiement_effectif}
                                                                 </p>
+                                                                {bonCaisse.reference_paiement && <p className="text-xs text-gray-500">Réf. {bonCaisse.reference_paiement}</p>}
                                                             </div>
                                                         </div>
                                                     )}
@@ -1739,7 +1772,8 @@ export default function Show({
                                                                             <SelectValue />
                                                                         </SelectTrigger>
                                                                         <SelectContent>
-                                                                            {Object.entries(modesPaiement).map(([key, label]) => (
+                                                                            {/* RG-M06-07 : modes que le caissier peut retenir */}
+                                                                            {Object.entries(modesCaissier).map(([key, label]) => (
                                                                                 <SelectItem key={key} value={key}>{label}</SelectItem>
                                                                             ))}
                                                                         </SelectContent>
@@ -1754,6 +1788,15 @@ export default function Show({
                                                                             montant_verse: fraisOrangeMoney.montant_verse,
                                                                         })}
                                                                     </p>
+                                                                )}
+                                                                {referenceExigee && (
+                                                                    <div>
+                                                                        <Label htmlFor="reference_paiement" className="text-sm font-medium text-gray-700 mb-1 block">
+                                                                            {LIBELLES_REFERENCE[modePaiement] ?? 'Référence du paiement'} *
+                                                                        </Label>
+                                                                        <Input id="reference_paiement" value={referencePaiement} maxLength={100}
+                                                                            onChange={(e) => setReferencePaiement(e.target.value)} className="bg-white" />
+                                                                    </div>
                                                                 )}
                                                                 {fraisOmASaisir && (
                                                                     <div>
@@ -1776,7 +1819,7 @@ export default function Show({
                                                                     <Button
                                                                         className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg text-sm"
                                                                         onClick={effectuerPaiement}
-                                                                        disabled={fraisOmASaisir && fraisOmSaisis === ''}
+                                                                        disabled={(fraisOmASaisir && fraisOmSaisis === '') || (referenceExigee && referencePaiement.trim() === '')}
                                                                     >
                                                                         <Banknote className="mr-2 h-4 w-4 flex-shrink-0" />
                                                                         Confirmer le paiement

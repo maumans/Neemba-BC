@@ -229,6 +229,7 @@ final class GenererBonsOdm
             'montant' => round($montant),
             'mode_paiement' => 'orange_money',
             'references_or' => $odm->ordresReparation()->pluck('numero')->all() ?: null,
+            'types_or' => $odm->ordresReparation()->pluck('type', 'numero')->all() ?: null,
             'lie_mission' => false,
             'odm_id' => $odm->id,
             'genere_par_odm' => true,
@@ -237,6 +238,8 @@ final class GenererBonsOdm
             'date_demande' => today(),
             'statut' => 'BROUILLON',
         ], $attributs));
+        /* RG-M03-10 : n° OM du participant (ou du bénéficiaire du bon groupé) */
+        $bon->numero_om ??= $bon->mode_paiement === 'orange_money' ? $bon->telephone_beneficiaire : null;
         $bon->caisse_emettrice_id = \App\Models\Caisse::deRattachement($odm->demandeur)?->id;
         $bon->caisse_id = $bon->caissePayeuse()?->id;
         $bon->save();
