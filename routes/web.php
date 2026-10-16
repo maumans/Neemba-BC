@@ -324,6 +324,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/parametrage/motifs-urgence', [ParametrageController::class, 'storeMotifUrgence'])->name('parametrage.motifs-urgence.store');
         Route::put('/parametrage/motifs-urgence/{motifUrgence}', [ParametrageController::class, 'updateMotifUrgence'])->name('parametrage.motifs-urgence.update');
         Route::post('/parametrage/motifs-urgence/{motifUrgence}/toggle', [ParametrageController::class, 'toggleMotifUrgence'])->name('parametrage.motifs-urgence.toggle');
+        /* Spec v2.4, RG-M03-28 (PO-30) : motifs du bon exceptionnel au profit d'un visiteur du groupe */
+        Route::post('/parametrage/motifs-visiteur', [ParametrageController::class, 'storeMotifVisiteur'])->name('parametrage.motifs-visiteur.store');
+        Route::put('/parametrage/motifs-visiteur/{motifVisiteur}', [ParametrageController::class, 'updateMotifVisiteur'])->name('parametrage.motifs-visiteur.update');
+        Route::post('/parametrage/motifs-visiteur/{motifVisiteur}/toggle', [ParametrageController::class, 'toggleMotifVisiteur'])->name('parametrage.motifs-visiteur.toggle');
         /* Spec v2.3, RG-M04-04 : motifs de rejet paramétrables */
         Route::post('/parametrage/motifs-rejet', [ParametrageController::class, 'storeMotifRejet'])->name('parametrage.motifs-rejet.store');
         Route::put('/parametrage/motifs-rejet/{motifRejet}', [ParametrageController::class, 'updateMotifRejet'])->name('parametrage.motifs-rejet.update');

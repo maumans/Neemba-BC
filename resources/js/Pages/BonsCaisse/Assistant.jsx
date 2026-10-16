@@ -53,6 +53,8 @@ function valeursDe(bon, demandeur) {
         beneficiaire_id: bon ? bon.beneficiaire_id : demandeur.id,
         visiteur_id: bon?.visiteur_id ?? null,
         tiers_id: bon?.tiers_id ?? null,
+        motif_visiteur: bon?.motif_visiteur ?? '',
+        commentaire_visiteur: bon?.commentaire_visiteur ?? '',
         beneficiaire: bon?.beneficiaire ?? demandeur.nom_complet,
         telephone_beneficiaire: (bon ? bon.telephone_beneficiaire : demandeur.telephone) ?? '',
         motif: bon?.motif ?? '',
@@ -118,6 +120,7 @@ export default function Assistant({
     codesAnalytiques = [],
     categories = [],
     motifsUrgence = [],
+    motifsVisiteur = [],
     typesBeneficiaire = {},
     modesPaiement = {},
     typesPiece = {},
@@ -657,6 +660,7 @@ export default function Assistant({
                                             visiteurChoisi={referentielChoisi.visiteur}
                                             choisirReferentiel={choisirReferentiel}
                                             demandeur={demandeur}
+                                            motifsVisiteur={motifsVisiteur}
                                         />
                                     )}
                                     {etape === 3 && (

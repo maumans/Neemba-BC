@@ -123,6 +123,18 @@ class EnregistrementBon
             $bon->telephone_beneficiaire = ReglesSaisie::normaliserTelephone($bon->telephone_beneficiaire);
         }
 
+        /* RG-M03-28 (v2.4) : un bon au profit d'un visiteur du groupe est marqué « refacturation inter-filiale », avec la
+         * filiale d'origine du visiteur ; ailleurs, motif et commentaire du bon visiteur sont effacés */
+        if ($type === 'visiteur') {
+            $bon->refacturation_inter_filiale = true;
+            $bon->filiale_refacturation = $bon->visiteur_id ? \App\Models\Visiteur::find($bon->visiteur_id)?->filiale : null;
+        } else {
+            $bon->refacturation_inter_filiale = false;
+            $bon->filiale_refacturation = null;
+            $bon->motif_visiteur = null;
+            $bon->commentaire_visiteur = null;
+        }
+
         /* RG-BC-13 : véhicule en majuscules, OR sans doublon */
         if ($bon->vehicule !== null) {
             $bon->vehicule = mb_strtoupper(trim($bon->vehicule)) ?: null;

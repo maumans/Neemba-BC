@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
  * Après paiement, la Comptabilité impute le bon : une ou plusieurs lignes (compte, libellé, montant, code analytique),
  * la somme égale au montant versé. Pré-remplissage : BP → 421100, frais OM → compte paramétrable, bons d'ODM → une ligne
  * par part de prise en charge. Export quotidien des écritures en Excel / CSV générique ; une écriture exportée ne se
- * modifie plus. La saisie comptable reste dans Infor IE (aucun format d'import IE).
+ * modifie plus. La saisie comptable reste dans l'ERP Helium (aucun format d'import Helium).
  */
 return new class extends Migration
 {

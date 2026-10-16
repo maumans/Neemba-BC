@@ -141,19 +141,18 @@ function ActionsVisa({ odm, visa }) {
 
 /**
  * Génération des bons (US-08) : globale (tous les participants sans bon), par sélection (cases à cocher) ou pour un seul
- * participant. Chaque bon est soumis aussitôt ; en mode groupé, la sélection forme un bon groupé. Les participants laissés
+ * participant ; un bon par participant (spec v2.4, RG-M12-14). Chaque bon est soumis aussitôt. Les participants laissés
  * de côté restent à générer (ou reçoivent leur bon au réel à la clôture, Q26).
  */
 function GenerationBons({ odm, generation }) {
     const participants = generation.participants;
     const sansBon = participants.filter((p) => !p.a_un_bon);
     const premier = sansBon[0]?.user_id ?? participants[0]?.user_id ?? '';
-    const form = useForm({ participants: [], beneficiaire_groupe_id: premier, bp: { montant: '', motif: '', beneficiaire_id: premier } });
+    const form = useForm({ participants: [], bp: { montant: '', motif: '', beneficiaire_id: premier } });
     const [avecBp, setAvecBp] = useState(false);
     const [selection, setSelection] = useState([]);
     /* Participants de la génération à confirmer (null : boîte fermée ; [] : le bon provisoire seul) */
     const [aConfirmer, setAConfirmer] = useState(null);
-    const groupe = generation.mode === 'groupe';
     const generes = participants.length - generation.reste_a_generer;
     const bloque = generation.sans_taux || form.processing;
 
@@ -161,11 +160,10 @@ function GenerationBons({ odm, generation }) {
     const basculer = (id) => setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
     const toutCoche = sansBon.length > 0 && selection.length === sansBon.length;
     const concernes = aConfirmer ? participants.filter((p) => aConfirmer.includes(p.user_id)) : [];
-    const designe = aConfirmer?.includes(form.data.beneficiaire_groupe_id) ? form.data.beneficiaire_groupe_id : aConfirmer?.[0];
 
     const confirmer = () => {
         const ids = aConfirmer;
-        form.transform((d) => ({ ...d, participants: ids, beneficiaire_groupe_id: groupe ? designe : null, bp: avecBp ? d.bp : null }));
+        form.transform((d) => ({ ...d, participants: ids, bp: avecBp ? d.bp : null }));
         form.post(route('odm.generer-bons', odm.id), {
             preserveScroll: true,
             onSuccess: () => { setAConfirmer(null); setSelection([]); setAvecBp(false); },
@@ -188,9 +186,7 @@ function GenerationBons({ odm, generation }) {
                     </div>
                 </div>
                 <p className="text-sm text-gray-700">
-                    {groupe
-                        ? 'Mode groupé : les participants choisis forment un bon groupé, versé au n° Orange Money de celui que vous désignez.'
-                        : 'Un bon définitif par participant, du montant de ses indemnités.'}
+                    Un bon définitif par participant, du montant de ses indemnités.
                     {' '}Générez tous les bons, ceux que vous cochez, ou un seul. Chaque bon est soumis aussitôt et suit son propre circuit ;
                     {' '}Neemba avance aussi la part des clients, refacturée ensuite. L'ODM tient lieu de justificatif.
                 </p>
@@ -309,8 +305,7 @@ function GenerationBons({ odm, generation }) {
                     <DialogHeader>
                         <DialogTitle>
                             {concernes.length === 0 ? 'Générer le bon provisoire'
-                                : groupe ? `Générer un bon groupé pour ${concernes.length} participant${concernes.length > 1 ? 's' : ''}`
-                                    : `Générer ${concernes.length} bon${concernes.length > 1 ? 's' : ''} de caisse`}
+                                : `Générer ${concernes.length} bon${concernes.length > 1 ? 's' : ''} de caisse`}
                         </DialogTitle>
                         <DialogDescription>Les bons sont soumis aussitôt et partent dans leur circuit de validation.</DialogDescription>
                     </DialogHeader>
@@ -328,15 +323,6 @@ function GenerationBons({ odm, generation }) {
                                 </li>
                             )}
                         </ul>
-                    )}
-                    {groupe && concernes.length > 1 && (
-                        <div>
-                            <label htmlFor="beneficiaire-groupe" className="text-sm font-medium">Bon groupé versé à</label>
-                            <select id="beneficiaire-groupe" className="mt-1 h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
-                                value={designe} onChange={(e) => form.setData('beneficiaire_groupe_id', Number(e.target.value))}>
-                                {concernes.map((p) => <option key={p.user_id} value={p.user_id}>{p.nom}</option>)}
-                            </select>
-                        </div>
                     )}
                     {avecBp && <p className="text-sm text-gray-700">Avec le bon provisoire de {form.data.bp.montant ? `${form.data.bp.montant} GNF` : 'montant à saisir'}.</p>}
                     <DialogFooter>
@@ -482,6 +468,7 @@ function Cloturer({ odm, regularisationsPossibles }) {
         date_retour_reelle: odm.date_retour_prevue,
         regularisations: Object.fromEntries(odm.participants.map((p) => [p.user_id, 'reversement'])),
         factures_retour: {},
+        factures_retour_pieces: {},
     });
     const anticipe = form.data.date_retour_reelle && form.data.date_retour_reelle < odm.date_retour_prevue;
     const auRetour = odm.type === 'exterieur' && odm.hebergement_exterieur === 'au_retour';
@@ -502,8 +489,8 @@ function Cloturer({ odm, regularisationsPossibles }) {
                             <label htmlFor="retour-reel" className="text-sm font-medium">Date de retour réelle</label>
                             <Input id="retour-reel" type="date" className="mt-1" max={odm.date_retour_prevue} min={odm.date_depart}
                                 value={form.data.date_retour_reelle} onChange={(e) => form.setData('date_retour_reelle', e.target.value)} />
-                            {(form.errors.date_retour_reelle || form.errors.general) && (
-                                <p className="mt-1 text-sm text-red-600">{form.errors.date_retour_reelle ?? form.errors.general}</p>
+                            {(form.errors.date_retour_reelle || form.errors.general || form.errors.factures_retour) && (
+                                <p className="mt-1 text-sm text-red-600">{form.errors.date_retour_reelle ?? form.errors.general ?? form.errors.factures_retour}</p>
                             )}
                         </div>
                         {anticipe && (
@@ -527,7 +514,10 @@ function Cloturer({ odm, regularisationsPossibles }) {
                         {auRetour && (
                             <div className="space-y-2 rounded-md border p-3 text-sm">
                                 <p className="font-medium">Factures d'hébergement payées au retour</p>
-                                <p className="text-xs text-gray-500">Un bon complémentaire est préparé en brouillon pour chaque facture : joignez-la, puis soumettez le bon.</p>
+                                <p className="text-xs text-gray-500">
+                                    Pour chaque facture, saisissez son montant et joignez-la : un bon complémentaire de ce montant est créé, verrouillé
+                                    et soumis aussitôt (aucune saisie hors barème, RG-M12-38).
+                                </p>
                                 {odm.participants.map((p) => {
                                     /* Spec v2.3 : facture répartie comme sa ligne ; la part des clients est refacturée */
                                     const ligne = odm.calcul?.participants?.find((c) => c.user_id === p.user_id)?.lignes?.find((l) => l.element === 'hebergement_exterieur');
@@ -539,8 +529,12 @@ function Cloturer({ odm, regularisationsPossibles }) {
                                                 {p.nom}
                                                 {prise === 'client_avance' && <span className="ml-1 text-xs text-purple-800">(en partie refacturée au client)</span>}
                                             </span>
-                                            <MontantInput className="w-40" value={form.data.factures_retour[p.user_id] ?? ''}
-                                                onChange={(v) => form.setData('factures_retour', { ...form.data.factures_retour, [p.user_id]: v })} />
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <MontantInput className="w-40" value={form.data.factures_retour[p.user_id] ?? ''}
+                                                    onChange={(v) => form.setData('factures_retour', { ...form.data.factures_retour, [p.user_id]: v })} />
+                                                <input type="file" accept=".pdf,.jpg,.jpeg,.png" aria-label={`Facture de ${p.nom}`} className="max-w-[12rem] text-xs"
+                                                    onChange={(e) => form.setData('factures_retour_pieces', { ...form.data.factures_retour_pieces, [p.user_id]: e.target.files?.[0] })} />
+                                            </div>
                                         </div>
                                     );
                                 })}

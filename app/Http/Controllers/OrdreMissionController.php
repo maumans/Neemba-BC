@@ -146,7 +146,6 @@ class OrdreMissionController extends Controller
         $donnees = $request->validate([
             'participants' => ['nullable', 'array'],
             'participants.*' => ['integer'],
-            'beneficiaire_groupe_id' => ['nullable', 'integer'],
             'bp' => ['nullable', 'array'],
             'bp.montant' => ['nullable'],
             'bp.motif' => ['nullable', 'string', 'max:180'],
@@ -157,7 +156,6 @@ class OrdreMissionController extends Controller
         $bons = \App\Services\Odm\GenererBonsOdm::executer($odm, Auth::user(), [
             /* Absent : tous les participants sans bon ; sinon la sélection (vide : le BP seul) */
             'participants' => $request->has('participants') ? array_map('intval', $donnees['participants'] ?? []) : null,
-            'beneficiaire_groupe_id' => $donnees['beneficiaire_groupe_id'] ?? null,
             'bp' => $bp,
         ]);
 
@@ -184,10 +182,16 @@ class OrdreMissionController extends Controller
             'regularisations' => ['nullable', 'array'],
             'regularisations.*' => ['in:reversement,retenue'],
             'factures_retour' => ['nullable', 'array'],
-        ], ['date_retour_reelle.required' => \App\Exceptions\ErreurMetier::texte('MSG-BC-001')]);
+            /* RG-M12-26 : facture d'hébergement payée au retour, justificatif obligatoire du bon complémentaire */
+            'factures_retour_pieces' => ['nullable', 'array'],
+            'factures_retour_pieces.*' => ['file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
+        ], [
+            'date_retour_reelle.required' => \App\Exceptions\ErreurMetier::texte('MSG-BC-001'),
+            'factures_retour_pieces.*' => __('MSG-M03-10'),
+        ]);
 
         [$odm, $messages] = \App\Services\Odm\CloturerOdm::executer($odm, Auth::user(), $donnees['date_retour_reelle'],
-            $donnees['regularisations'] ?? [], $donnees['factures_retour'] ?? []);
+            $donnees['regularisations'] ?? [], $donnees['factures_retour'] ?? [], $request->file('factures_retour_pieces') ?? []);
 
         return redirect()->route('odm.show', $odm)->with('success', trim("Mission {$odm->numero} clôturée. " . implode(' ', $messages)));
     }

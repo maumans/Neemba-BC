@@ -30,7 +30,7 @@ final class ExportBons
     {
         return array_merge(
             ['N° de bon', 'Date', 'Type', 'Statut', 'Bénéficiaire', 'Motif', 'Montant (GNF)', 'Frais OM (GNF)', 'Montant versé (GNF)',
-                'Caisse', 'Site', 'Service', 'Code analytique', 'OR', 'Mode de paiement', 'Payé le'],
+                'Caisse', 'Site', 'Service', 'Code analytique', 'OR', 'Mode de paiement', 'Payé le', 'Refacturation inter-filiale', 'Filiale'],
             array_values(self::ETAPES),
             ['ODM', 'Élément', 'Payeur', 'Client', 'OR de la part', 'Code analytique de la part', 'Montant de la part (GNF)'],
         );
@@ -95,6 +95,9 @@ final class ExportBons
             implode(', ', $bon->references_or ?? []),
             BonCaisse::MODES_PAIEMENT[$mode] ?? $mode,
             $bon->date_paiement ? Carbon::parse($bon->date_paiement)->format('d/m/Y') : null,
+            /* RG-M03-28 (v2.4) : bon au profit d'un visiteur du groupe, à refacturer à sa filiale */
+            $bon->refacturation_inter_filiale ? 'Oui' : null,
+            $bon->filiale_refacturation,
         ], $delais);
     }
 

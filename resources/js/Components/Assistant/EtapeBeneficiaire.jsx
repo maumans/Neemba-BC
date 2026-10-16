@@ -2,7 +2,8 @@
  * Étape 2 « Bénéficiaire » (E-03.4, US-BC-04 ; spec v2.3 US-02, US-03, RG-M03-03) : le bénéficiaire est choisi dans un
  * référentiel, sans saisie libre :
  * - salarié (utilisateurs actifs ; nom et téléphone du profil, RG-BC-06) ;
- * - visiteur du groupe (salarié d'une autre filiale ; peut recevoir un BP, RG-M03-04) ;
+ * - visiteur du groupe (salarié d'une autre filiale) : bon définitif seulement, à titre exceptionnel, avec un motif de la
+ *   liste fermée et un commentaire ; marqué « refacturation inter-filiale » (spec v2.4, RG-M03-04, RG-M03-28) ;
  * - tiers validé par la Comptabilité ou le CDG (RG-M02-06). S'il n'existe pas, le demandeur le propose : il devient
  *   sélectionnable une fois validé ; un tiers au même téléphone, n° OM ou NIF est refusé (RG-M02-07).
  */
@@ -15,7 +16,7 @@ import { Label } from '@/Components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import TelephoneInput from '@/Components/TelephoneInput';
 import { cn } from '@/lib/utils';
-import { msgErreur } from '@/utils/messages';
+import { msg, msgErreur } from '@/utils/messages';
 import Champ from './Champ';
 
 const TYPES = [
@@ -186,7 +187,7 @@ function ProposerTiers({ onFermer, onPropose }) {
 }
 
 export default function EtapeBeneficiaire({
-    donnees, changer, erreurs, employeChoisi, choisirEmploye, demandeur, tiersChoisi, visiteurChoisi, choisirReferentiel,
+    donnees, changer, erreurs, employeChoisi, choisirEmploye, demandeur, tiersChoisi, visiteurChoisi, choisirReferentiel, motifsVisiteur = [],
 }) {
     const type = ['employe', 'visiteur', 'tiers'].includes(donnees.type_beneficiaire) ? donnees.type_beneficiaire : null;
     const [proposition, setProposition] = useState(false);
@@ -249,12 +250,34 @@ export default function EtapeBeneficiaire({
                 </>
             )}
 
+            {/* RG-M03-04 (v2.4) : un bon provisoire est réservé aux salariés */}
+            {donnees.type_bon === 'BP' && (type === 'visiteur' || type === 'tiers') && (
+                <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">{msg('MSG-M03-02')}</p>
+            )}
+
             {type === 'visiteur' && (
-                <Champ champ="visiteur_id" libelle="Visiteur du groupe" obligatoire erreur={erreurs.visiteur_id}
-                    aide={visiteurChoisi?.directeur ? `Régularisation d'un BP : ${visiteurChoisi.directeur}, directeur du département d'accueil (${visiteurChoisi.departement_accueil}).` : 'Référentiel tenu par les RH.'}>
-                    <Recherche url={route('api.referentiels.visiteurs')} choisi={visiteurChoisi} onChoisir={(v) => choisirReferentiel('visiteur', v)} erreur={erreurs.visiteur_id}
-                        idChamp="champ-visiteur_id" placeholder="Nom, filiale ou matricule groupe" vide="Aucun visiteur actif trouvé : demandez aux RH de l'enregistrer." />
-                </Champ>
+                <>
+                    <Champ champ="visiteur_id" libelle="Visiteur du groupe" obligatoire erreur={erreurs.visiteur_id}
+                        aide="Collaborateur d'une autre filiale : bon définitif seulement, à titre exceptionnel ; le bon est refacturé à sa filiale. Référentiel tenu par les RH.">
+                        <Recherche url={route('api.referentiels.visiteurs')} choisi={visiteurChoisi} onChoisir={(v) => choisirReferentiel('visiteur', v)} erreur={erreurs.visiteur_id}
+                            idChamp="champ-visiteur_id" placeholder="Nom, filiale ou matricule groupe" vide="Aucun visiteur actif trouvé : demandez aux RH de l'enregistrer." />
+                    </Champ>
+                    {/* RG-M03-28 : motif d'une liste fermée (PO-30) et commentaire obligatoire (MSG-M03-17) */}
+                    <Champ champ="motif_visiteur" libelle="Motif du bon exceptionnel" obligatoire erreur={erreurs.motif_visiteur}
+                        aide={motifsVisiteur.length === 0 ? 'Aucun motif n\'est encore paramétré : le DAF doit fournir la liste (Paramétrage → Motifs bon visiteur).' : 'Liste fixée par la direction financière.'}>
+                        <select id="champ-motif_visiteur" value={donnees.motif_visiteur ?? ''} onChange={(e) => changer('motif_visiteur', e.target.value)}
+                            className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm">
+                            <option value="">Choisir le motif</option>
+                            {motifsVisiteur.map((m) => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </Champ>
+                    <Champ champ="commentaire_visiteur" libelle="Commentaire" obligatoire erreur={erreurs.commentaire_visiteur} aide="10 caractères au moins.">
+                        <textarea id="champ-commentaire_visiteur" rows={3} maxLength={500} value={donnees.commentaire_visiteur ?? ''}
+                            onChange={(e) => changer('commentaire_visiteur', e.target.value)}
+                            className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm"
+                            placeholder="Pourquoi Neemba Guinée avance-t-elle cette dépense pour la filiale ?" />
+                    </Champ>
+                </>
             )}
 
             {type === 'tiers' && (

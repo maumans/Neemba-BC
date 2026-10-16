@@ -93,6 +93,10 @@ class SoumettreBon
         if ($nouvelle) {
             $bon = $bon->fresh(['demandeur']);
             NotificationService::notifierSoumission($bon, $auteur);
+            /* RG-M03-28 (v2.4) : le DAF est prévenu d'un bon exceptionnel au profit d'un visiteur du groupe */
+            if ($bon->refacturation_inter_filiale) {
+                NotificationService::notifierBonVisiteur($bon, $auteur);
+            }
             /* US-BC-13 : le titulaire est prévenu du bon soumis pour son compte */
             if ($auteur->id !== $bon->demandeur_id) {
                 NotificationService::notifierBonPourLeCompteDe($bon, $auteur);

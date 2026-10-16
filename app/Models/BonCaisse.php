@@ -36,6 +36,10 @@ class BonCaisse extends Model
      * Champs remplissables en masse
      */
     protected $fillable = [
+        'motif_visiteur',
+        'commentaire_visiteur',
+        'refacturation_inter_filiale',
+        'filiale_refacturation',
         'bp_regularise_id',
         'suivi_rh',
         'reference_paiement',
@@ -120,6 +124,7 @@ class BonCaisse extends Model
             'doublon_probable' => 'array',
             'derogation_bp' => 'array',
             'suivi_rh' => 'array',
+            'refacturation_inter_filiale' => 'boolean',
             'lie_mission' => 'boolean',
             'genere_par_odm' => 'boolean',
             'montant_fcfa' => 'decimal:2',
@@ -344,7 +349,7 @@ class BonCaisse extends Model
         return $this->belongsTo(Tiers::class, 'tiers_id');
     }
 
-    /** Spec v2.3 : visiteur du groupe (RG-M03-04) */
+    /** Visiteur du groupe : BD seulement, à titre exceptionnel (spec v2.4, RG-M03-04, RG-M03-28) */
     public function visiteur(): BelongsTo
     {
         return $this->belongsTo(Visiteur::class, 'visiteur_id');

@@ -69,12 +69,22 @@ final class CircuitBon
         return in_array($utilisateur->id, array_filter([$bon->demandeur_id, $bon->initiateur_id, $bon->beneficiaire_id]), true);
     }
 
+    /** RG-M04-10 (v2.4) : rôles qui tiennent l'étape Finance d'un bon au profit d'un visiteur du groupe */
+    public const ROLES_FINANCE_VISITEUR = ['daf', 'daf_adjoint'];
+
+    /** RG-M04-10 : l'étape Finance d'un bon visiteur est réservée au DAF ou au DAF adjoint (paramètre, défaut : oui) */
+    public static function financeReserveeAuDaf(BonCaisse $bon): bool
+    {
+        return $bon->type_beneficiaire === 'visiteur' && (bool) \App\Models\Parametre::valeur('visiteur_finance_daf_seul', true);
+    }
+
     /** Titulaires d'une étape, sans tenir compte des incompatibilités */
     public static function titulaires(BonCaisse $bon, string $role): Collection
     {
+        $roles = $role === 'daf' && self::financeReserveeAuDaf($bon) ? self::ROLES_FINANCE_VISITEUR : (User::ROLES_ETAPES_BON[$role] ?? [$role]);
+
         return User::actifs()
-            ->where(fn ($q) => $q->whereIn('role', User::ROLES_ETAPES_BON[$role] ?? [$role])
-                ->orWhereHas('roles', fn ($r) => $r->whereIn('role', User::ROLES_ETAPES_BON[$role] ?? [$role])))
+            ->where(fn ($q) => $q->whereIn('role', $roles)->orWhereHas('roles', fn ($r) => $r->whereIn('role', $roles)))
             ->when($role === 'responsable_service', fn ($q) => $q->where('service', $bon->service))
             ->orderBy('name')
             ->get();
@@ -131,6 +141,9 @@ final class CircuitBon
         if ($role === 'responsable_service' && $utilisateur->aLeRole('responsable_service')) {
             return "Ce bon relève du chef de service {$bon->service} : vous ne pouvez pas le viser.";
         }
+        if ($role === 'daf' && self::financeReserveeAuDaf($bon) && !$utilisateur->aLeRole(self::ROLES_FINANCE_VISITEUR)) {
+            return "Bon au profit d'un visiteur du groupe : l'étape Finance est réservée au DAF ou au DAF adjoint (RG-M04-10).";
+        }
 
         return 'Ce bon n\'est pas en attente de votre validation (étape en cours : ' . self::LIBELLES[$role] . ').';
     }
@@ -161,8 +174,14 @@ final class CircuitBon
     {
         $statuts = array_keys(array_intersect(self::ROLES_PAR_STATUT, $utilisateur->rolesValidationEffectifs()));
         $services = self::servicesChef($utilisateur);
+        /* RG-M04-10 : sans être DAF ou DAF adjoint (ni leur suppléant), on ne voit pas la Finance d'un bon visiteur */
+        $financeVisiteur = !\App\Models\Parametre::valeur('visiteur_finance_daf_seul', true)
+            || $utilisateur->aLeRole(self::ROLES_FINANCE_VISITEUR)
+            || Delegation::delegantsActifsPour($utilisateur->id)->contains(fn ($d) => $d?->aLeRole(self::ROLES_FINANCE_VISITEUR));
 
         return BonCaisse::query()
+            ->when(!$financeVisiteur, fn ($q) => $q->where(fn ($q) => $q->where('statut', '!=', 'EN_ATTENTE_DAF')
+                ->orWhereNull('type_beneficiaire')->orWhere('type_beneficiaire', '!=', 'visiteur')))
             ->whereIn('statut', $statuts)
             ->where(fn ($q) => $q->where('statut', '!=', 'EN_ATTENTE_CHEF_SERVICE')->orWhereIn('service', $services))
             ->where('demandeur_id', '!=', $utilisateur->id)

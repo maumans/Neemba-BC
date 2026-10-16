@@ -131,7 +131,7 @@ const navigationItems = [
         roles: ["comptable", "chef_comptable", "controle_gestion", "daf", "daf_adjoint", "administrateur"],
     },
     {
-        /* Spec v2.3, §6.5 : visiteurs du groupe (BP possibles) */
+        /* Spec v2.4, §6.5 : visiteurs du groupe (BD exceptionnels, refacturés à leur filiale) */
         label: "Visiteurs du groupe",
         href: "visiteurs.index",
         icon: Users,

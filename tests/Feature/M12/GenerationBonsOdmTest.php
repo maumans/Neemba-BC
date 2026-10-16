@@ -167,27 +167,23 @@ class GenerationBonsOdmTest extends TestCase
         $this->assertSame(1, BonCaisse::where('beneficiaire_id', $this->yacouba->id)->count());
     }
 
-    /** SC-23 (B.2) : bon groupé, versé au participant désigné ; frais OM 0,8 % sur 6 500 000 */
-    public function test_un_bon_groupe(): void
+    /** SC-23 (B.2), spec v2.4 RG-M12-14 : un bon par participant, même si un bon groupé est demandé ; frais OM 1 % chacun */
+    public function test_un_bon_par_participant_le_bon_groupe_est_abandonne(): void
     {
-        Parametre::majValeur('odm_mode_generation', 'groupe');
+        $this->assertNull(Parametre::where('cle', 'odm_mode_generation')->first());
         $odm = $this->odmValide();
 
         $this->generer($odm, ['beneficiaire_groupe_id' => $this->yacouba->id])->assertSessionHas('success');
 
-        $bon = BonCaisse::sole();
-        $this->assertEquals(6500000, (float) $bon->montant);
-        $this->assertSame($this->yacouba->id, $bon->beneficiaire_id);
-        $this->assertSame('+224622112233', $bon->telephone_beneficiaire);
-        $this->assertNull($bon->odm_participant_id);
-        $this->assertSame([$bon->id, $bon->id], $odm->participants()->pluck('bon_caisse_id')->all());
-        $this->assertStringContainsString('bon groupé de 2 participant(s), versé à BARRY Yacouba', $bon->motif);
+        $bons = BonCaisse::orderBy('id')->get();
+        $this->assertCount(2, $bons);
+        $this->assertSame([$this->thierno->id, $this->yacouba->id], $bons->pluck('beneficiaire_id')->all());
+        $this->assertSame([3250000.0, 3250000.0], $bons->map(fn ($b) => (float) $b->montant)->all());
+        $this->assertNotContains(null, $bons->pluck('odm_participant_id')->all());
 
-        $bon->update(['statut' => 'APPROUVE']);
-        $this->payer($bon)->assertSessionHas('success');
-        $bon->refresh();
-        $this->assertEquals(52000, (float) $bon->frais_om);
-        $this->assertEquals(6552000, (float) $bon->montant_verse);
+        $bons[1]->update(['statut' => 'APPROUVE']);
+        $this->payer($bons[1])->assertSessionHas('success');
+        $this->assertEquals(3282500, (float) $bons[1]->fresh()->montant_verse);   // B.2 : 2 × 3 282 500 = 6 565 000
     }
 
     /** SC-37 : BP « avance pour frais réels », lié à la mission ; un seul ; paramètre « ODM générant un BP » */
@@ -339,23 +335,6 @@ class GenerationBonsOdmTest extends TestCase
         /* Sans sélection : tous ceux qui restent */
         $this->generer($odm)->assertSessionHas('success');
         $this->assertSame([$this->thierno->id, $this->yacouba->id], BonCaisse::orderBy('id')->pluck('beneficiaire_id')->all());
-    }
-
-    /** Mode groupé : la sélection forme un bon groupé ; les autres en formeront un autre */
-    public function test_un_bon_groupe_par_selection(): void
-    {
-        Parametre::majValeur('odm_mode_generation', 'groupe');
-        $odm = $this->odmValide();
-
-        $this->generer($odm, ['participants' => [$this->thierno->id], 'beneficiaire_groupe_id' => $this->yacouba->id])->assertSessionHas('success');
-        $premier = BonCaisse::sole();
-        $this->assertEquals(3250000, (float) $premier->montant);
-        $this->assertSame($this->thierno->id, $premier->beneficiaire_id);   // le désigné doit faire partie de la sélection
-        $this->assertStringContainsString('bon groupé de 1 participant(s), versé à BAH Thierno', $premier->motif);
-
-        $this->generer($odm, ['participants' => [$this->yacouba->id]])->assertSessionHas('success');
-        $this->assertSame(2, BonCaisse::count());
-        $this->assertSame([$premier->id], $odm->participants()->where('user_id', $this->thierno->id)->pluck('bon_caisse_id')->all());
     }
 
     /** RG-M12-21 : pas « Payé » tant qu'un participant n'a pas son bon, même si les bons générés sont payés */

@@ -197,6 +197,8 @@ class HistoriqueAction extends Model
         'types_or' => "Types d'OR",
         'tiers_id' => 'Tiers',
         'visiteur_id' => 'Visiteur du groupe',
+        'motif_visiteur' => 'Motif du bon visiteur',
+        'commentaire_visiteur' => 'Commentaire du bon visiteur',
     ];
 
     /* ----------------------------------------------------------------

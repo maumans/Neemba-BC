@@ -18,6 +18,8 @@ use App\Services\BonCaisse\EnregistrementBon;
 use App\Services\BonCaisse\ReglesSaisie;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -259,19 +261,27 @@ class ClotureOdmTest extends TestCase
         );
         $this->assertEquals(1595000, (float) $this->bonDe($this->thierno)->montant);   // indemnité seule
 
+        Storage::fake('public');
+
+        /* La facture est le justificatif obligatoire du bon complémentaire */
         $this->cloturer($odm, '2026-09-26', ['factures_retour' => [$this->thierno->id => '1 200 000']])
-            ->assertSessionHas('success', fn ($m) => str_contains($m, 'Bon(s) complémentaire(s) d\'hébergement préparé(s) en brouillon'));
+            ->assertSessionHasErrors(['factures_retour' => __('MSG-M03-09')]);
+        $this->assertSame('BONS_GENERES', $odm->fresh()->statut);
+
+        $facture = UploadedFile::fake()->createWithContent('facture-pullman.pdf', '%PDF-1.4 facture Pullman Abidjan ' . uniqid());
+        $this->cloturer($odm, '2026-09-26', ['factures_retour' => [$this->thierno->id => '1 200 000'], 'factures_retour_pieces' => [$this->thierno->id => $facture]])
+            ->assertSessionHas('success', fn ($m) => str_contains($m, 'Bon(s) complémentaire(s) d\'hébergement créé(s) avec leur facture et soumis'));
 
         $complement = BonCaisse::find($odm->participants()->sole()->bon_complement_id);
-        $this->assertSame('BROUILLON', $complement->statut);
+        $this->assertSame('EN_ATTENTE_CHEF_SERVICE', $complement->statut);
         $this->assertSame('hebergement', $complement->categorie_depense);
         $this->assertEquals(1200000, (float) $complement->montant);
         $this->assertSame($odm->id, $complement->odm_id);
-        $this->assertFalse($complement->genere_par_odm);
-        $this->assertSame('MSG-M03-09', ReglesSaisie::erreurPieces($complement));   // facture obligatoire
+        $this->assertTrue($complement->genere_par_odm);
+        $this->assertSame(['facture'], $complement->piecesJointes()->pluck('type_document')->all());
 
-        /* Le demandeur complète le bon dans l'assistant : il reste rattaché à l'ODM */
-        EnregistrementBon::appliquer($complement, ['motif' => 'Hôtel Pullman Abidjan, 4 nuits, facture jointe'], $this->demandeur);
-        $this->assertSame($odm->id, $complement->fresh()->odm_id);
+        /* Spec v2.4, RG-M12-38 : aucune saisie hors barème, le montant du bon complémentaire est verrouillé */
+        $this->expectException(\App\Exceptions\ErreurMetier::class);
+        EnregistrementBon::appliquer($complement, ['montant' => 1500000], $this->demandeur);
     }
 }

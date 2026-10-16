@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Export des écritures comptables (M16, RG-M16-03) : Excel ou CSV générique, une ligne par ligne d'imputation —
- * date, n° de bon, compte, libellé, montant, code journal, code analytique, payeur, client, OR. Aucun format d'import IE.
+ * date, n° de bon, compte, libellé, montant, code journal, code analytique, payeur, client, OR. Aucun format d'import Helium (ERP de Neemba).
  * Les imputations exportées sont figées (RG-M16-06) ; un export reste téléchargeable.
  */
 final class ExportEcritures

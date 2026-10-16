@@ -52,11 +52,6 @@ class Parametre extends Model
      * Valeurs admises des paramètres de type « choix » (points ouverts de la spec v2.2, réglables sans toucher au code)
      */
     public const CHOIX = [
-        /* RG-M12-14 (PO-03) */
-        'odm_mode_generation' => [
-            'par_participant' => 'Un bon par participant',
-            'groupe' => "Un bon groupé, versé au n° OM d'un participant désigné",
-        ],
         /* RG-M12-15 (PO-04) */
         'odm_prise_en_charge_client' => [
             'variante_a' => 'Variante A : bons générés pour le montant total, ODM « à refacturer »',

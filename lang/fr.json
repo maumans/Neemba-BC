@@ -94,7 +94,7 @@
     "MSG-APP-051": "Ce bon n'est pas encore payé : il ne s'impute qu'après paiement.",
     "MSG-APP-052": "Aucune écriture imputée à exporter sur cette période.",
     "MSG-APP-053": "Un des participants choisis ne fait pas partie de cet ordre de mission.",
-    "MSG-M03-02": "Un bon provisoire ne peut être émis qu'au profit d'un salarié ou d'un visiteur du groupe.",
+    "MSG-M03-02": "Un bon provisoire ne peut être émis qu'au profit d'un salarié. Pour un visiteur du groupe, émettez un bon définitif.",
     "MSG-M03-12": "Un bon de :montant GNF pour :beneficiaire existe déjà (:numero, :date). Confirmez qu'il ne s'agit pas d'un doublon.",
     "MSG-M03-13": ":beneficiaire a un bon provisoire non régularisé en retard (:numero, échéance :date). Aucun nouveau bon provisoire ne peut être émis.",
     "MSG-M03-14": ":beneficiaire a un bon provisoire non régularisé en retard (:numero). Ce bon définitif sera signalé aux valideurs.",
@@ -130,5 +130,6 @@
     "MSG-M03-05": "Montant supérieur au plafond espèces de la :caisse (:plafond GNF). Choisissez Orange Money, chèque ou virement.",
     "MSG-M03-10": "Fichier refusé : formats acceptés PDF, JPG, PNG ; 10 Mo maximum.",
     "MSG-M03-11": "Ce bon nécessitera le visa du Directeur Pays (dépense > :seuil GNF).",
-    "MSG-M03-15": "Bon :numero soumis. Prochaine étape : :valideur, délai :delai."
+    "MSG-M03-15": "Bon :numero soumis. Prochaine étape : :valideur, délai :delai.",
+    "MSG-M03-17": "Bon exceptionnel pour un collaborateur d'une autre filiale : choisissez le motif et ajoutez un commentaire."
 }

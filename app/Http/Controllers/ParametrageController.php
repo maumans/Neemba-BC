@@ -38,6 +38,7 @@ class ParametrageController extends Controller
             )),
             'codesAnalytiques' => CodeAnalytique::with('service')->orderBy('code')->get(),
             'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
+            'motifsVisiteur' => \App\Models\MotifVisiteur::orderBy('ordre')->orderBy('libelle')->get(),
             'motifsRejet' => \App\Models\MotifRejet::orderBy('ordre')->orderBy('libelle')->get(),
             'typesDocument' => TypeDocument::orderBy('nom')->get(),
             'parametres' => Parametre::orderBy('groupe')->orderBy('libelle')->get(),
@@ -372,6 +373,30 @@ class ParametrageController extends Controller
     {
         $motifUrgence->update(['actif' => !$motifUrgence->actif]);
         return back()->with('success', $motifUrgence->actif ? 'Motif activé.' : 'Motif désactivé.');
+    }
+
+    /* ─── MOTIFS DU BON VISITEUR (spec v2.4, RG-M03-28, PO-30) ─ */
+
+    public function storeMotifVisiteur(Request $request)
+    {
+        $validated = $request->validate(['libelle' => ['required', 'string', 'max:255', 'unique:motifs_visiteur']]);
+        \App\Models\MotifVisiteur::create($validated + ['actif' => true, 'ordre' => (int) \App\Models\MotifVisiteur::max('ordre') + 1]);
+
+        return back()->with('success', 'Motif du bon visiteur ajouté.');
+    }
+
+    public function updateMotifVisiteur(Request $request, \App\Models\MotifVisiteur $motifVisiteur)
+    {
+        $motifVisiteur->update($request->validate(['libelle' => ['required', 'string', 'max:255', 'unique:motifs_visiteur,libelle,' . $motifVisiteur->id]]));
+
+        return back()->with('success', 'Motif du bon visiteur mis à jour.');
+    }
+
+    public function toggleMotifVisiteur(\App\Models\MotifVisiteur $motifVisiteur)
+    {
+        $motifVisiteur->update(['actif' => !$motifVisiteur->actif]);
+
+        return back()->with('success', $motifVisiteur->actif ? 'Motif activé.' : 'Motif désactivé.');
     }
 
     /* ─── MOTIFS DE REJET (spec v2.3, RG-M04-04) ─────────── */

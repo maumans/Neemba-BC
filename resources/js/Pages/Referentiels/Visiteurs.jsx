@@ -1,6 +1,6 @@
 /**
- * Référentiel des visiteurs du groupe (spec v2.3, §6.5) : salariés d'autres filiales en mission en Guinée. Ils peuvent
- * recevoir un BP ; le directeur du département d'accueil répond de sa régularisation (RG-M03-04, RG-M07-01).
+ * Référentiel des visiteurs du groupe (spec v2.4, §6.5) : salariés d'autres filiales en mission en Guinée. Ils ne
+ * reçoivent qu'un BD, à titre exceptionnel, refacturé à leur filiale (RG-M03-04, RG-M03-28).
  * Tenu par les RH, la direction financière et l'administrateur. Un visiteur se désactive, il ne se supprime pas.
  */
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';

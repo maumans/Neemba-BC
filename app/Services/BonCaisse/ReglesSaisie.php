@@ -34,13 +34,15 @@ class ReglesSaisie
     /** Champs saisis à chaque étape (l'étape 4 porte sur les pièces, contrôlées à part) */
     const CHAMPS_PAR_ETAPE = [
         1 => ['type_bon', 'code_analytique', 'site', 'service', 'niveau_urgence', 'motif_urgence', 'justification_urgence'],
-        2 => ['type_beneficiaire', 'beneficiaire_id', 'visiteur_id', 'tiers_id', 'beneficiaire', 'telephone_beneficiaire'],
+        2 => ['type_beneficiaire', 'beneficiaire_id', 'visiteur_id', 'tiers_id', 'beneficiaire', 'telephone_beneficiaire', 'motif_visiteur', 'commentaire_visiteur'],
         3 => ['motif', 'categorie_depense', 'montant', 'mode_paiement', 'numero_om', 'motif_numero_om', 'vehicule', 'references_or', 'types_or', 'lie_mission', 'date_retour_mission'],
     ];
 
     /** Libellés écran des champs (MSG-BC-040 : liste des champs manquants) */
     const LIBELLES = [
         'type_bon' => 'Type de bon',
+        'motif_visiteur' => 'Motif du bon visiteur',
+        'commentaire_visiteur' => 'Commentaire du bon visiteur',
         'code_analytique' => 'Code analytique',
         'site' => 'Site',
         'service' => 'Service',
@@ -131,9 +133,10 @@ class ReglesSaisie
             'justification_urgence' => ['nullable', 'string', 'max:300'],
 
             /* Étape 2 — RG-BC-06, RG-BC-07 */
-            /* RG-M03-03 : salarié, visiteur du groupe ou tiers validé, aucune saisie libre ; RG-M03-04 : pas de BP pour un tiers */
+            /* RG-M03-03 : salarié, visiteur du groupe ou tiers validé, aucune saisie libre ; RG-M03-04 (v2.4) : BP pour un salarié
+             * seulement, un visiteur du groupe ou un tiers ne reçoit qu'un BD */
             'type_beneficiaire' => ['required', Rule::in(BonCaisse::TYPES_BENEFICIAIRE_ASSISTANT),
-                fn ($attribut, $valeur, $echec) => $bp && $valeur === 'tiers' ? $echec(__('MSG-M03-02')) : null],
+                fn ($attribut, $valeur, $echec) => $bp && in_array($valeur, ['tiers', 'visiteur'], true) ? $echec(__('MSG-M03-02')) : null],
             'beneficiaire_id' => $employe
                 ? ['required', Rule::exists('users', 'id')->where('actif', true)]
                 : ['nullable'],
@@ -141,6 +144,11 @@ class ReglesSaisie
                 ? ['required', Rule::exists('visiteurs', 'id')->where('actif', true)]
                 : ['nullable'],
             'tiers_id' => $typeBeneficiaire === 'tiers' ? ['required', self::regleTiersValide()] : ['nullable'],
+            /* RG-M03-28 (v2.4) : bon exceptionnel au profit d'un visiteur, motif d'une liste fermée et commentaire (MSG-M03-17) */
+            'motif_visiteur' => $typeBeneficiaire === 'visiteur'
+                ? ['required', 'string', Rule::exists('motifs_visiteur', 'libelle')->where('actif', true)]
+                : ['nullable'],
+            'commentaire_visiteur' => $typeBeneficiaire === 'visiteur' ? ['required', 'string', 'min:10', 'max:500'] : ['nullable'],
             'beneficiaire' => ['nullable', 'string', 'max:150'],
             'telephone_beneficiaire' => ['nullable', 'regex:/^(\+224)?6\d{8}$/'],
 
@@ -185,6 +193,8 @@ class ReglesSaisie
             'beneficiaire_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'visiteur_id' => ['nullable', 'integer', Rule::exists('visiteurs', 'id')],
             'tiers_id' => ['nullable', 'integer', Rule::exists('tiers', 'id')],
+            'motif_visiteur' => ['nullable', 'string', 'max:255'],
+            'commentaire_visiteur' => ['nullable', 'string', 'max:500'],
             'beneficiaire' => ['nullable', 'string', 'max:150'],
             'telephone_beneficiaire' => ['nullable', 'regex:/^(\+224)?6\d{8}$/'],
             'motif' => ['nullable', 'string', 'max:250'],
@@ -273,6 +283,10 @@ class ReglesSaisie
             'montant.*' => __('MSG-BC-003'),
             'type_beneficiaire.in' => __('MSG-APP-059'),
             'visiteur_id.exists' => __('MSG-APP-061'),
+            'motif_visiteur.required' => __('MSG-M03-17'),
+            'motif_visiteur.exists' => __('MSG-M03-17'),
+            'commentaire_visiteur.required' => __('MSG-M03-17'),
+            'commentaire_visiteur.min' => __('MSG-M03-17'),
             'beneficiaire.min' => __('MSG-BC-004'),
             'beneficiaire.max' => __('MSG-BC-004'),
             'justification_urgence.min' => __('MSG-BC-005'),

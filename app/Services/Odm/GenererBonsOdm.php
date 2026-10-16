@@ -19,9 +19,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Génération des bons de caisse d'un ODM validé (RG-M12-13 à RG-M12-15, RG-M12-29 ; RG-M03-15, RG-M03-22).
  *
- * - Un BD par participant (défaut) ou un bon groupé versé au n° OM d'un participant désigné (paramètre, PO-03).
+ * - Un BD par participant (spec v2.4, RG-M12-14, décision du 14/10) : le bon groupé est abandonné.
  * - Génération globale (tous les participants sans bon) ou sélective (les participants cochés, ou un seul) : les autres
- *   restent à générer plus tard ; en mode groupé, la sélection forme un bon groupé.
+ *   restent à générer plus tard.
  * - Champs repris de l'ODM et verrouillés : bénéficiaire, montant, motif, site, service, code analytique, OR.
  *   Catégorie « mission », mode souhaité Orange Money (décision finale du caissier). L'ODM tient lieu de justificatif.
  * - Chaque bon est soumis aussitôt et suit son propre circuit complet (chef de service → CDG → Finance → DP).
@@ -42,7 +42,7 @@ final class GenererBonsOdm
     public const STATUTS_INACTIFS = ['ANNULE'];
 
     /**
-     * @param array{participants?: ?array<int>, beneficiaire_groupe_id?: ?int, bp?: ?array{montant: int|float|string, motif: string, beneficiaire_id?: ?int}} $options
+     * @param array{participants?: ?array<int>, bp?: ?array{montant: int|float|string, motif: string, beneficiaire_id?: ?int}} $options
      *        participants : utilisateurs dont générer le bon (null : tous ceux qui n'en ont pas ; [] : aucun, BP seul)
      * @return Collection<int, BonCaisse> bons générés
      */
@@ -59,7 +59,7 @@ final class GenererBonsOdm
                     throw new ErreurMetier('PARTICIPANT_INCONNU', 'MSG-APP-053', [], 'RG-M12-13', 'participants', 422);
                 }
             }
-            $bons = $selection === [] ? collect() : self::bonsManquants($odm, $auteur, $options['beneficiaire_groupe_id'] ?? null, $selection);
+            $bons = $selection === [] ? collect() : self::bonsManquants($odm, $auteur, $selection);
 
             if (!empty($options['bp'])) {
                 $bons->push(self::bonProvisoire($odm, $auteur, $options['bp']));
@@ -80,11 +80,11 @@ final class GenererBonsOdm
     }
 
     /**
-     * BD des participants qui n'ont pas de bon actif (ou un bon groupé pour eux), créés et soumis ; limités à la sélection
+     * BD des participants qui n'ont pas de bon actif, créés et soumis (un par participant) ; limités à la sélection
      * si elle est donnée (identifiants d'utilisateurs). Sert à la génération et à la clôture d'un ODM (bons régénérés au
      * réel, décision Q26). À appeler dans une transaction.
      */
-    public static function bonsManquants(OrdreMission $odm, User $auteur, ?int $beneficiaireGroupeId = null, ?array $selection = null): Collection
+    public static function bonsManquants(OrdreMission $odm, User $auteur, ?array $selection = null): Collection
     {
         $sansBon = self::participantsSansBon($odm)
             ->filter(fn (ParticipantOdm $p) => $selection === null || in_array($p->user_id, $selection, true))->values();
@@ -94,10 +94,6 @@ final class GenererBonsOdm
         if ($odm->type === 'exterieur') {
             self::estimerAuDernierTaux($odm);
             $sansBon->each->refresh();
-        }
-
-        if (Parametre::valeur('odm_mode_generation', 'par_participant') === 'groupe') {
-            return collect([self::bonGroupe($odm, $sansBon, $auteur, $beneficiaireGroupeId)]);
         }
 
         return $sansBon->map(fn (ParticipantOdm $p) => self::bonParticipant($odm, $p, $auteur));
@@ -162,23 +158,8 @@ final class GenererBonsOdm
         $bon = self::creer($odm, $participant->utilisateur, (float) $participant->total, self::motif($odm, $participant->nom), [
             'odm_participant_id' => $participant->id,
             'telephone_beneficiaire' => ReglesSaisie::normaliserTelephone($participant->numero_om ?? $participant->utilisateur?->telephone),
-        ] + self::partsExterieur($odm, [$participant]));
+        ] + self::partsExterieur($odm, $participant));
         $participant->update(['bon_caisse_id' => $bon->id]);
-
-        return self::soumettre($bon, $auteur);
-    }
-
-    /** Bon groupé (RG-M12-14) : total des participants retenus, versé au n° OM du participant désigné */
-    private static function bonGroupe(OrdreMission $odm, Collection $participants, User $auteur, ?int $beneficiaireId): BonCaisse
-    {
-        $designe = $participants->firstWhere('user_id', $beneficiaireId) ?? $participants->first();
-        $total = (float) $participants->sum(fn (ParticipantOdm $p) => (float) $p->total);
-
-        $bon = self::creer($odm, $designe->utilisateur, $total,
-            self::motif($odm, "bon groupé de {$participants->count()} participant(s), versé à {$designe->nom}"), [
-                'telephone_beneficiaire' => ReglesSaisie::normaliserTelephone($designe->numero_om ?? $designe->utilisateur?->telephone),
-            ] + self::partsExterieur($odm, $participants->all()));
-        ParticipantOdm::whereIn('id', $participants->pluck('id'))->update(['bon_caisse_id' => $bon->id]);
 
         return self::soumettre($bon, $auteur);
     }
@@ -238,7 +219,7 @@ final class GenererBonsOdm
             'date_demande' => today(),
             'statut' => 'BROUILLON',
         ], $attributs));
-        /* RG-M03-10 : n° OM du participant (ou du bénéficiaire du bon groupé) */
+        /* RG-M03-10 : n° OM du participant */
         $bon->numero_om ??= $bon->mode_paiement === 'orange_money' ? $bon->telephone_beneficiaire : null;
         $bon->caisse_emettrice_id = \App\Models\Caisse::deRattachement($odm->demandeur)?->id;
         $bon->caisse_id = $bon->caissePayeuse()?->id;
@@ -263,21 +244,18 @@ final class GenererBonsOdm
         return mb_substr($motif, 0, 200);
     }
 
-    /** ODM extérieur : part en FCFA et part fixe en GNF, pour le recalcul au paiement (RG-M12-10) */
-    private static function partsExterieur(OrdreMission $odm, array $participants): array
+    /** ODM extérieur : part en FCFA et part fixe en GNF du participant, pour le recalcul au paiement (RG-M12-10) */
+    private static function partsExterieur(OrdreMission $odm, ParticipantOdm $participant): array
     {
         if ($odm->type !== 'exterieur') {
             return [];
         }
-        $fcfa = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->indemnite_fcfa, $participants));
-        $fixe = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->hebergement + (float) $p->rattrapage, $participants));
-        $total = array_sum(array_map(fn (ParticipantOdm $p) => (float) $p->total, $participants));
 
         return [
-            'montant_fcfa' => $fcfa,
-            'montant_gnf_fixe' => $fixe,
+            'montant_fcfa' => (float) $participant->indemnite_fcfa,
+            'montant_gnf_fixe' => (float) $participant->hebergement + (float) $participant->rattrapage,
             'taux_change_estime' => $odm->parametres_figes['taux_estime'] ?? null,
-            'montant_estime' => $total,
+            'montant_estime' => (float) $participant->total,
         ];
     }
 }

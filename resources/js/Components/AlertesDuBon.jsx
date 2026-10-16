@@ -1,13 +1,14 @@
 /**
  * Alertes visibles à chaque étape (spec v2.3, RG-M04-05) : doublon probable confirmé par le demandeur (RG-M03-20),
- * BP du bénéficiaire en retard (RG-M03-21) et dérogation du DAF (RG-M07-06), avec la décision du DAF.
+ * BP du bénéficiaire en retard (RG-M03-21) et dérogation du DAF (RG-M07-06), avec la décision du DAF ; bon exceptionnel
+ * au profit d'un visiteur du groupe, à refacturer à sa filiale (spec v2.4, RG-M03-28).
  *
  * Partagé par BonsCaisse/Show et Validations/Show : le valideur voit les mêmes alertes que le demandeur,
  * sur l'écran où il vise.
  */
 import { Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
-import { AlertTriangle, Clock } from 'lucide-react';
+import { AlertTriangle, Clock, Globe2 } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Label } from '@/Components/ui/label';
 import { Textarea } from '@/Components/ui/textarea';
@@ -16,8 +17,8 @@ import { formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
 export default function AlertesDuBon({ bonId, alertes = {}, peutDecider = false }) {
     const [decision, setDecision] = useState(null);
     const form = useForm({ decision: '', motif: '' });
-    const { doublon, bp_en_retard: retards = [], derogation } = alertes;
-    if (!doublon && retards.length === 0 && !derogation) return null;
+    const { doublon, bp_en_retard: retards = [], derogation, refacturation } = alertes;
+    if (!doublon && retards.length === 0 && !derogation && !refacturation) return null;
 
     const decider = () => {
         form.transform((d) => ({ ...d, decision }));
@@ -26,6 +27,17 @@ export default function AlertesDuBon({ bonId, alertes = {}, peutDecider = false 
 
     return (
         <div className="mb-6 space-y-3" data-testid="alertes-bon">
+            {refacturation && (
+                <div className="flex gap-3 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-900" role="note">
+                    <Globe2 className="mt-0.5 h-5 w-5 shrink-0 text-violet-500" />
+                    <div>
+                        <p className="font-semibold">Bon exceptionnel au profit d'un visiteur du groupe — refacturation inter-filiale{refacturation.filiale ? ` (${refacturation.filiale})` : ''}</p>
+                        {refacturation.motif && <p>Motif : {refacturation.motif}</p>}
+                        {refacturation.commentaire && <p className="text-xs text-violet-800">{refacturation.commentaire}</p>}
+                        {refacturation.finance_daf && <p className="text-xs text-violet-800">Étape Finance réservée au DAF ou au DAF adjoint.</p>}
+                    </div>
+                </div>
+            )}
             {doublon && (
                 <div className="flex gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900" role="alert">
                     <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-500" />

@@ -188,7 +188,10 @@ final class EnregistrementOdm
             $existant = $odm->participants()->where('user_id', $userId)->first();
             $valeurs = [
                 'base_vie' => (bool) ($voulu['base_vie'] ?? false),
-                'hebergement_facture' => is_numeric($voulu['hebergement_facture'] ?? null) ? max(0, (float) $voulu['hebergement_facture']) : null,
+                /* Spec v2.4, RG-M12-38 : aucune saisie hors barème ; seule la facture d'un hébergement à l'étranger payé avant
+                 * le départ est saisie (RG-M12-26), ignorée ailleurs */
+                'hebergement_facture' => $odm->type === 'exterieur' && $odm->hebergement_exterieur === 'avant_depart' && is_numeric($voulu['hebergement_facture'] ?? null)
+                    ? max(0, (float) $voulu['hebergement_facture']) : null,
             ];
             if ($existant) {
                 $existant->update($valeurs + ['retire' => false]);

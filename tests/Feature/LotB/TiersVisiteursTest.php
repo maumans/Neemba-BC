@@ -109,8 +109,8 @@ class TiersVisiteursTest extends TestCase
         $this->assertSame(['valide', $this->cdg->id], [Tiers::sole()->statut, Tiers::sole()->valide_par_id]);
     }
 
-    /** §6.5, RG-M03-04 : visiteur du groupe tenu par les RH ; il peut recevoir un BP */
-    public function test_le_visiteur_du_groupe_recoit_un_bp(): void
+    /** §6.5, RG-M03-04, RG-M03-28 (v2.4) : visiteur du groupe tenu par les RH ; BD exceptionnel seulement, jamais de BP */
+    public function test_le_visiteur_du_groupe_recoit_un_bd_exceptionnel(): void
     {
         $rh = User::factory()->create();
         $rh->ajouterRoles(['rh']);
@@ -126,11 +126,26 @@ class TiersVisiteursTest extends TestCase
         $this->actingAs($this->souadou)->getJson(route('api.referentiels.visiteurs', ['q' => 'Yao']))
             ->assertJsonPath('resultats.0.directeur', 'Ibrahima CAMARA')->assertJsonPath('resultats.0.telephone', '+224625443322');
 
+        /* Un BP est refusé pour un visiteur (MSG-M03-02) */
         $bon = $this->brouillon(['type_bon' => 'BP']);
         $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), ['type_beneficiaire' => 'visiteur', 'visiteur_id' => $visiteur->id])->assertOk();
         $bon->refresh();
         $this->assertSame(['Yao KOUASSI', '+224625443322'], [$bon->beneficiaire, $bon->telephone_beneficiaire]);
+        $erreurs = \App\Services\BonCaisse\ReglesSaisie::erreursCompletes(\App\Services\BonCaisse\ReglesSaisie::donneesDu($bon), [2], false)->toArray();
+        $this->assertSame([__('MSG-M03-02')], $erreurs['type_beneficiaire']);
+
+        /* BD exceptionnel : motif de la liste et commentaire obligatoires (MSG-M03-17) ; marqué « refacturation inter-filiale » */
+        $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), ['type_bon' => 'BD'])->assertOk();
+        $erreurs = \App\Services\BonCaisse\ReglesSaisie::erreursCompletes(\App\Services\BonCaisse\ReglesSaisie::donneesDu($bon->fresh()), [2], false)->toArray();
+        $this->assertSame([__('MSG-M03-17')], $erreurs['motif_visiteur']);
+        $this->assertSame([__('MSG-M03-17')], $erreurs['commentaire_visiteur']);
+        \App\Models\MotifVisiteur::create(['libelle' => 'Mission d\'appui technique de la filiale']);
+        $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), [
+            'motif_visiteur' => 'Mission d\'appui technique de la filiale', 'commentaire_visiteur' => 'Hébergement avancé pour Neemba Côte d\'Ivoire',
+        ])->assertOk();
+        $bon->refresh();
         $this->assertEmpty(\App\Services\BonCaisse\ReglesSaisie::erreursCompletes(\App\Services\BonCaisse\ReglesSaisie::donneesDu($bon), [2], false)->toArray());
+        $this->assertSame([true, 'Neemba Côte d\'Ivoire'], [$bon->refacturation_inter_filiale, $bon->filiale_refacturation]);
 
         /* BP en retard du visiteur (RG-M03-21) */
         BonCaisse::factory()->provisoire()->statut('EN_ATTENTE_REGULARISATION')->create(['visiteur_id' => $visiteur->id, 'type_beneficiaire' => 'visiteur',

@@ -39,9 +39,9 @@ final class CloturerOdm
      * @param array<int|string, int|float|string> $facturesRetour user_id => montant de la facture d'hébergement payée au retour
      * @return array{0: OrdreMission, 1: string[]} l'ODM clôturé et les messages (MSG-M12-09, bons)
      */
-    public static function executer(OrdreMission $odm, User $auteur, ?string $dateRetourReelle, array $regularisations = [], array $facturesRetour = []): array
+    public static function executer(OrdreMission $odm, User $auteur, ?string $dateRetourReelle, array $regularisations = [], array $facturesRetour = [], array $piecesRetour = []): array
     {
-        return DB::transaction(function () use ($odm, $auteur, $dateRetourReelle, $regularisations, $facturesRetour) {
+        return DB::transaction(function () use ($odm, $auteur, $dateRetourReelle, $regularisations, $facturesRetour, $piecesRetour) {
             $odm = OrdreMission::whereKey($odm->id)->lockForUpdate()->firstOrFail();
             if (!self::peutCloturer($odm, $auteur)) {
                 throw new ErreurMetier('CLOTURE_IMPOSSIBLE', 'MSG-APP-035', [], 'RG-M12-20', null, 409);
@@ -74,7 +74,7 @@ final class CloturerOdm
             }
 
             if ($odm->type === 'exterieur' && $odm->hebergement_exterieur === 'au_retour') {
-                $messages = array_merge($messages, self::bonsComplementaires($odm, $facturesRetour));
+                $messages = array_merge($messages, self::bonsComplementaires($odm, $auteur, $facturesRetour, $piecesRetour));
             }
 
             $odm->update(['statut' => 'CLOTURE', 'date_cloture' => now()]);
@@ -152,13 +152,18 @@ final class CloturerOdm
      *
      * @return string[]
      */
-    private static function bonsComplementaires(OrdreMission $odm, array $factures): array
+    private static function bonsComplementaires(OrdreMission $odm, User $auteur, array $factures, array $pieces): array
     {
         $crees = [];
         foreach ($odm->participantsActifs()->with('utilisateur')->get() as $participant) {
             $montant = (int) preg_replace('/\D/', '', (string) ($factures[$participant->user_id] ?? ''));
             if ($montant < 1) {
                 continue;
+            }
+            /* RG-M12-26 : la facture est le justificatif obligatoire du bon complémentaire */
+            $piece = $pieces[$participant->user_id] ?? null;
+            if (!$piece instanceof \Illuminate\Http\UploadedFile) {
+                throw new ErreurMetier('FACTURE_RETOUR_MANQUANTE', 'MSG-M03-09', [], 'RG-M12-26', 'factures_retour');
             }
             $participant->lignes()->where('element', 'hebergement_exterieur')->update(['taux' => $montant, 'montant' => $montant]);
             $bon = BonCaisse::create([
@@ -175,14 +180,21 @@ final class CloturerOdm
                 'categorie_depense' => 'hebergement',
                 'montant' => $montant,
                 'mode_paiement' => 'orange_money',
+                'numero_om' => ReglesSaisie::normaliserTelephone($participant->numero_om ?? $participant->utilisateur?->telephone),
                 'odm_id' => $odm->id,
+                /* Spec v2.4, RG-M12-38 : montant repris de la facture, verrouillé comme tout bon issu de l'ODM */
+                'genere_par_odm' => true,
                 'demandeur_id' => $odm->demandeur_id,
                 'initiateur_id' => $odm->demandeur_id,
                 'date_demande' => today(),
                 'statut' => 'BROUILLON',
+                'caisse_emettrice_id' => \App\Models\Caisse::deRattachement($odm->demandeur)?->id,
             ]);
+            $bon->update(['caisse_id' => $bon->caissePayeuse()?->id]);
+            \App\Services\BonCaisse\PiecesBon::ajouter($bon, $piece, 'facture', $auteur);
+            [$bon] = \App\Services\BonCaisse\SoumettreBon::executer($bon, $auteur);
             $participant->update(['bon_complement_id' => $bon->id]);
-            $crees[] = $participant->nom . ' (' . Format::montant($montant) . ')';
+            $crees[] = $participant->nom . ' : ' . $bon->numero . ' (' . Format::montant($montant) . ')';
         }
 
         if ($crees) {
@@ -192,6 +204,6 @@ final class CloturerOdm
             }
         }
 
-        return $crees ? ['Bon(s) complémentaire(s) d\'hébergement préparé(s) en brouillon, à compléter avec la facture puis à soumettre : ' . implode(', ', $crees) . '.'] : [];
+        return $crees ? ['Bon(s) complémentaire(s) d\'hébergement créé(s) avec leur facture et soumis : ' . implode(', ', $crees) . '.'] : [];
     }
 }

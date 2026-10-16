@@ -87,7 +87,10 @@ export default function EtapeIdentification({
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="BD">Bon Définitif (BD) — Facture existante</SelectItem>
-                            <SelectItem value="BP">Bon Provisoire (BP) — À régulariser après la dépense</SelectItem>
+                            {/* RG-M03-04 (v2.4) : pour un visiteur du groupe ou un tiers, seul le BD est proposé */}
+                            <SelectItem value="BP" disabled={['visiteur', 'tiers'].includes(donnees.type_beneficiaire)}>
+                                Bon Provisoire (BP) — À régulariser après la dépense
+                            </SelectItem>
                         </SelectContent>
                     </Select>
                 </Champ>

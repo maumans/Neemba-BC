@@ -722,6 +722,18 @@ class NotificationService
         }
     }
 
+    /** Spec v2.4, RG-M03-28 (M11) : bon exceptionnel au profit d'un visiteur du groupe, signalé au DAF à la soumission */
+    public static function notifierBonVisiteur(BonCaisse $bon, User $auteur): void
+    {
+        $dafs = User::actifs()->where(fn ($q) => $q->whereIn('role', \App\Services\BonCaisse\CircuitBon::ROLES_FINANCE_VISITEUR)
+            ->orWhereHas('roles', fn ($r) => $r->whereIn('role', \App\Services\BonCaisse\CircuitBon::ROLES_FINANCE_VISITEUR)))->get();
+        foreach ($dafs as $daf) {
+            self::creerEtDiffuser($daf, $bon, $auteur, 'bon_visiteur', 'Bon au profit d\'un visiteur du groupe',
+                "{$auteur->nom_complet} a soumis le bon {$bon->numero} ({$bon->montant_format}) au profit de {$bon->beneficiaire}"
+                . ($bon->filiale_refacturation ? " ({$bon->filiale_refacturation})" : '') . " : {$bon->motif_visiteur}. Refacturation inter-filiale.");
+        }
+    }
+
     /** Lot E (RG-M07-03) : justification d'un BP à viser, rejetée, visée ; lien vers l'écran de justification */
     public static function notifierJustification(\App\Models\JustificationBp $justification, ?User $expediteur, \Illuminate\Support\Collection $destinataires, string $titre, string $message): void
     {

@@ -244,6 +244,16 @@ class SaisieOdmTest extends TestCase
         $this->assertSame('cadre', $odm->participants()->sole()->statut_cadre);
     }
 
+    /** Spec v2.4, RG-M12-38 : aucune saisie hors barème ; une facture d'hébergement est ignorée sur un ODM intérieur */
+    public function test_aucune_saisie_hors_bareme_sur_un_odm_interieur(): void
+    {
+        $odm = $this->creer($this->saisieB1([['user_id' => $this->thierno->id, 'base_vie' => false, 'hebergement_facture' => 900000]]));
+
+        $participant = $odm->participants()->sole();
+        $this->assertNull($participant->hebergement_facture);
+        $this->assertEquals(3250000, (float) $participant->total);   // B.1 : forfait de 500 000 GNF par nuit
+    }
+
     /* ------------------------------------------------------------------
      * Chevauchement (RG-M12-16, SC-26)
      * ------------------------------------------------------------------ */

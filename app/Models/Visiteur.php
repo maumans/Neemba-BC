@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Visiteur du groupe (spec v2.3, §6.5) : salarié d'une autre filiale en mission en Guinée. Il peut recevoir un BP ;
- * la régularisation relève du directeur du département d'accueil (RG-M03-04, RG-M07-01).
+ * Visiteur du groupe (spec v2.4, §6.5) : salarié d'une autre filiale en mission en Guinée. Il ne reçoit qu'un BD, à titre
+ * exceptionnel, refacturé à sa filiale (RG-M03-04, RG-M03-28) ; jamais de BP. Le directeur du département d'accueil reste
+ * l'initiateur de la régularisation des BP de visiteurs émis avant la v2.4 (RG-M07-01, décision du 16/10).
  */
 class Visiteur extends Model
 {

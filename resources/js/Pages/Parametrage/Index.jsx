@@ -329,7 +329,7 @@ const LIBELLES_GROUPES_PARAMETRES = {
     comptabilite: 'Comptabilité (M16)',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], motifsVisiteur = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
     /* ─── SITES ─── */
     const [siteDialog, setSiteDialog] = useState({ open: false, item: null });
     const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '' });
@@ -556,6 +556,25 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     };
     const toggleRejet = (item) => router.post(route('parametrage.motifs-rejet.toggle', item.id));
 
+    /* ─── MOTIFS DU BON VISITEUR (spec v2.4, RG-M03-28, PO-30) ─── */
+    const [visiteurDialog, setVisiteurDialog] = useState({ open: false, item: null });
+    const visiteurForm = useForm({ libelle: '' });
+    const openVisiteurAdd = () => {
+        visiteurForm.reset();
+        setVisiteurDialog({ open: true, item: null });
+    };
+    const openVisiteurEdit = (item) => {
+        visiteurForm.setData({ libelle: item.libelle });
+        setVisiteurDialog({ open: true, item });
+    };
+    const submitVisiteur = (e) => {
+        e.preventDefault();
+        const options = { onSuccess: () => setVisiteurDialog({ open: false, item: null }) };
+        if (visiteurDialog.item) visiteurForm.put(route('parametrage.motifs-visiteur.update', visiteurDialog.item.id), options);
+        else visiteurForm.post(route('parametrage.motifs-visiteur.store'), options);
+    };
+    const toggleVisiteur = (item) => router.post(route('parametrage.motifs-visiteur.toggle', item.id));
+
     return (
         <AuthenticatedLayout header="Paramétrage">
             <Head title="Paramétrage" />
@@ -594,6 +613,9 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                 </TabsTrigger>
                                 <TabsTrigger value="motifs-rejet" className="gap-1 px-2 text-xs sm:text-sm">
                                     <AlertTriangle className="h-3.5 w-3.5" /> Motifs de rejet
+                                </TabsTrigger>
+                                <TabsTrigger value="motifs-visiteur" className="gap-1 px-2 text-xs sm:text-sm">
+                                    <AlertTriangle className="h-3.5 w-3.5" /> Motifs bon visiteur
                                 </TabsTrigger>
                                 <TabsTrigger value="parametres" className="gap-1 px-2 text-xs sm:text-sm">
                                     <SlidersHorizontal className="h-3.5 w-3.5" /> Seuils
@@ -724,6 +746,25 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                     onAdd={openRejetAdd}
                                     onEdit={openRejetEdit}
                                     onToggle={toggleRejet}
+                                    addLabel="Ajouter un motif"
+                                />
+                            </TabsContent>
+
+                            {/* Motifs du bon visiteur (spec v2.4, RG-M03-28, PO-30) */}
+                            <TabsContent value="motifs-visiteur" className="mt-4">
+                                <div className="mb-4 p-4 border border-violet-200 bg-violet-50/50 rounded-lg">
+                                    <p className="text-sm text-gray-700">
+                                        Motifs proposés pour un bon exceptionnel au profit d'un visiteur du groupe (collaborateur d'une autre filiale),
+                                        complétés d'un commentaire obligatoire. Liste à fournir par le DAF (PO-30) : tant qu'elle est vide, un tel bon ne
+                                        peut pas être soumis.
+                                    </p>
+                                </div>
+                                <ParametrageTable
+                                    items={motifsVisiteur}
+                                    columns={[{ key: 'libelle', label: 'Libellé du motif' }]}
+                                    onAdd={openVisiteurAdd}
+                                    onEdit={openVisiteurEdit}
+                                    onToggle={toggleVisiteur}
                                     addLabel="Ajouter un motif"
                                 />
                             </TabsContent>
@@ -1097,6 +1138,19 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <Label>Libellé du motif *</Label>
                     <Input value={rejetForm.data.libelle} onChange={(e) => rejetForm.setData('libelle', e.target.value)} placeholder="Ex : Absence de pièce justificative" className="mt-1" required />
                     {rejetForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{rejetForm.errors.libelle}</p>}
+                </div>
+            </FormDialog>
+            <FormDialog
+                open={visiteurDialog.open}
+                onClose={() => setVisiteurDialog({ open: false, item: null })}
+                title={visiteurDialog.item ? 'Modifier le motif du bon visiteur' : 'Ajouter un motif du bon visiteur'}
+                onSubmit={submitVisiteur}
+                processing={visiteurForm.processing}
+            >
+                <div>
+                    <Label>Libellé du motif *</Label>
+                    <Input value={visiteurForm.data.libelle} onChange={(e) => visiteurForm.setData('libelle', e.target.value)} placeholder="Ex : Mission d'appui technique de la filiale" className="mt-1" required />
+                    {visiteurForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{visiteurForm.errors.libelle}</p>}
                 </div>
             </FormDialog>
         </AuthenticatedLayout>

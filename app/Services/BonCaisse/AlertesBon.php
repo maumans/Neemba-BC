@@ -41,6 +41,13 @@ final class AlertesBon
                 'montant' => (float) $bp->montant,
                 'echeance' => Format::date($bp->date_limite_regularisation),
             ])->values()->all(),
+            /* RG-M03-28 (v2.4) : bon exceptionnel au profit d'un visiteur du groupe, à refacturer à sa filiale */
+            'refacturation' => $bon->refacturation_inter_filiale ? [
+                'filiale' => $bon->filiale_refacturation,
+                'motif' => $bon->motif_visiteur,
+                'commentaire' => $bon->commentaire_visiteur,
+                'finance_daf' => CircuitBon::financeReserveeAuDaf($bon),
+            ] : null,
             'derogation' => $bon->derogation_bp ? $bon->derogation_bp + [
                 'demande_le_format' => Format::dateHeure($bon->derogation_bp['demande_le'] ?? null),
                 'decide_le_format' => isset($bon->derogation_bp['decide_le']) ? Format::dateHeure($bon->derogation_bp['decide_le']) : null,

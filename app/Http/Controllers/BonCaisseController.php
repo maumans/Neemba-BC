@@ -418,6 +418,8 @@ class BonCaisseController extends Controller
             'categories' => \App\Models\CategorieDepense::actives()->where('proposee_assistant', true)
                 ->get(['code', 'libelle', 'vehicule_obligatoire', 'vehicule_affiche', 'or_affiche']),
             'motifsUrgence' => MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),
+            /* Spec v2.4, RG-M03-28 : motifs du bon exceptionnel au profit d'un visiteur du groupe */
+            'motifsVisiteur' => \App\Models\MotifVisiteur::libellesActifs(),
             'typesBeneficiaire' => collect(BonCaisse::TYPES_BENEFICIAIRE)->only(BonCaisse::TYPES_BENEFICIAIRE_ASSISTANT),
             'modesPaiement' => collect(BonCaisse::MODES_PAIEMENT)->only(BonCaisse::MODES_PAIEMENT_ASSISTANT),
             'typesPiece' => collect(PieceJointe::TYPES_DOCUMENTS)->only(PieceJointe::TYPES_PIECE_ASSISTANT),

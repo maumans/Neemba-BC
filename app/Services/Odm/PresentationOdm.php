@@ -412,7 +412,7 @@ final class PresentationOdm
     }
 
     /**
-     * Génération des bons (US-08) : mode, participants avec leur bon actif éventuel (génération globale ou sélective),
+     * Génération des bons (US-08) : un bon par participant (RG-M12-14), avec son bon actif éventuel (génération globale ou sélective),
      * BP possible, ODM extérieur sans aucun taux. Null si l'utilisateur ne peut pas générer.
      */
     public static function generation(OrdreMission $odm, \App\Models\User $utilisateur): ?array
@@ -423,7 +423,6 @@ final class PresentationOdm
             return null;
         }
         $actifs = GenererBonsOdm::bonsActifs($odm);
-        $mode = Parametre::valeur('odm_mode_generation', 'par_participant');
         $participants = $odm->participantsActifs()->with('bonCaisse')->get()->map(function (ParticipantOdm $p) {
             $bon = $p->bonCaisse && !in_array($p->bonCaisse->statut, GenererBonsOdm::STATUTS_INACTIFS, true) ? $p->bonCaisse : null;
 
@@ -438,13 +437,13 @@ final class PresentationOdm
                     'numero' => $bon->numero ?? 'Brouillon',
                     'statut' => $bon->statut,
                     'statut_label' => \App\Models\BonCaisse::STATUTS_LABELS[$bon->statut] ?? $bon->statut,
+                    /* Bon groupé émis avant la v2.4 (RG-M12-14), conservé */
                     'groupe' => $bon->odm_participant_id === null,
                 ] : null,
             ];
         })->values();
 
         return [
-            'mode' => $mode,
             'participants' => $participants->all(),
             'reste_a_generer' => $participants->where('a_un_bon', false)->count(),
             'bp_autorise' => (bool) Parametre::valeur('odm_genere_bp', true) && $actifs->where('type_bon', 'BP')->isEmpty(),
