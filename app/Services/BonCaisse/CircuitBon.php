@@ -18,8 +18,8 @@ use Illuminate\Support\Collection;
  * - Incompatibilité : on ne vise jamais un bon dont on est le demandeur, l'initiateur ou le bénéficiaire.
  * - RG-M04-09 : si les seuls titulaires d'une étape sont incompatibles et sans suppléant, le bon passe automatiquement
  *   au niveau supérieur ; l'étape est notée « sautée ». Il en va de même quand aucun titulaire actif n'est désigné
- *   (service sans chef de service, Q48). Le dernier niveau n'est jamais sauté (visa de la Finance requis avant tout
- *   décaissement) : il attend un titulaire ou un suppléant.
+ *   (service sans chef de service, Q48). Seules les étapes Chef de service et CDG sont sautables : la Finance et le
+ *   Directeur Pays attendent un titulaire ou un suppléant, le visa de la Finance précédant tout décaissement (§8.2).
  */
 final class CircuitBon
 {
@@ -40,6 +40,27 @@ final class CircuitBon
     public static function roleEnCours(BonCaisse $bon): ?string
     {
         return self::ROLES_PAR_STATUT[$bon->statut] ?? null;
+    }
+
+    /**
+     * MSG-M03-15 : prochaine étape d'un bon soumis, « Chef de service (Thierry GOMIS) » et délai de l'étape (§6.7).
+     *
+     * @return array{valideur: string, delai: string}|null
+     */
+    public static function prochaineEtape(BonCaisse $bon): ?array
+    {
+        $role = self::roleEnCours($bon);
+        if (!$role) {
+            return null;
+        }
+        $noms = self::valideurs($bon, $role)->map(fn (array $v) => $v['user']->nom_complet)->unique()->values();
+        $validation = $bon->validations()->where('role', $role)->where('statut', 'en_attente')->first();
+        $heures = $validation?->slaHeures() ?? (float) \App\Models\Parametre::valeur('sla_' . $role, 4);
+
+        return [
+            'valideur' => self::LIBELLES[$role] . ($noms->isNotEmpty() ? ' (' . $noms->implode(', ') . ')' : ''),
+            'delai' => \App\Support\Format::nombre($heures) . \App\Support\Format::ESPACE_INSECABLE . 'h ouvrées',
+        ];
     }
 
     /** RG-M01-04, RG-M03-24 : demandeur, initiateur et bénéficiaire ne visent pas le bon */
@@ -149,10 +170,13 @@ final class CircuitBon
             ->where(fn ($q) => $q->whereNull('beneficiaire_id')->orWhere('beneficiaire_id', '!=', $utilisateur->id));
     }
 
-    /** Dernière étape du circuit : jamais sautée */
-    private static function estDerniereEtape(BonCaisse $bon): bool
+    /**
+     * Étapes jamais sautées (spec v2.3 §8.2) : la Finance, dont le visa précède tout décaissement, et le Directeur
+     * Pays. Elles attendent un titulaire ou un suppléant, même quand une étape suivante reste à viser.
+     */
+    private static function estEtapeObligatoire(BonCaisse $bon): bool
     {
-        return $bon->statut === 'EN_ATTENTE_DP' || ($bon->statut === 'EN_ATTENTE_DAF' && !$bon->necessite_validation_dp);
+        return in_array($bon->statut, ['EN_ATTENTE_DAF', 'EN_ATTENTE_DP'], true);
     }
 
     /**
@@ -164,7 +188,7 @@ final class CircuitBon
     public static function sauterEtapesSansValideur(BonCaisse $bon): array
     {
         $sautees = [];
-        while (($role = self::roleEnCours($bon)) && !self::estDerniereEtape($bon)) {
+        while (($role = self::roleEnCours($bon)) && !self::estEtapeObligatoire($bon)) {
             if (self::valideurs($bon, $role)->isNotEmpty()) {
                 break;
             }

@@ -23,6 +23,31 @@ final class AlertesBon
     /** Rôles qui décident d'une dérogation « BP en retard » (RG-M07-06 : le DAF) */
     public const ROLES_DEROGATION = ['daf', 'daf_adjoint'];
 
+    /**
+     * RG-M04-05 : alertes du bon telles qu'elles s'affichent, sur la fiche du bon comme sur l'écran de visa.
+     * Doublon probable confirmé par le demandeur (RG-M03-20), BP du bénéficiaire en retard (RG-M03-21),
+     * dérogation du DAF (RG-M07-06).
+     */
+    public static function pourAffichage(BonCaisse $bon): array
+    {
+        return [
+            'doublon' => $bon->doublon_probable ? $bon->doublon_probable + [
+                'texte' => ErreurMetier::texte('MSG-M03-12', array_intersect_key($bon->doublon_probable, array_flip(['montant', 'beneficiaire', 'numero', 'date']))),
+                'confirme_le_format' => Format::dateHeure($bon->doublon_probable['confirme_le'] ?? null),
+            ] : null,
+            'bp_en_retard' => self::bpEnRetard($bon)->map(fn (BonCaisse $bp) => [
+                'id' => $bp->id,
+                'numero' => $bp->numero,
+                'montant' => (float) $bp->montant,
+                'echeance' => Format::date($bp->date_limite_regularisation),
+            ])->values()->all(),
+            'derogation' => $bon->derogation_bp ? $bon->derogation_bp + [
+                'demande_le_format' => Format::dateHeure($bon->derogation_bp['demande_le'] ?? null),
+                'decide_le_format' => isset($bon->derogation_bp['decide_le']) ? Format::dateHeure($bon->derogation_bp['decide_le']) : null,
+            ] : null,
+        ];
+    }
+
     /** Autre bon soumis du même bénéficiaire et du même montant, dans les N derniers jours (paramètre) */
     public static function doublonProbable(BonCaisse $bon): ?BonCaisse
     {

@@ -527,7 +527,7 @@ class BonCaisseController extends Controller
             /* Spec v2.3 : répartition (lecture seule) des lignes de l'ODM payées par ce bon */
             'repartitionOdm' => \App\Services\Odm\RepartitionOdm::pourBon($bonCaisse),
             /* Lot A (spec v2.3) : alertes visibles à chaque étape (RG-M04-05), annulation (RG-M04-07), paiement (RG-M06-01) */
-            'alertes' => self::alertes($bonCaisse),
+            'alertes' => \App\Services\BonCaisse\AlertesBon::pourAffichage($bonCaisse),
             'peutAnnuler' => \App\Services\BonCaisse\AnnulerBon::peutAnnuler($bonCaisse, $utilisateur),
             'annulationParDaf' => !$estProprietaire && \App\Services\BonCaisse\AnnulerBon::peutAnnuler($bonCaisse, $utilisateur),
             'refusPaiement' => $bonCaisse->statut === 'APPROUVE' && $utilisateur->peutPayer()
@@ -568,7 +568,7 @@ class BonCaisseController extends Controller
     }
 
     /**
-     * Générer un code OTP et l'envoyer par SMS au demandeur
+     * Générer un code OTP et l'envoyer par SMS au bénéficiaire (RG-M06-02)
      */
     public function genererOtp(Request $request, BonCaisse $bonCaisse)
     {
@@ -587,40 +587,43 @@ class BonCaisseController extends Controller
             return back()->with('error', 'Le bon doit être approuvé pour générer un code OTP.');
         }
 
-        /* Invalider les anciens codes OTP non utilisés pour ce bon */
-        OtpValidation::where('bon_caisse_id', $bonCaisse->id)
-            ->where('is_used', false)
-            ->update(['is_used' => true]);
+        /* RG-M06-02 : le code part au bénéficiaire, et à personne d'autre. Sans téléphone, le retrait se fait
+         * contre signature (RG-M06-05) : aucun repli sur le numéro du demandeur, qui vaudrait auto-accusé de
+         * réception quand le demandeur est aussi le bénéficiaire. */
+        $telephone = $bonCaisse->telephone_beneficiaire;
+        if (blank($telephone)) {
+            return back()->with('error', "Aucun téléphone n'est enregistré pour le bénéficiaire {$bonCaisse->beneficiaire} :"
+                . ' le code de retrait ne peut pas lui être envoyé. Complétez sa fiche avant de payer.');
+        }
 
-        /* Générer un nouveau code OTP */
+        /* Générer le code et l'envoyer avant toute écriture : un envoi manqué ne doit ni invalider le code
+         * précédent, encore valable, ni laisser un code inutilisable en base. */
         $code = OtpValidation::genererCode();
         $dureeValidite = (int) Parametre::valeur('duree_validite_otp', 5);
 
-        $otp = OtpValidation::create([
-            'bon_caisse_id' => $bonCaisse->id,
-            'code' => $code,
-            'telephone' => $bonCaisse->telephone_beneficiaire ?? $bonCaisse->demandeur->telephone,
-            'expires_at' => now()->addMinutes($dureeValidite),
-        ]);
-
-        /* Envoyer le code par SMS via Nimba */
-        $smsService = new NimbaSmsService();
-        $resultat = $smsService->envoyerCodeOtp(
-            $otp->telephone,
-            $code,
-            $bonCaisse->beneficiaire
-        );
+        $resultat = app(NimbaSmsService::class)->envoyerCodeOtp($telephone, $code, $bonCaisse->beneficiaire);
 
         if (!$resultat['success']) {
-
             /* Service non configuré : seule la clé « error » est renseignée */
             $message = $resultat['message'] ?? $resultat['error'] ?? 'erreur inconnue';
             $message = is_array($message) ? json_encode($message) : $message;
 
             return back()->with('error', "Erreur SMS : $message");
-        }   
+        }
 
-        return back()->with('success', "Code OTP envoyé au {$otp->telephone}. Valide pendant {$dureeValidite} minutes.");
+        /* Un seul code valable à la fois : les précédents sont consommés */
+        OtpValidation::where('bon_caisse_id', $bonCaisse->id)
+            ->where('is_used', false)
+            ->update(['is_used' => true]);
+
+        OtpValidation::create([
+            'bon_caisse_id' => $bonCaisse->id,
+            'code' => $code,
+            'telephone' => $telephone,
+            'expires_at' => now()->addMinutes($dureeValidite),
+        ]);
+
+        return back()->with('success', "Code OTP envoyé au bénéficiaire ({$telephone}). Valide pendant {$dureeValidite} minutes.");
     }
 
     /**
@@ -705,16 +708,16 @@ class BonCaisseController extends Controller
             return back()->with('error', 'Montant hors des paliers Orange Money : saisissez les frais à ajouter au montant versé.');
         }
 
-        /* Vérifier qu'un code OTP a été validé pour ce bon */
+        /* RG-M06-02 : le code vaut accusé de réception et ne vit que 5 minutes. Un code vérifié n'ouvre donc pas
+         * de délai supplémentaire : passé son expiration, le bénéficiaire en reçoit un nouveau. */
         $otpVerifie = OtpValidation::where('bon_caisse_id', $bonCaisse->id)
+            ->valide()
             ->whereNotNull('verified_at')
-            ->where('is_used', false)
-            ->where('verified_at', '>=', now()->subMinutes(10)) // OTP vérifié dans les 10 dernières minutes
             ->latest('verified_at')
             ->first();
 
         if (!$otpVerifie) {
-            return back()->with('error', 'Vous devez d\'abord générer et valider un code OTP avant d\'effectuer le paiement.');
+            return back()->with('error', 'Aucun code de retrait valide : générez un code et faites-le valider par le bénéficiaire avant de payer.');
         }
 
         /* Caisse payeuse (RG-BC-12) : espèces → caisse espèces du site (à défaut caisse principale de Conakry),
@@ -763,6 +766,14 @@ class BonCaisseController extends Controller
 
             $otpVerifie->marquerCommeUtilise();
             $bon->update(['reference_paiement' => $request->filled('reference_paiement') ? trim($request->input('reference_paiement')) : null]);
+
+            /* RG-M06-02 : le code validé vaut accusé de réception ; qui a reçu les fonds, sur quel numéro et à
+             * quelle heure restent au journal du bon. */
+            HistoriqueAction::enregistrer($bon, HistoriqueAction::ACTION_ACCUSE_RECEPTION, $bon->statut, $bon->statut, $caissier->id,
+                "Reçu par {$bon->beneficiaire} : code de retrait validé le "
+                . Format::dateHeure($otpVerifie->verified_at) . " au {$otpVerifie->telephone}.",
+                ['telephone' => $otpVerifie->telephone, 'verifie_le' => $otpVerifie->verified_at?->toIso8601String()],
+            );
 
             if ($caisse) {
                 $bon->update(['caisse_id' => $caisse->id]);
@@ -859,32 +870,6 @@ class BonCaisseController extends Controller
         \App\Services\BonCaisse\AlertesBon::deciderDerogation($bonCaisse, Auth::user(), $donnees['decision'] === 'accorder', $donnees['motif']);
 
         return back()->with('success', $donnees['decision'] === 'accorder' ? 'Dérogation accordée.' : 'Dérogation refusée.');
-    }
-
-    /**
-     * Alertes du bon affichées à chaque étape (RG-M04-05) : doublon probable confirmé par le demandeur (RG-M03-20),
-     * BP du bénéficiaire en retard (RG-M03-21), dérogation du DAF (RG-M07-06).
-     */
-    private static function alertes(BonCaisse $bon): array
-    {
-        $retards = \App\Services\BonCaisse\AlertesBon::bpEnRetard($bon);
-
-        return [
-            'doublon' => $bon->doublon_probable ? $bon->doublon_probable + [
-                'texte' => \App\Exceptions\ErreurMetier::texte('MSG-M03-12', array_intersect_key($bon->doublon_probable, array_flip(['montant', 'beneficiaire', 'numero', 'date']))),
-                'confirme_le_format' => Format::dateHeure($bon->doublon_probable['confirme_le'] ?? null),
-            ] : null,
-            'bp_en_retard' => $retards->map(fn (BonCaisse $bp) => [
-                'id' => $bp->id,
-                'numero' => $bp->numero,
-                'montant' => (float) $bp->montant,
-                'echeance' => Format::date($bp->date_limite_regularisation),
-            ])->values()->all(),
-            'derogation' => $bon->derogation_bp ? $bon->derogation_bp + [
-                'demande_le_format' => Format::dateHeure($bon->derogation_bp['demande_le'] ?? null),
-                'decide_le_format' => isset($bon->derogation_bp['decide_le']) ? Format::dateHeure($bon->derogation_bp['decide_le']) : null,
-            ] : null,
-        ];
     }
 
     /**

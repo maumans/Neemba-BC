@@ -28,7 +28,7 @@ class MessagesTest extends TestCase
     public function test_les_variables_sont_formatees(): void
     {
         $this->assertSame(
-            'Au-delà de 1' . self::NBSP . '500' . self::NBSP . '000 GNF, ce bon sera aussi validé par le Directeur Pays.',
+            'Ce bon nécessitera le visa du Directeur Pays (dépense > 1' . self::NBSP . '500' . self::NBSP . '000 GNF).',
             ErreurMetier::texte('MSG-BC-020', ['seuil' => 1500000]),
         );
         $this->assertSame(
@@ -48,8 +48,8 @@ class MessagesTest extends TestCase
                 'regle' => 'RG-BC-11',
                 'message_cle' => 'MSG-BC-012',
                 'valeurs' => ['plafond' => 20000000, 'caisse' => 'caisse principale Conakry'],
-                'message' => 'Au-delà de 20' . self::NBSP . '000' . self::NBSP . '000 GNF, ce bon ne peut pas être payé en espèces '
-                    . 'sur la caisse principale Conakry. Choisissez Orange Money, chèque ou virement.',
+                'message' => 'Montant supérieur au plafond espèces de la caisse principale Conakry (20' . self::NBSP . '000'
+                    . self::NBSP . '000 GNF). Choisissez Orange Money, chèque ou virement.',
                 'champ' => 'mode_paiement',
             ]);
     }

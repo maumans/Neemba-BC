@@ -45,8 +45,9 @@ import {
 import { nombreEnLettres, formaterMontant as formatMontant } from '@/utils/nombreEnLettres';
 import BadgeStatut from '@/Components/BadgeStatut';
 import BandeauPiecesDejaUtilisees from '@/Components/BandeauPiecesDejaUtilisees';
+import AlertesDuBon from '@/Components/AlertesDuBon';
 
-export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [], motifsRejet = {} }) {
+export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [], motifsRejet = {}, alertes = {} }) {
     const { auth } = usePage().props;
     const [showRejetDialog, setShowRejetDialog] = useState(false);
     const [showComplementDialog, setShowComplementDialog] = useState(false);
@@ -113,6 +114,9 @@ export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques =
             </div>
 
             <BandeauPiecesDejaUtilisees pieces={bonCaisse.pieces_jointes} />
+
+            {/* RG-M04-05 : doublon probable et BP en retard du bénéficiaire, sous les yeux du valideur */}
+            <AlertesDuBon bonId={bonCaisse.id} alertes={alertes} />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Colonne principale - Détails du bon */}

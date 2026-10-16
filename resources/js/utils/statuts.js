@@ -1,7 +1,7 @@
 /**
  * Statuts d'un bon de caisse : libellé et couleur de la pastille (SFD §1.4).
  *
- * Brouillon gris · En validation bleu (avec l'étape) · Approuvé vert clair · Payé vert · Rejeté rouge ·
+ * Brouillon gris · En validation bleu (avec l'étape) · Bon à payer vert clair · Payé vert · Rejeté rouge ·
  * En attente de régularisation orange · Régularisé vert · Annulé gris barré · Archivé gris.
  * Les variantes sont définies dans Components/ui/badge.jsx.
  */
@@ -11,7 +11,8 @@ export const STATUTS = {
     EN_ATTENTE_CDG: { libelle: 'En validation · CDG', variante: 'statut_bleu' },
     EN_ATTENTE_DAF: { libelle: 'En validation · Finance', variante: 'statut_bleu' },
     EN_ATTENTE_DP: { libelle: 'En validation · Directeur Pays', variante: 'statut_bleu' },
-    APPROUVE: { libelle: 'Approuvé', variante: 'statut_vert_clair' },
+    /* RG-M06-01 : un bon approuvé est « Bon à payer » pour le caissier */
+    APPROUVE: { libelle: 'Bon à payer', variante: 'statut_vert_clair' },
     PAYE: { libelle: 'Payé', variante: 'statut_vert' },
     REJETE: { libelle: 'Rejeté', variante: 'statut_rouge' },
     EN_ATTENTE_REGULARISATION: { libelle: 'En attente de régularisation', variante: 'statut_orange' },

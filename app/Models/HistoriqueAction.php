@@ -73,6 +73,8 @@ class HistoriqueAction extends Model
     const ACTION_DEROGATION = 'derogation';
     /** Lot E (RG-M07-05) : BP en retard transmis aux RH, information de la DRH, retenue */
     const ACTION_SUIVI_RH = 'suivi_rh';
+    /** Lot R (RG-M06-02) : le code OTP du bénéficiaire vaut accusé de réception des fonds */
+    const ACTION_ACCUSE_RECEPTION = 'accuse_reception';
 
     /** Labels lisibles pour chaque action */
     const ACTIONS_LABELS = [
@@ -99,6 +101,7 @@ class HistoriqueAction extends Model
         'doublon_confirme' => 'Doublon probable confirmé',
         'derogation' => 'Dérogation « BP en retard »',
         'suivi_rh' => 'Suivi RH du BP en retard',
+        'accuse_reception' => 'Accusé de réception du bénéficiaire',
     ];
 
     /** Icônes pour chaque action (noms Lucide) */
@@ -122,6 +125,7 @@ class HistoriqueAction extends Model
         'mouvement_caisse' => 'Wallet',
         'delegation' => 'UserCheck',
         'imputation' => 'BookOpen',
+        'accuse_reception' => 'Smartphone',
     ];
 
     /* ----------------------------------------------------------------

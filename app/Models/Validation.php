@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Support\HeuresOuvrees;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * 1 - Responsable Service
  * 2 - Contrôle de Gestion
  * 3 - DAF
- * 4 - Directeur Pays (si montant >= 5 000 000 GNF)
+ * 4 - Directeur Pays (au-delà du seuil « seuil_validation_dp », 1 500 000 GNF par défaut)
  */
 class Validation extends Model
 {
@@ -112,6 +114,17 @@ class Validation extends Model
     }
 
     /**
+     * Échéance de l'étape (§6.7) : le délai est compté en heures ouvrées, du lundi au vendredi de 8 h à 17 h,
+     * hors jours fériés. Un bon soumis le vendredi en fin de journée n'est donc pas « en retard » le samedi.
+     */
+    public function echeanceSla(float $multiplicateur = 1.0): ?CarbonInterface
+    {
+        return $this->date_attribution
+            ? HeuresOuvrees::ajouter($this->date_attribution, $this->slaHeures() * $multiplicateur)
+            : null;
+    }
+
+    /**
      * Vérifie si le SLA est dépassé
      */
     public function slaDepasse(): bool
@@ -119,8 +132,8 @@ class Validation extends Model
         if ($this->statut !== 'en_attente' || !$this->date_attribution) {
             return false;
         }
-        /* copy() : addHours() modifierait la date d'attribution du modèle */
-        return $this->date_attribution->copy()->addMinutes((int) round($this->slaHeures() * 60))->isPast();
+
+        return $this->echeanceSla()->isPast();
     }
 
     /**
@@ -131,8 +144,8 @@ class Validation extends Model
         if ($this->statut !== 'en_attente' || !$this->date_attribution || $this->escalade) {
             return false;
         }
-        $multiplicateur = (float) Parametre::valeur('sla_multiplicateur_escalade', 2);
-        return $this->date_attribution->copy()->addMinutes((int) round($this->slaHeures() * $multiplicateur * 60))->isPast();
+
+        return $this->echeanceSla((float) Parametre::valeur('sla_multiplicateur_escalade', 2))->isPast();
     }
 
     /**

@@ -275,8 +275,9 @@ class OrdreMission extends Model
      * ---------------------------------------------------------------- */
 
     /** Rôles qui voient tous les ODM : circuit (DAF, DP), Trésorerie (taux, US-15), RH (retenues), administration */
-    /* Spec v2.3, RG-M12-34 : la répartition est consultable par le caissier, la Comptabilité, le CDG, la Trésorerie et le DAF */
-    public const ROLES_VISION_GLOBALE = ['daf', 'daf_adjoint', 'chef_comptable', 'directeur_pays', 'dp_adjoint', 'tresorerie', 'rh', 'administrateur', 'caissier', 'controle_gestion'];
+    /* Spec v2.3, RG-M12-34 : la répartition est consultable par le caissier, la Comptabilité (chef comptable et
+     * comptables, qui imputent les bons de l'ODM, M16), le CDG, la Trésorerie et le DAF */
+    public const ROLES_VISION_GLOBALE = ['daf', 'daf_adjoint', 'chef_comptable', 'comptable', 'directeur_pays', 'dp_adjoint', 'tresorerie', 'rh', 'administrateur', 'caissier', 'controle_gestion'];
 
     /** Rôles qui décident d'une dérogation au chevauchement (RG-M12-16) */
     public const ROLES_DEROGATION = ['daf', 'daf_adjoint'];

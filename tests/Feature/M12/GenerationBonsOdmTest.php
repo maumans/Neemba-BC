@@ -196,7 +196,7 @@ class GenerationBonsOdmTest extends TestCase
         $odm = $this->odmValide();
 
         $this->generer($odm, ['bp' => ['montant' => '1 000 000', 'motif' => 'court', 'beneficiaire_id' => $this->thierno->id]])
-            ->assertSessionHasErrors(['bp_motif' => 'Le motif doit comporter au moins 10 caractères.']);
+            ->assertSessionHasErrors(['bp_motif' => 'Le motif doit contenir au moins 10 caractères.']);
         $this->assertSame(0, BonCaisse::count());   // tout ou rien
 
         $this->generer($odm, ['bp' => ['montant' => '1 000 000', 'motif' => 'Carburant et péages de la mission', 'beneficiaire_id' => $this->thierno->id]])

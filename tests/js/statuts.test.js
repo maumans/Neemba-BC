@@ -6,7 +6,8 @@ describe('infosStatut', () => {
     it('applique les couleurs de la SFD', () => {
         expect(infosStatut('BROUILLON').variante).toBe('statut_gris');
         expect(infosStatut('EN_ATTENTE_CDG')).toEqual({ libelle: 'En validation · CDG', variante: 'statut_bleu' });
-        expect(infosStatut('APPROUVE').variante).toBe('statut_vert_clair');
+        /* RG-M06-01 : un bon approuvé s'annonce « Bon à payer » au caissier */
+        expect(infosStatut('APPROUVE')).toEqual({ libelle: 'Bon à payer', variante: 'statut_vert_clair' });
         expect(infosStatut('PAYE').variante).toBe('statut_vert');
         expect(infosStatut('REJETE').variante).toBe('statut_rouge');
         expect(infosStatut('EN_ATTENTE_REGULARISATION').variante).toBe('statut_orange');

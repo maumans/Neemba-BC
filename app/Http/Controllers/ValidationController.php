@@ -76,6 +76,8 @@ class ValidationController extends Controller
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
             'codesAnalytiques' => \App\Models\CodeAnalytique::where('actif', true)->get(),
             'motifsRejet' => \App\Models\MotifRejet::options(),
+            /* RG-M04-05 : le valideur voit le doublon probable et les BP en retard du bénéficiaire là où il vise */
+            'alertes' => \App\Services\BonCaisse\AlertesBon::pourAffichage($bonCaisse),
         ]);
     }
 
@@ -99,9 +101,16 @@ class ValidationController extends Controller
 
         /* Phase 1.2 : Le CDG peut modifier le code analytique lors de la validation */
         if ($roleValidation === 'controle_gestion') {
-            $regles['code_analytique'] = ['nullable', 'string', 'max:255'];
+            /* RG-M04-03 : le code retenu par le CDG est contrôlé comme à la saisie — il existe, il est actif et il
+             * est rattaché au service du bon. Les codes de ventilation suivent la même règle : ils alimentent
+             * l'imputation comptable (M16). */
+            $regleCode = [
+                Rule::exists('codes_analytiques', 'code')->where('actif', true),
+                \App\Services\BonCaisse\ReglesSaisie::regleCodeDuService(['service' => $bonCaisse->service]),
+            ];
+            $regles['code_analytique'] = ['nullable', 'string', 'max:255', ...$regleCode];
             $regles['ventilations'] = ['nullable', 'array'];
-            $regles['ventilations.*.code_analytique'] = ['required_with:ventilations', 'string'];
+            $regles['ventilations.*.code_analytique'] = ['required_with:ventilations', 'string', ...$regleCode];
             $regles['ventilations.*.montant'] = ['required_with:ventilations', 'numeric', 'min:0'];
             $regles['ventilations.*.pourcentage'] = ['nullable', 'numeric', 'min:0', 'max:100'];
         }
@@ -184,7 +193,11 @@ class ValidationController extends Controller
         $validated = $request->validate([
             /* RG-M04-04 : motif choisi dans la liste paramétrable, complété d'un commentaire libre */
             'motif_rejet' => ['required', 'string', Rule::in(array_keys(\App\Models\MotifRejet::options()))],
-            'commentaire' => ['nullable', 'string', 'max:1000', 'required_if:motif_rejet,autre'],
+            /* Q73 (§5.1) : le rejet s'explique toujours, en 10 caractères au moins, quel que soit le motif retenu */
+            'commentaire' => ['required', 'string', 'min:10', 'max:1000'],
+        ], [
+            'commentaire.required' => __('MSG-BC-002'),
+            'commentaire.min' => __('MSG-BC-002'),
         ]);
 
         $motifStr = \App\Models\MotifRejet::options()[$validated['motif_rejet']];

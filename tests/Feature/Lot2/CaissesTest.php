@@ -118,8 +118,8 @@ class CaissesTest extends TestCase
 
         $this->actingAs(User::factory()->role('caissier')->create())
             ->post(route('bons-caisse.payer', $bon), ['mode_paiement_effectif' => 'especes'])
-            ->assertSessionHas('error', 'Au-delà de 20' . self::NBSP . '000' . self::NBSP . '000 GNF, ce bon ne peut pas être payé en espèces '
-                . 'sur la caisse principale Conakry. Choisissez Orange Money, chèque ou virement.');
+            ->assertSessionHas('error', 'Montant supérieur au plafond espèces de la caisse principale Conakry (20' . self::NBSP . '000'
+                . self::NBSP . '000 GNF). Choisissez Orange Money, chèque ou virement.');
 
         $this->assertSame('APPROUVE', $bon->fresh()->statut);
         $this->assertFalse((bool) $otp->fresh()->is_used);

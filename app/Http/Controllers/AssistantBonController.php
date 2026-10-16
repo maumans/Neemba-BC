@@ -8,6 +8,7 @@ use App\Models\Caisse;
 use App\Models\PieceJointe;
 use App\Models\User;
 use App\Services\BonCaisse\AnnulerBon;
+use App\Services\BonCaisse\CircuitBon;
 use App\Services\BonCaisse\CircuitPrevisionnel;
 use App\Services\BonCaisse\ControlesBon;
 use App\Services\BonCaisse\EnregistrementBon;
@@ -80,8 +81,11 @@ class AssistantBonController extends Controller
 
         [$bon, $controles] = SoumettreBon::executer($bonCaisse, $request->user(), $request->header('Idempotency-Key'));
 
-        /* MSG-BC-032 affiché sur la fiche du bon */
-        session()->flash('success', __('MSG-BC-032', ['numero' => $bon->numero]));
+        /* MSG-M03-15 affiché sur la fiche du bon : prochain valideur et délai de l'étape */
+        $etape = CircuitBon::prochaineEtape($bon->fresh());
+        session()->flash('success', $etape
+            ? __('MSG-M03-15', ['numero' => $bon->numero, 'valideur' => $etape['valideur'], 'delai' => $etape['delai']])
+            : "Bon {$bon->numero} soumis.");
 
         return response()->json([
             'id' => $bon->id,

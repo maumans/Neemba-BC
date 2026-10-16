@@ -336,6 +336,12 @@ class SaisieOdmTest extends TestCase
         $this->assertSame([$soumis->id], $ids($dp));
         $this->assertSame([], $ids($autre));
         $this->actingAs($autre)->get(route('odm.show', $soumis))->assertForbidden();
+
+        /* RG-M12-34 : la Comptabilité, qui impute les bons de l'ODM (M16), voit les ODM soumis */
+        $comptable = User::factory()->create(['service' => 'DAF']);
+        $comptable->ajouterRoles(['comptable']);
+        $this->assertSame([$soumis->id], $ids($comptable));
+        $this->actingAs($comptable)->get(route('odm.show', $soumis))->assertOk();
     }
 
     /** RG-M12-22 : le demandeur annule tant qu'aucun bon n'est généré */

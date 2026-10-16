@@ -175,7 +175,8 @@ class BonCaisse extends Model
         'EN_ATTENTE_CDG' => 'En attente Contrôle de Gestion',
         'EN_ATTENTE_DAF' => 'En attente DAF',
         'EN_ATTENTE_DP' => 'En attente Directeur Pays',
-        'APPROUVE' => 'Approuvé',
+        /* RG-M06-01 : un bon approuvé est « Bon à payer » pour le caissier */
+        'APPROUVE' => 'Bon à payer',
         'PAYE' => 'Payé',
         'REJETE' => 'Rejeté',
         'EN_ATTENTE_REGULARISATION' => 'En attente de régularisation',

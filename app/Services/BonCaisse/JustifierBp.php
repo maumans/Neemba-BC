@@ -265,7 +265,7 @@ final class JustifierBp
             $complement = BonCaisse::create([
                 'numero' => NumeroteurBon::prochain($emettrice),
                 'type_bon' => 'BD',
-                'statut' => 'APPROUVE',
+                'statut' => 'EN_ATTENTE_DAF',
                 'site' => $bp->site,
                 'service' => $bp->service,
                 'code_analytique' => $bp->code_analytique,
@@ -290,9 +290,23 @@ final class JustifierBp
                 'caisse_emettrice_id' => $emettrice?->id,
             ]);
             $complement->update(['caisse_id' => $complement->caissePayeuse()?->id]);
-            HistoriqueAction::enregistrer($complement, HistoriqueAction::ACTION_CREATION, null, 'APPROUVE', $auteur->id,
-                "Bon de complément créé à la régularisation du BP {$bp->numero}, visée (initiateur, N+1, CDG, Comptabilité) : à payer.");
+
+            /* §8.2 : aucun décaissement sans visa de la Finance. Les visas N+1 et CDG sont déjà portés par la
+             * justification : leurs étapes sont notées sautées, le complément part directement à la Finance (puis
+             * au Directeur Pays si son montant dépasse le seuil). */
+            $complement->creerEtapesValidation();
+            $complement->validations()->whereIn('role', ['responsable_service', 'controle_gestion'])->update([
+                'statut' => 'saute',
+                'commentaire' => "Visa déjà porté par la justification du BP {$bp->numero} (initiateur, N+1, CDG, Comptabilité).",
+                'date_validation' => now(),
+                'date_attribution' => now(),
+            ]);
+            $complement->validations()->where('role', 'daf')->update(['date_attribution' => now()]);
+
+            HistoriqueAction::enregistrer($complement, HistoriqueAction::ACTION_CREATION, null, 'EN_ATTENTE_DAF', $auteur->id,
+                "Bon de complément créé à la régularisation du BP {$bp->numero}, en attente du visa de la Finance.");
             $j->update(['bon_complement_id' => $complement->id]);
+            NotificationService::notifierSoumission($complement->fresh(['demandeur']), $auteur);
         }
 
         NotificationService::notifierJustification($j, $auteur, collect([$j->initiateur, $bp->demandeur])->filter()->unique('id'), 'BP régularisé',

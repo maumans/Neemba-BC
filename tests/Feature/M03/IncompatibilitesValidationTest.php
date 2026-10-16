@@ -144,6 +144,32 @@ class IncompatibilitesValidationTest extends TestCase
         $this->assertSame('EN_ATTENTE_DAF', $bon->fresh()->statut);
     }
 
+    public function test_le_visa_finance_n_est_jamais_saute_meme_quand_le_dp_est_requis(): void
+    {
+        /* Spec v2.3 §8.2 : aucun décaissement sans visa de la Finance. Le seul valideur Finance est bénéficiaire
+         * d'un bon au-delà du seuil du DP : son étape ne doit pas être sautée au profit du Directeur Pays. */
+        \App\Models\Parametre::majValeur('seuil_validation_dp', '1500000');
+        $dp = User::factory()->role('directeur_pays')->create(['name' => 'BANGOURA', 'prenom' => 'Fodé']);
+        $bon = $this->bonSoumis(['beneficiaire_id' => $this->daf->id, 'montant' => 2000000]);
+        $this->assertTrue($bon->necessite_validation_dp);
+
+        $this->actingAs($this->chefDirection)->post(route('validations.approuver', $bon));
+        $this->actingAs($this->cdg)->post(route('validations.approuver', $bon));
+
+        $this->assertSame('EN_ATTENTE_DAF', $bon->fresh()->statut);
+        $this->assertSame('en_attente', $bon->validations()->where('role', 'daf')->value('statut'));
+
+        /* Le DP ne vise pas à la place de la Finance */
+        $this->actingAs($dp)->post(route('validations.approuver', $bon))->assertSessionHas('error');
+        $this->assertSame('EN_ATTENTE_DAF', $bon->fresh()->statut);
+
+        /* Le visa d'un autre titulaire de la Finance débloque le bon, qui part ensuite au DP */
+        $chefComptable = User::factory()->create(['name' => 'KEITA', 'prenom' => 'Aminata']);
+        $chefComptable->ajouterRoles(['chef_comptable']);
+        $this->actingAs($chefComptable)->post(route('validations.approuver', $bon))->assertSessionHas('success');
+        $this->assertSame('EN_ATTENTE_DP', $bon->fresh()->statut);
+    }
+
     public function test_un_service_sans_chef_passe_au_niveau_superieur(): void
     {
         /* Q48 : aucun chef de service désigné pour le service du bon */

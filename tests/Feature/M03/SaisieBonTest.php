@@ -192,7 +192,7 @@ class SaisieBonTest extends TestCase
     {
         $bon = $this->brouillon();
         $this->etape(3, $this->depense(['motif' => 'Achat']), $bon)
-            ->assertJsonPath('erreurs.motif.0', 'Le motif doit comporter au moins 10 caractères.');
+            ->assertJsonPath('erreurs.motif.0', 'Le motif doit contenir au moins 10 caractères.');
 
         foreach (['abc', 0, '12,5'] as $montant) {
             $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), ['montant' => $montant])
@@ -219,8 +219,8 @@ class SaisieBonTest extends TestCase
     {
         $bon = $this->brouillon();
         $this->etape(3, $this->depense(['montant' => 23500000, 'mode_paiement' => 'especes']), $bon)
-            ->assertJsonPath('erreurs.mode_paiement.0', 'Au-delà de 20' . self::NBSP . '000' . self::NBSP . '000 GNF, ce bon ne peut pas être payé '
-                . 'en espèces sur la caisse principale Conakry. Choisissez Orange Money, chèque ou virement.');
+            ->assertJsonPath('erreurs.mode_paiement.0', 'Montant supérieur au plafond espèces de la caisse principale Conakry (20'
+                . self::NBSP . '000' . self::NBSP . '000 GNF). Choisissez Orange Money, chèque ou virement.');
 
         $this->etape(3, $this->depense(['montant' => 23500000, 'mode_paiement' => 'virement']), $bon)
             ->assertJsonPath('erreurs', []);
@@ -349,7 +349,9 @@ class SaisieBonTest extends TestCase
             ->assertJsonPath('numero', 'BC-CKY-' . now()->year . '-00001')
             ->assertJsonPath('statut', 'EN_ATTENTE_CHEF_SERVICE')
             ->assertJsonPath('caisse.code', 'CKY-ESP')
-            ->assertSessionHas('success', 'Bon BC-CKY-' . now()->year . '-00001 soumis. Il est en attente de validation par le chef de service.');
+            /* MSG-M03-15 : prochaine étape (valideur nommé) et délai de l'étape */
+            ->assertSessionHas('success', 'Bon BC-CKY-' . now()->year . '-00001 soumis. Prochaine étape : Chef de service (Lamine SOUMAH), délai 4'
+                . "\u{00A0}h ouvrées.");
 
         $bon->refresh();
         $this->assertNotNull($bon->date_soumission);

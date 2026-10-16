@@ -375,8 +375,11 @@ class ReglesSaisie
         return $champs;
     }
 
-    /** RG-BC-04 : si le service a des codes rattachés, le code doit en faire partie */
-    private static function regleCodeDuService(array $d): \Closure
+    /**
+     * RG-BC-04, RG-M04-03 : si le service a des codes rattachés, le code doit en faire partie. Sert à la saisie du
+     * bon comme au code corrigé par le CDG à son visa.
+     */
+    public static function regleCodeDuService(array $d): \Closure
     {
         return function (string $attribut, mixed $valeur, \Closure $echec) use ($d) {
             $service = Service::where('nom', $d['service'] ?? null)->first();

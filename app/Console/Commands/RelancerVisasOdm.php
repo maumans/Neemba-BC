@@ -9,10 +9,12 @@ use App\Models\Parametre;
 use App\Services\Odm\CircuitOdm;
 use App\Services\Odm\NotificationsOdm;
 use App\Support\Format;
+use App\Support\HeuresOuvrees;
 use Illuminate\Console\Command;
 
 /**
- * Délais des visas d'ODM (spec v2.2, §6.7 : mêmes délais que les étapes équivalentes du circuit des bons).
+ * Délais des visas d'ODM (spec v2.3, §6.7 : mêmes délais que les étapes équivalentes du circuit des bons,
+ * comptés en heures ouvrées).
  *
  * - À l'échéance : une relance aux valideurs de l'étape (titulaires et suppléants).
  * - Au double du délai (paramètre « sla_multiplicateur_escalade ») : escalade au niveau supérieur, pour le DP au DAF.
@@ -42,10 +44,11 @@ class RelancerVisasOdm extends Command
             if ($etape->version !== $odm->version) {
                 continue;
             }
-            $delaiMinutes = (int) round(CircuitOdm::delaiHeures($etape) * 60);
+            /* §6.7 : délais comptés en heures ouvrées (lun–ven, 8 h–17 h, hors jours fériés), comme pour les bons */
+            $delaiHeures = CircuitOdm::delaiHeures($etape);
             $attente = Format::dureeEntre($etape->date_attribution);
 
-            if (!$etape->escalade && $etape->date_attribution->copy()->addMinutes((int) round($delaiMinutes * $multiplicateur))->isPast()) {
+            if (!$etape->escalade && HeuresOuvrees::echu($etape->date_attribution, $delaiHeures * $multiplicateur)) {
                 $niveau = CircuitOdm::ESCALADE[$etape->role] ?? null;
                 if ($niveau) {
                     NotificationsOdm::envoyer(CircuitOdm::valideursPossibles($odm, $niveau), null, $odm, 'odm_escalade',
@@ -59,7 +62,7 @@ class RelancerVisasOdm extends Command
                 continue;
             }
 
-            if (!$etape->derniere_relance && $etape->date_attribution->copy()->addMinutes($delaiMinutes)->isPast()) {
+            if (!$etape->derniere_relance && HeuresOuvrees::echu($etape->date_attribution, $delaiHeures)) {
                 NotificationsOdm::envoyer(CircuitOdm::valideursPossibles($odm, $etape->role), null, $odm, 'odm_relance',
                     "Relance : ODM {$odm->numero} à viser",
                     "L'ordre de mission {$odm->numero} attend votre visa (« {$etape->libelle} ») depuis {$attente}.");

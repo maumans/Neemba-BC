@@ -114,9 +114,10 @@ class JustificationBpTest extends TestCase
         $this->assertSame(10200000.0, (float) $this->especes->fresh()->solde);
     }
 
-    /** RG-M07-08 : trop justifié versé par un BD de complément, approuvé et lié au BP */
+    /** RG-M07-08, §8.2 : trop justifié versé par un BD de complément lié au BP, soumis au visa de la Finance */
     public function test_le_trop_justifie_est_verse_par_un_bd_de_complement(): void
     {
+        $daf = User::factory()->role('daf')->create(['prenom' => 'Mohamed', 'name' => 'DIAKITE']);
         $bp = $this->bpPaye(500000);
         $this->justifier($bp, [['Carburant groupe électrogène', 'ADAZZZ', 650000]]);
         $this->actingAs($this->souadou)->post(route('bons-caisse.justification.soumettre', $bp))->assertSessionHas('success');
@@ -125,12 +126,23 @@ class JustificationBpTest extends TestCase
         }
 
         $complement = BonCaisse::where('bp_regularise_id', $bp->id)->sole();
-        $this->assertSame(['BD', 'APPROUVE', 150000.0, $this->souadou->id], [$complement->type_bon, $complement->statut, (float) $complement->montant, $complement->demandeur_id]);
+        $this->assertSame(['BD', 'EN_ATTENTE_DAF', 150000.0, $this->souadou->id], [$complement->type_bon, $complement->statut, (float) $complement->montant, $complement->demandeur_id]);
         $this->assertNotNull($complement->numero);
         $this->assertSame($complement->id, $bp->justification->bon_complement_id);
         $this->assertSame('REGULARISE', $bp->fresh()->statut);
         $this->actingAs($this->souadou)->get(route('bons-caisse.show', $complement))
             ->assertInertia(fn (Assert $page) => $page->where('bpRegularise.numero', $bp->numero));
+
+        /* Les visas N+1 et CDG sont déjà portés par la justification : leurs étapes sont notées sautées */
+        $this->assertSame(['responsable_service:saute', 'controle_gestion:saute', 'daf:en_attente'],
+            $complement->validations()->orderBy('niveau')->get()->map(fn ($v) => "{$v->role}:{$v->statut}")->all());
+        $this->assertStringContainsString("déjà porté par la justification du BP {$bp->numero}",
+            $complement->validations()->where('role', 'controle_gestion')->value('commentaire'));
+
+        /* La Finance est prévenue et son visa rend le complément payable */
+        $this->assertTrue(Notification::where('destinataire_id', $daf->id)->where('bon_caisse_id', $complement->id)->exists());
+        $this->actingAs($daf)->post(route('validations.approuver', $complement))->assertSessionHas('success');
+        $this->assertSame('APPROUVE', $complement->fresh()->statut);
     }
 
     /** RG-M07-03 : restant à justifier, ligne incomplète, 10 lignes au plus ; rejet motivé, renvoi à l'initiateur, version 2 */

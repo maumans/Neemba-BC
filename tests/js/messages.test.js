@@ -23,6 +23,6 @@ describe('msg', () => {
 describe('msgErreur', () => {
     it('reconstruit le texte d\'un refus serveur (SFD §5.7)', () => {
         expect(msgErreur({ message_cle: 'MSG-BC-012', valeurs: { plafond: 20000000, caisse: 'caisse principale Conakry' } }))
-            .toBe(`Au-delà de 20${NBSP}000${NBSP}000 GNF, ce bon ne peut pas être payé en espèces sur la caisse principale Conakry. Choisissez Orange Money, chèque ou virement.`);
+            .toBe(`Montant supérieur au plafond espèces de la caisse principale Conakry (20${NBSP}000${NBSP}000 GNF). Choisissez Orange Money, chèque ou virement.`);
     });
 });

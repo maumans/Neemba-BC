@@ -19,11 +19,11 @@ use Illuminate\Support\Facades\Log;
  * - SLA dépassé (1×) → Relance email/push + SMS (si activé)
  * - SLA dépassé (2×) → Escalade automatique au niveau N+1
  * 
- * SLA par défaut :
+ * SLA par défaut (spec v2.3, §6.7), comptés en heures ouvrées (lun–ven, 8 h–17 h, hors jours fériés) :
  * - Resp. Service : 4h
- * - CDG : 8h
- * - DAF : 4h
- * - DP : 8h
+ * - CDG : 24h
+ * - DAF : 8h
+ * - DP : 24h
  * 
  * Usage : php artisan validations:relancer-sla
  * Planification recommandée : toutes les heures via le scheduler Laravel
@@ -34,12 +34,12 @@ class RelancerValidationsSLA extends Command
 
     protected $description = 'Relancer les validateurs dont le SLA est dépassé et escalader si nécessaire';
 
-    /** Mapping rôle → rôle supérieur pour l'escalade */
+    /** Mapping rôle → rôle supérieur pour l'escalade ; pour le DP, au DAF (§6.7), comme pour les ODM */
     private const ESCALADE_MAP = [
         'responsable_service' => 'controle_gestion',
         'controle_gestion' => 'daf',
         'daf' => 'directeur_pays',
-        'directeur_pays' => null, // pas d'escalade au-delà du DP
+        'directeur_pays' => 'daf',
     ];
 
     /** Labels lisibles pour les rôles */
