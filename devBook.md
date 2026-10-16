@@ -4739,3 +4739,72 @@ Les délais de visa changent :
 - les délais ne courent plus le soir ni le week-end.
 
 Prévenir les valideurs.
+
+## 49. Version v49 — Lot V : corrections v2.4 de l'existant (16 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Ce lot retire ou corrige ce que la spec v2.4 rend faux dans le code déjà écrit (§47.1). Décision du 16/10 : les données existantes gardent leur cycle ; seules les nouvelles saisies sont bloquées.
+
+### 49.1 Visiteurs du groupe : BD seulement (RG-M03-04, RG-M03-28, RG-M04-10, RG-M07-01)
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M03-04 | `ReglesSaisie` refuse un BP pour un visiteur, comme pour un tiers (nouveau texte de MSG-M03-02). Dans l'assistant, le type BP est désactivé à l'étape 1 quand le bénéficiaire est un visiteur ou un tiers. À l'étape 2, un bandeau rouge rappelle MSG-M03-02 si un BP est en cours. |
+| RG-M03-28 | Nouvelle table `motifs_visiteur`, tenue au Paramétrage (onglet « Motifs bon visiteur »). Elle est vide au départ : la liste est attendue du DAF (PO-30). Le bon porte `motif_visiteur` (liste) et `commentaire_visiteur` (10 caractères au moins), avec MSG-M03-17. `EnregistrementBon` marque le bon `refacturation_inter_filiale` et recopie `filiale_refacturation` depuis le visiteur. Le bandeau « Bon exceptionnel… refacturation inter-filiale » (`AlertesDuBon`) s'affiche sur la fiche et sur l'écran de visa. L'export Excel des bons a deux colonnes de plus : « Refacturation inter-filiale » et « Filiale ». |
+| RG-M04-10 | `CircuitBon::titulaires` réserve l'étape Finance d'un bon visiteur à `daf` et `daf_adjoint` (`CircuitBon::ROLES_FINANCE_VISITEUR`), selon le paramètre `visiteur_finance_daf_seul` (défaut : oui). `requeteAViser` retire ces bons de la liste du Chef comptable. `motifRefus` explique le refus. La Finance n'est jamais sautée (lot R) : si ni le DAF ni son adjoint ne peuvent viser, le bon attend (Q79). |
+| M11 | `NotificationService::notifierBonVisiteur` prévient le DAF et le DAF adjoint à la soumission (type `bon_visiteur`). |
+| RG-M07-01 | Plus de nouveau BP de visiteur. Les BP de visiteurs déjà émis gardent leur régularisation (`JustifierBp::initiateurDe`, directeur d'accueil) ; la migration les liste au journal. |
+
+### 49.2 ODM
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M12-14 | Un bon par participant. Sont retirés : le paramètre `odm_mode_generation` (migration), son entrée dans `Parametre::CHOIX`, `GenererBonsOdm::bonGroupe`, l'option `beneficiaire_groupe_id` et l'écran du mode groupé (`Odm/Show.jsx`). La génération globale, individuelle ou par sélection reste (Q61 révisée). Les bons groupés déjà émis restent valides : paiement, répartition et imputation acceptent toujours plusieurs participants par bon. |
+| RG-M12-38, RG-M12-26 | Le bon complémentaire d'un hébergement à l'étranger payé au retour ne naît plus en brouillon modifiable. À la clôture, chaque facture est jointe avec son montant (MSG-M03-09 si elle manque). Le bon est créé `genere_par_odm` (montant verrouillé), reçoit la facture (`PiecesBon::ajouter`) et est soumis aussitôt (`SoumettreBon`). `EnregistrementOdm` ignore une facture d'hébergement hors d'un ODM extérieur payé avant le départ. |
+
+### 49.3 Libellés
+
+- ERP Helium au lieu d'Infor IE dans les commentaires de la migration M16 et d'`ExportEcritures`.
+- Les visiteurs ne sont plus annoncés comme pouvant recevoir un BP : `Visiteur`, `VisiteurController`, `Visiteurs.jsx`, menu.
+
+### 49.4 Données
+
+Migration `2026_10_20_000001_lot_v_visiteurs_et_bon_par_participant` :
+- table `motifs_visiteur` ;
+- colonnes `motif_visiteur`, `commentaire_visiteur`, `refacturation_inter_filiale`, `filiale_refacturation` sur `bons_caisse`, et reprise des bons existants au profit d'un visiteur ;
+- paramètre `visiteur_finance_daf_seul` ajouté ; `odm_mode_generation` retiré.
+
+Vérifiée sur une copie de la base (aller, retour, aller), puis appliquée en dev.
+
+### 49.5 Vérifications
+
+- **Nouveaux tests** : `tests/Feature/LotV/CorrectionsV24Test.php` (3 tests) :
+  - Finance réservée au DAF, paramètre ;
+  - notification, bandeau, export ;
+  - motifs paramétrables.
+- **Test ajouté** : `SaisieOdmTest::test_aucune_saisie_hors_bareme_sur_un_odm_interieur`.
+- **Tests réécrits pour la v2.4** :
+  - `TiersVisiteursTest` : BP refusé pour un visiteur, BD exceptionnel ;
+  - `GenerationBonsOdmTest` : un bon par participant, même si un bon groupé est demandé ;
+  - `PrerequisTest` : paramètre retiré, autre paramètre « choix » ;
+  - `ClotureOdmTest` : facture obligatoire, bon complémentaire verrouillé et soumis.
+- **Total** : 361 tests PHP et 74 tests JavaScript passent.
+- **Parcours dans Edge** sur une copie de la base de dev, 15 vérifications, sans erreur JavaScript :
+  1. motif ajouté au Paramétrage ;
+  2. BP refusé pour un visiteur et type BP désactivé ;
+  3. BD visiteur avec motif et commentaire, soumis ; bandeau, marquage, notification du DAF ;
+  4. bon absent des validations du Chef comptable ; écran de visa du DAF avec le bandeau ;
+  5. ODM sans mention du bon groupé ;
+  6. téléphone.
+
+  Une vérification SQL du script a échoué à cause de l'encodage de la console Windows (« Côte ») ; la valeur en base a été contrôlée à la main et elle est juste.
+
+### 49.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_20_000001
+```
+
+Ensuite :
+- saisir la liste des motifs du bon visiteur fournie par le DAF (PO-30). Tant qu'elle est vide, un bon au profit d'un visiteur ne peut pas être soumis ;
+- prévenir les demandeurs : un visiteur du groupe ne reçoit plus qu'un BD exceptionnel ;
+- prévenir le Chef comptable : la Finance de ces bons revient au DAF et à son adjoint.

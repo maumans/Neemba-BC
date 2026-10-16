@@ -131,7 +131,7 @@ La dépense (3 250 000 GNF, hors frais) dépasse 1 500 000 GNF : le **bon** gén
 | **Un bon par participant** (défaut) | 2 × (3 250 000 + 32 500) | 6 565 000 |
 | Un bon groupé, versé à un seul participant | 6 500 000 + 0,8 % (palier 5 M – 15 M) = 6 500 000 + 52 000 | 6 552 000 |
 
-Le bon groupé économise 13 000 GNF de frais, mais verse tout l'argent sur le compte d'une seule personne : c'est un risque d'audit. Le DAF doit trancher (PO-03) ; en attendant, c'est **un bon par participant**.
+Le bon groupé économisait 13 000 GNF de frais, mais versait tout l'argent sur le compte d'une seule personne : un risque d'audit. Le comité du 14/10 l'a abandonné (spec v2.4, RG-M12-14) : c'est **un bon par participant**, et le paramètre a été retiré (devBook §49).
 
 ### 4.4 Exemple B.3 — prolongation et nuitée de rattrapage
 
@@ -205,7 +205,7 @@ Statut :
 | RG-M12-11 | Circuit chef d'atelier → DAF → DP ; pas de CDG ni de RH ; étape RH en paramètre inactif | C | M12-3 | ☑ |
 | RG-M12-12 | Rejet motivé ; même numéro ; modifiable et resoumis | C | M12-3 | ☑ |
 | RG-M12-13 | Génération depuis un ODM validé : BD, plus BP facultatif ; circuit complet ; OM souhaité | C | M12-4 | ☑ |
-| RG-M12-14 | Un bon par participant (défaut) ou bon groupé | O | M12-4 | ☑ |
+| RG-M12-14 | Un bon par participant ; le bon groupé est abandonné (spec v2.4, devBook §49) | C | M12-4, V | ☑ |
 | RG-M12-15 | Prise en charge par ligne de frais et par participant : Neemba, client avancé (refacturé) ou client direct (hors bon) ; ancien choix A/B devenu le mode proposé par défaut (Q49, demande de la direction du 09/10) | C | M12-4, §36 | ☑ |
 | RG-M12-16 | Chevauchement bloqué ; dérogation du DAF motivée | C | M12-2 | ☑ |
 | RG-M12-17 | Prolongation : segment lié, départ = retour + 1, participants repris (pas d'ajout) | C | M12-5 | ☑ |
@@ -371,7 +371,7 @@ Ils sont codés en **paramètres**, avec leur valeur par défaut : la réponse d
 | Réf. | Sujet | Défaut développé | Attendu de |
 |------|-------|------------------|------------|
 | PO-02 | Libellés des deux lignes de 125 000 | Repas / Déplacement | Neemba |
-| PO-03 | Un bon par participant ou bon groupé | Un bon par participant | DAF (avant S6) |
+| PO-03 | Un bon par participant ou bon groupé | Un bon par participant, décidé le 14/10 (spec v2.4) | — |
 | PO-04 | ODM à la charge du client | Variante A : bons pour le total, plus « à refacturer » ; variante B seulement si 100 % client (v2.3) | Neemba (avant S6) |
 | PO-24 | Frais OM sur un ODM partagé (v2.3) | Au prorata des parts (paramètre) | Neemba |
 | PO-25 | Compte des frais refacturables (v2.3) | Paramètre vide, pour M16 | Comptabilité Neemba |
@@ -415,7 +415,7 @@ Ces questions ne sont pas tranchées par la spécification. Elles seront report�
 | SC-20 | ODM intérieur, une personne (exemple B.1) | M12-2 / M12-3 | `SaisieOdmTest`, `CircuitOdmTest` | ☑ |
 | SC-21 | ODM à plusieurs personnes | M12-2 | `SaisieOdmTest` | ☑ |
 | SC-22 | ODM technique avec OR liés | M12-2 | `SaisieOdmTest` | ☑ |
-| SC-23 | Génération des bons (individuels / groupé, exemple B.2) | M12-4 | `GenerationBonsOdmTest` | ☑ |
+| SC-23 | Génération des bons, un par participant (exemple B.2) | M12-4, V | `GenerationBonsOdmTest` | ☑ |
 | SC-24 | Prolongation d'une mission longue, nuitée de rattrapage (exemple B.3) | M12-5 | `CalculOdmTest`, `ProlongationOdmTest` | ☑ |
 | SC-25 | Ajustement au réel et clôture | M12-6 | `ClotureOdmTest` | ☑ |
 | SC-26 | Chevauchement de périodes (anti-doublon) | M12-2 | `SaisieOdmTest` | ☑ |
@@ -491,3 +491,4 @@ Le lot M12-0 ne réalise que ce dont M12 a besoin : frais OM, taux de change, jo
 | 12/10/2026 | M16 / M14 | (ce commit) | Imputation comptable (une ligne par part pour les bons d'ODM, corrections reportées sur l'ODM avec motif), export des écritures, alerte J+1 ; export Excel des bons ; 299 tests PHP ; parcours navigateur (14 vérifications). Décisions Q56 à Q60 ; devBook §38 |
 | 13/10/2026 | PDF | (ce commit) | PDF de l'ODM sur le modèle papier de Neemba (« ODM .xlsm ») : service concerné, mission, prise en charge selon les parts, passagers, calcul par participant avec frais de retrait, visas et cadres de signature, filigrane avant validation, pied de page numéroté ; charte or et marine. 302 tests PHP ; relecture visuelle sur 5 cas. devBook §39 |
 | 13/10/2026 | Génération | (ce commit) | Génération des bons globale, individuelle ou par sélection (bon groupé par sélection) ; « Payé » seulement quand chaque participant a son bon ; bandeau et bouton d'accès à l'ODM sur la fiche du bon. 306 tests PHP, 71 JS ; parcours navigateur (17 vérifications). Décision Q61 ; devBook §40 |
+| 16/10/2026 | V (v2.4) | (ce commit) | Spec v2.4 : bon groupé abandonné (paramètre et option retirés) ; bon complémentaire d'hébergement au retour verrouillé, créé avec sa facture et soumis (RG-M12-38) ; facture d'hébergement ignorée hors ODM extérieur payé avant le départ. devBook §49 |
