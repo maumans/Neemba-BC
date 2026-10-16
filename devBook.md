@@ -1,7 +1,60 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 7 Octobre 2026 (v25 — Lot 5 : délégation d'initiation, liste et fiche du bon, M03-C)
+> Dernière mise à jour : 16 Octobre 2026 (v47 — intégration de la spec v2.4 : plan validé)
+>
+> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §46) indiquent ce qui a changé.
+
+---
+
+## 0. Où en est le projet (16/10/2026)
+
+### 0.1 Référence
+
+- **Spécification en vigueur** : `docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (Thierno DIALLO, Addvalis, 14/10/2026). Elle remplace la v2.3 du 09/10, qui remplaçait elle-même la SFD v1.3 (M03) et la v2.2. Ces fichiers ne sont pas commités (documents de l'utilisateur).
+- **Suivi de conformité** : [docs/CONFORMITE.md](docs/CONFORMITE.md). Il donne toutes les règles de la spec v2.4, avec pour chacune l'état dans le code, ce qui manque, pourquoi, et le lot qui la traite. Ses cases et son journal sont tenus à chaque lot. Il s'appelait `CONFORMITE_V23.md` jusqu'au 16/10.
+- **Suivi du module M12 (ODM)** : [docs/ORDRE_DE_MISSIONS.md](docs/ORDRE_DE_MISSIONS.md).
+- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47.
+
+### 0.2 Branches
+
+Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déployé depuis la v18 (prod = `main`) :
+
+`main` → `lot0-stabilisation` → `lot1-socle` → `lot2-caisses` → `lot3-assistant` → `lot4-pieces` → `lot4-referentiels` → `lot5-suivi` → `m12-odm` → `m12-prise-en-charge` → `m12-v23` → `m16-imputation` → `odm-pdf` → `odm-generation-selective` → **`v23-conformite`** (branche de travail).
+
+### 0.3 État des modules (audit du 15/10/2026, v2.4 intégrée le 16/10)
+
+| Module | État | Détail |
+|---|---|---|
+| M01 Comptes, rôles, sécurité | Partiel | Rôles multiples, incompatibilités faites ; reste le domaine @neemba.com, l'entité, l'assistant trésorier, la double validation complète (lot G) |
+| M02 Référentiels et paramétrage | Partiel | Caisses, tiers, visiteurs, clients, motifs faits ; reste la date d'effet des paramètres, les signataires habilités (lot G) |
+| M03 Saisie du bon | Fait (24/26) | Lots 3 à 5, A à D ; reste l'entité (lot G) et la décision sur les brouillons abandonnés |
+| M04 Circuit de validation | Partiel | Correctifs du lot R (visa Finance jamais sauté, alertes sur l'écran de visa), signataires (lot G) |
+| M05 Délégations | Partiel | Montants, information du caissier, absence du DP et de son adjoint (lot G) |
+| M06 Paiement | Partiel | OTP au bénéficiaire seulement (lot R), reçu signé (lot I) |
+| M07 Bons provisoires | Fait (5/8), 3 partiels | Lot E ; emails et statut « En retard » (lot I) |
+| M08 Caisses, réapprovisionnement | À faire (2/13) | Lot F1 |
+| M09, M10 Clôture, rapport, inventaire | À faire | Lot F2 |
+| M11 Notifications | Partiel | Dans l'application : oui ; emails : lot I |
+| M12 Ordres de mission | Fait (36/37) | §26 à §40 ; vue de la Comptabilité (lot R) |
+| M13 Carburant | À faire | Lot H |
+| M14 Tableaux de bord, exports | Partiel | Exports faits ; tableau de bord du DAF à compléter (lot I) |
+| M15 Archivage, audit | Partiel | Journal protégé, PDF archivés, purge (lot G) |
+| M16 Imputation comptable | Fait | §38 |
+
+**Règles RG de la v2.4** : 165, dont 88 faites, 45 partielles et 32 à faire (§47). La v2.4 ajoute ou modifie, entre autres :
+- l'entité transverse ;
+- la double authentification ;
+- le gestionnaire des référentiels ;
+- les barèmes ODM datés ;
+- les types d'OR et l'« OR à régulariser » ;
+- les visiteurs du groupe, qui ne reçoivent plus qu'un BD ;
+- un seul bon par participant ;
+- le modèle caisse ≠ site.
+
+**Prochain lot** : terminer R (codé, pas encore commité), puis V → E1 → E2 → E3 → E4 → O → F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47).
+
+**Tests** : 336 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
 
 ---
 
@@ -14,13 +67,20 @@ NEEMBA Cash Management est une application web interne permettant de gérer le c
 L'entreprise NEEMBA opère en **Guinée (GNF)** avec plusieurs sites et services. Chaque demande de fonds suit un workflow de validation hiérarchique strict avant décaissement par la caisse.
 
 ### 1.3 Règles Métier Clés
+
+Valeurs au 15/10/2026 (spec v2.3). Toutes sont des paramètres (écran Paramétrage), aucune n'est en dur.
+
 | Règle | Valeur |
 |-------|--------|
-| Montant maximum par bon | **20 000 000 GNF** (paramétrable) |
-| Seuil validation Directeur Pays | **≥ 5 000 000 GNF** (paramétrable) |
-| Format numéro de bon | **BC-AAAA-NNNN** (ex: BC-2026-0001) |
-| Types de bons | **BD** (Définitif), **BP** (Provisoire) |
-| Devise | **GNF** (Franc Guinéen) |
+| Plafond de retrait en espèces | **Par caisse** (ex. Conakry principale 20 000 000 GNF, Atelier et sites 1 000 000 à 4 000 000) ; au-delà : Orange Money, chèque ou virement |
+| Visa du Directeur Pays | Dépense **> 1 500 000 GNF**, hors frais Orange Money (DP ou DP adjoint) |
+| Circuit d'un bon | Chef de service → Contrôle de gestion → Finance (DAF, DAF adjoint ou Chef comptable) → DP au-delà du seuil → caissier |
+| Format du numéro de bon | **BC-[code caisse]-[AAAA]-[00001]**, attribué à la soumission, une séquence par caisse émettrice et par année (lot C) ; les anciens BC-AAAA-NNNN restent tels quels |
+| Types de bons | **BD** (définitif), **BP** (provisoire, salariés et visiteurs du groupe seulement) |
+| Régularisation d'un BP | 3 jours ouvrés après le retour de mission, 2 jours ouvrés après le décaissement sinon ; justification Annexe 3 visée (lot E) |
+| Mode de paiement | Souhaité par le demandeur, **décidé par le caissier** au paiement ; frais Orange Money par paliers, ajoutés au montant versé |
+| Paiement | Débloqué par un code OTP à 6 chiffres (5 min) |
+| Devise | **GNF** (Franc Guinéen) ; ODM extérieur en FCFA, converti au taux du jour |
 
 ---
 
@@ -165,102 +225,112 @@ Neemba/
 
 ## 4. Rôles et Permissions
 
-### 4.1 Les 7 Rôles du Système
+### 4.1 Les rôles du système (au 15/10/2026)
 
-| Rôle | Code | Description | Droits principaux |
-|------|------|-------------|-------------------|
-| Demandeur | `demandeur` | Tout employé qui peut faire une demande de fonds | Créer, voir ses propres bons |
-| Responsable Service | `responsable_service` | Chef de service, premier niveau de validation | Valider/Rejeter les bons de son service |
-| Contrôle de Gestion | `controle_gestion` | Vérification budgétaire | Valider/Rejeter après le chef de service |
-| DAF | `daf` | Directeur Administratif et Financier | Valider/Rejeter après le CDG, viser rapports |
-| Directeur Pays | `directeur_pays` | Validation finale pour les gros montants | Valider/Rejeter si montant ≥ 5M GNF |
-| Caissier | `caissier` | Décaissement des fonds | Payer les bons approuvés, rapports de caisse |
-| **Administrateur** | `administrateur` | **Administrateur système** | **Gestion utilisateurs, paramétrage, archivage, accès complet** |
+Un utilisateur a un **rôle principal** (`users.role`) et peut cumuler des **rôles complémentaires** (table `roles_utilisateurs`, §20.7). Source : `User::ROLES`.
 
-### 4.2 Workflow de Validation
+| Rôle | Code | Droits principaux |
+|------|------|-------------------|
+| Demandeur | `demandeur` | Crée ses bons et ses ODM, propose des tiers, justifie ses BP |
+| Chef de service | `responsable_service` | 1er visa des bons de son service ; visa N+1 des justifications de BP |
+| Contrôle de gestion | `controle_gestion` | Visa des bons, modifie le code analytique, valide les tiers, vise les justifications de BP |
+| DAF | `daf` | Visa Finance des bons, visa DAF des ODM, dérogations, annulation après visa |
+| DAF adjoint | `daf_adjoint` | Comme le DAF (Finance) |
+| Chef comptable | `chef_comptable` | Visa Finance des bons, visa Comptabilité des justifications de BP, imputation |
+| Directeur Pays | `directeur_pays` | Visa des bons au-delà de 1 500 000 GNF et de tous les ODM |
+| DP adjoint | `dp_adjoint` | Signe à la place du DP |
+| Chef d'atelier / chef d'équipe | `chef_atelier` | 1er visa des ODM |
+| Caissier | `caissier` | Décide du mode, paie les bons de sa caisse, encaisse les reliquats de BP |
+| Trésorerie | `tresorerie` | Taux du jour ; réapprovisionnements (lot F1) |
+| Comptabilité | `comptable` | Imputation comptable (M16), visa Comptabilité des justifications de BP |
+| Logistique | `logistique` | Avances carburant (M13, lot H) |
+| Ressources humaines | `rh` | Visiteurs du groupe, suivi des BP en retard (information de la DRH, retenue) |
+| Administrateur | `administrateur` | Paramétrage et comptes, avec double validation des changements sensibles |
+
+Incompatibilités (RG-M01-04, `CircuitBon`) : personne ne vise un bon ou un ODM dont il est demandeur, initiateur ou bénéficiaire ; le caissier ne paie pas un bon dont il est bénéficiaire. Une étape sans valideur possible passe au suppléant, sinon au niveau supérieur (Q48).
+
+### 4.2 Workflow de validation d'un bon
 
 ```
-BROUILLON
-    │
-    ▼ (soumettre)
-EN_ATTENTE_CHEF_SERVICE
-    │
-    ├── ✅ Approuvé → EN_ATTENTE_CDG
-    │                      │
-    │                      ├── ✅ → EN_ATTENTE_DAF
-    │                      │            │
-    │                      │            ├── ✅ (montant < 5M) → APPROUVE
-    │                      │            ├── ✅ (montant ≥ 5M) → EN_ATTENTE_DP
-    │                      │            │                            │
-    │                      │            │                            ├── ✅ → APPROUVE
-    │                      │            │                            └── ❌ → REJETE
-    │                      │            └── ❌ → REJETE
-    │                      └── ❌ → REJETE
-    └── ❌ → REJETE
+BROUILLON (sans numéro)
+    │ soumettre (numéro attribué : BC-[caisse]-[AAAA]-[n])
+    ▼
+EN_ATTENTE_CHEF_SERVICE ──► EN_ATTENTE_CDG ──► EN_ATTENTE_DAF (Finance) ──┬─► APPROUVE (≤ 1,5 M)
+                                                                          └─► EN_ATTENTE_DP (> 1,5 M) ──► APPROUVE
+   (à chaque étape : REJETE → corrigé et resoumis, même numéro, nouvelle version)
 
-APPROUVE → PAYE (par le caissier) → REGULARISE (pour BP) → ARCHIVE
+APPROUVE ─(caissier, OTP)─► BD : PAYE ──► ARCHIVE
+                          └► BP : EN_ATTENTE_REGULARISATION ─(justification visée : N+1 → CDG → Comptabilité)─► REGULARISE ──► ARCHIVE
+
+Annulation (ANNULE) : par le demandeur avant le 1er visa, puis par le DAF jusqu'à l'approbation ; jamais après paiement.
 ```
 
-### 4.3 Statuts Complets
+Le bon généré depuis un ODM suit le même circuit (§30).
 
-| Statut | Code | Label FR |
-|--------|------|----------|
-| Brouillon | `BROUILLON` | Brouillon |
-| Attente Chef Service | `EN_ATTENTE_CHEF_SERVICE` | En attente Chef Service |
-| Attente CDG | `EN_ATTENTE_CDG` | En attente Contrôle de Gestion |
-| Attente DAF | `EN_ATTENTE_DAF` | En attente DAF |
-| Attente DP | `EN_ATTENTE_DP` | En attente Directeur Pays |
-| Approuvé | `APPROUVE` | Approuvé |
-| Rejeté | `REJETE` | Rejeté |
-| Payé | `PAYE` | Payé |
-| Régularisé | `REGULARISE` | Régularisé |
-| Archivé | `ARCHIVE` | Archivé |
+### 4.3 Statuts complets
+
+| Code | Label FR |
+|--------|----------|
+| `BROUILLON` | Brouillon |
+| `EN_ATTENTE_CHEF_SERVICE` | En attente Chef Service |
+| `EN_ATTENTE_CDG` | En attente Contrôle de Gestion |
+| `EN_ATTENTE_DAF` | En attente DAF |
+| `EN_ATTENTE_DP` | En attente Directeur Pays |
+| `APPROUVE` | Approuvé (« Bon à payer » prévu au lot R) |
+| `PAYE` | Payé |
+| `REJETE` | Rejeté |
+| `EN_ATTENTE_REGULARISATION` | En attente de régularisation |
+| `REGULARISE` | Régularisé |
+| `ARCHIVE` | Archivé |
+| `ANNULE` | Annulé |
 
 ---
 
 ## 5. Données Référentielles NEEMBA
 
-### 5.1 Sites
+### 5.1 Sites et caisses (spec v2.3 §6.1)
 
-| Code | Nom du Site | Localisation |
-|------|-------------|--------------|
-| Conakry | Siège Conakry | Conakry, Guinée |
-| Kamsar | Site Kamsar | Kamsar, Boké |
-| Fria | Site Fria | Fria, Moyen-Guinée |
-| Kankan | Site Kankan | Kankan, Haute-Guinée |
-| Kindia | Site Kindia | Kindia, Basse-Guinée |
-| Boké | Site Boké | Boké, Boké |
-| Labé | Site Labé | Labé, Moyenne-Guinée |
-| Nzérékoré | Site Nzérékoré | Nzérékoré, Guinée Forestière |
+Le site n'est plus la maille de gestion : chaque **caisse** a son solde, ses trois montants (plafond de caisse, seuil de réapprovisionnement, plafond de retrait par bon), son gestionnaire et son carnet. Valeurs de la spec, posées par l'import des référentiels (double validation) et modifiables au Paramétrage.
 
-### 5.2 Services
+| Code | Caisse | Site | Plafond caisse | Seuil | Retrait / bon |
+|------|--------|------|---:|---:|---:|
+| CKY | Conakry principale | Conakry | 250 000 000 | 50 000 000 | 20 000 000 |
+| ATL | Atelier (avance fixe, rattachée à Conakry) | Conakry | 15 000 000 | 3 000 000 | 1 000 000 |
+| SAG | Sangarédi | Sangarédi | 100 000 000 | 20 000 000 | 4 000 000 |
+| BOK | Boké | Boké | 20 000 000 | 5 000 000 | 1 000 000 |
+| SGL | Siguiri Location | Siguiri | 5 000 000 | 1 000 000 | 1 000 000 |
+| SGT | Siguiri Technique (Mandiana) | Mandiana | 5 000 000 | 1 000 000 | 1 000 000 |
+| COR | CORICA (Kouroussa) | Kouroussa | 5 000 000 | 1 000 000 | 1 000 000 |
+| OM | Orange Money | Conakry | 500 000 000 | 100 000 000 | — |
 
-| Code Service | Nom du Service |
-|--------------|----------------|
-| Direction Générale | Direction Générale |
-| Finance | Finance et Comptabilité |
-| Informatique | Informatique / IT |
-| Logistique | Logistique et Approvisionnement |
-| Ressources Humaines | Ressources Humaines |
-| Commercial | Commercial et Marketing |
-| Juridique | Juridique et Conformité |
-| Opérations | Opérations et Production |
-| HSE | Hygiène, Sécurité et Environnement |
-| Communication | Communication et Relations Publiques |
-| Maintenance | Maintenance et Technique |
-| Achats | Achats et Procurement |
+Chaque utilisateur est rattaché à une caisse (`users.caisse_id`), qui émet et numérote ses bons (lot C, §43). La caisse Atelier reste inactive tant que son solde réel n'est pas saisi.
 
-### 5.3 Types de Documents (Pièces Jointes)
+### 5.2 Services (spec v2.3 §6.3)
+
+Liste unique du Contrôle de gestion, pour les bons et les ODM : Direction, DAF, RH, Aftermarket, Technique, PSSR, Location, Logistique, Moyens Généraux, Informatique. Les codes analytiques (radical de 6 caractères, ex. ADAZZZ) sont filtrés par service.
+
+### 5.3 Types de documents (pièces jointes)
+
+Source : `PieceJointe::TYPES_DOCUMENTS`.
 
 | Code | Label |
 |------|-------|
 | `facture` | Facture |
-| `devis` | Devis |
-| `bon_commande` | Bon de commande |
-| `ordre_mission` | Ordre de mission |
+| `proforma` | Proforma |
 | `recu` | Reçu |
-| `justificatif` | Justificatif |
-| `autre` | Autre document |
+| `devis` | Devis |
+| `ordre_mission` | Ordre de mission |
+| `email` | Email justificatif |
+| `recu_carburant` | Ticket carburant |
+| `demande_achat` | Demande d'achat |
+| `bon_travail` | Bon de travail (OR) |
+| `bon_commande` | Bon de commande |
+| `rapport_journalier` | Rapport journalier |
+| `justificatif` | Justificatif de régularisation |
+| `justificatif_bp` | Justificatif de BP (Annexe 3) |
+| `autre` | Autre |
+
+Un BD n'est justifié que par une facture ou une proforma (RG-M03-15, lot D), sauf un BD issu d'un ODM.
 
 ### 5.4 Types de Bons
 
@@ -4414,3 +4484,258 @@ Ensuite :
 - donner le rôle « Ressources humaines » aux personnes de la DRH ;
 - donner le rôle « Comptabilité » aux comptables qui visent les justifications ;
 - prévenir les demandeurs : un BP se régularise désormais par la justification et ses visas.
+
+## 46. Version v46 — Audit de conformité à la spec v2.3 et plan de mise en œuvre (15 Octobre 2026)
+
+Branche `v23-conformite`. Aucun code modifié : audit, fichier de suivi et mise à jour de ce devBook.
+
+### 46.1 Démarche
+
+À la demande de l'utilisateur, toutes les règles de la spec v2.3 ont été relevées et comparées au code, une à une, après les lots A à E. Le relevé couvre :
+- 152 règles RG ;
+- 48 user stories ;
+- 36 messages ;
+- les exigences générales (§1.4, §2.3), le socle et les anomalies (§5), les paramètres (§6) ;
+- les 27 points ouverts et les 37 scénarios.
+
+L'audit a été fait en lecture seule, module par module. Les points graves ont été vérifiés directement dans le code et dans la base de dev.
+
+Le résultat est le fichier de suivi **[docs/CONFORMITE.md](docs/CONFORMITE.md) (alors nommé `CONFORMITE_V23.md`)**. Pour chaque règle, il donne :
+- l'état (fait, partiel, à faire) ;
+- ce qui manque ;
+- la cause du retard :
+  - **L** : lot prévu, pas encore réalisé ;
+  - **O** : écart relevé par l'audit ;
+  - **N** : attend Neemba ;
+  - **C** : choix à confirmer ;
+  - **P3** : lot P3 de la spec ;
+- le lot qui traite l'écart.
+
+### 46.2 Résultat
+
+| | Règles RG | Fait | Partiel | À faire |
+|---|---:|---:|---:|---:|
+| Total | 152 | 94 | 38 | 20 |
+
+- **Faits ou presque** :
+  - M03 : 24 règles sur 26 ;
+  - M12 : 36 sur 37 ;
+  - M16 : 6 sur 6.
+- **À construire** :
+  - M08 (réapprovisionnement, encaissement client, rapprochement Orange Money) ;
+  - M09 et M10 (clôture, rapport au format Neemba, PV d'arrêté et inventaire) ;
+  - M13 (carburant).
+- **Messages** :
+  - M03 : 5 sur 16 n'ont pas le texte exact ;
+  - M08 et M13 : 11 sont à créer.
+- **M11** : l'email manque pour presque tous les événements.
+
+### 46.3 Écarts graves relevés (lot R)
+
+1. **Visa Finance sauté** : quand le DP est requis, l'étape Finance peut être sautée faute de valideur. `CircuitBon::estDerniereEtape` ne protège que le DP. Or la spec exige le visa de la Finance avant tout décaissement (§8.2).
+2. **BD de complément du lot E** : il naît « Approuvé », donc sans visa Finance.
+3. **OTP** : le SMS part au demandeur quand le bénéficiaire n'a pas de téléphone, et un OTP vérifié reste accepté 10 minutes de plus (RG-M06-02).
+4. **SLA** : la base contient 4/8/4/8 h, la spec demande 4/24/8/24 h. Il n'y a pas d'escalade DP → DAF pour les bons, et les délais sont comptés en heures calendaires au lieu d'heures ouvrées (§6.7).
+5. **Écran de visa** (`Validations/Show`) : il n'affiche pas les alertes de doublon ni de BP en retard (RG-M04-05).
+6. **Rôle Comptabilité** : il ne voit pas les ODM dans la liste (RG-M12-34).
+7. **Code analytique** : celui modifié par le CDG n'est pas contrôlé par le serveur (RG-M04-03).
+8. **Messages** : MSG-M03-01, 05, 10, 11 et 15 n'ont pas le texte exact.
+
+### 46.4 Plan proposé (à valider)
+
+**R → F1 → F2 → G → I → H → P3**, environ 23 jours :
+
+| Lot | Contenu | Durée |
+|---|---|---|
+| R | Correctifs ci-dessus | ≈ 1,5 j |
+| F1 | Caisses (M08) | ≈ 4 j |
+| F2 | Clôture, rapport et inventaire (M09, M10) | ≈ 3 j |
+| G | Gouvernance (entité, domaine, paramètres datés, double validation, signataires habilités, délégations, journal protégé, archivage) | ≈ 4 j |
+| I | Reçu signé, emails, tableau de bord du DAF | ≈ 3 j |
+| H | Carburant (M13) | ≈ 4 j |
+| P3 | Hors ligne, reprise des données, performance, recette | ≈ 4 j |
+
+Le détail et les cases à cocher sont au §11 de `CONFORMITE.md`.
+
+### 46.5 Décisions proposées
+
+Elles sont détaillées au §13 de `CONFORMITE.md`. Elles seront reportées dans `docs/questions.md` une fois tranchées.
+
+| N° | Question | Proposition |
+|---|---|---|
+| Q69 | BD de la régularisation | Seul le trop justifié (déjà codé), à confirmer par la Comptabilité |
+| Q70 | Comptes Addvalis hors @neemba.com ? | Domaine exigé, sauf pour l'administrateur |
+| Q71 | Brouillon abandonné : supprimé ou annulé ? | Annulé et tracé |
+| Q72 | DP adjoint : toujours ou en l'absence du DP ? | En l'absence du DP |
+| Q73 | Commentaire de rejet obligatoire ? | Toujours, 10 caractères minimum |
+| Q74 | Destinataires et périmètre de la relance des BP | Chef de service ; tous les BP en attente |
+| Q75 | Assistant trésorier | Rôle à part, avec les droits du caissier |
+
+### 46.6 À obtenir
+
+- **De Neemba** :
+  - valeurs réelles des caisses, solde de l'Atelier ;
+  - signataires habilités (PO-15), codes de service (PO-14) ;
+  - destinataires du rapport hors Conakry (PO-18), listes de diffusion des ODM ;
+  - format du relevé Orange Money ;
+  - comptes et codes journaux (PO-17, PO-25), fichier clients (PO-26) ;
+  - données de reprise (PO-16), SMTP et SMS (PO-23).
+- **De Thierno** : le cahier Excel des 37 scénarios, indispensable à la recette (§10.1 de la spec).
+
+### 46.7 Ce devBook
+
+- **En-tête** : date et lecture du document.
+- **Chapitre 0** (nouveau) : état du projet, branches, état des modules.
+- **Chapitres 1.3, 4 et 5** : mis à jour.
+  - règles clés à jour ;
+  - 15 rôles ;
+  - circuit et statuts actuels ;
+  - caisses de la spec §6.1 ;
+  - services de la spec §6.3 ;
+  - types de pièces.
+- **Chapitres 3 et 6 à 18** : conservés comme historique.
+
+## 47. Version v47 — Intégration de la spec v2.4 : comparaison et plan validé (16 Octobre 2026)
+
+Branche `v23-conformite`. Aucun code modifié dans cette étape : comparaison des deux specs, audit d'impact, plan validé et fichier de suivi mis à jour.
+
+### 47.1 Ce que change la v2.4
+
+`docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (14/10/2026) intègre le comité du 14/10 et le cadrage IT du 08/10.
+
+La comparaison automatique des règles de la v2.3 et de la v2.4, en ignorant les mentions de version, donne :
+- **13 règles nouvelles** :
+  - RG-M01-07, 08, 09 ;
+  - RG-M02-10, 11 ;
+  - RG-M03-27, 28 ;
+  - RG-M04-10 ;
+  - RG-M12-38 à 42.
+- **11 règles modifiées** :
+  - RG-M01-02 ;
+  - RG-M02-08 ;
+  - RG-M03-04, 11, 13, 15 ;
+  - RG-M07-01 ;
+  - RG-M12-02, 14 ;
+  - RG-M13-01 ;
+  - RG-M16-03.
+- **Messages** : MSG-M03-17, MSG-M12-10 et 11 sont nouveaux ; MSG-M03-02 et MSG-M12-01 ont un nouveau texte.
+- **Points ouverts et scénarios** : PO-28 à PO-31 et SC-38 à SC-41 sont nouveaux.
+- **Calendrier** : un bloc E de 8 jours ouvrés (19 au 28/10) s'insère après S1. La fin passe au 16/12/2026.
+
+| Sujet | Impact sur le code existant |
+|---|---|
+| Visiteurs du groupe : BD seulement, à titre exceptionnel (motif d'une liste fermée, commentaire, Finance réservée au DAF, « refacturation inter-filiale ») | À refaire : les lots B et E permettaient un BP de visiteur |
+| ODM : un bon par participant | À retirer : mode groupé et sa sélection (Q61) |
+| ODM : aucune saisie hors barème | Les lignes calculées sont déjà verrouillées ; seul le bon complémentaire de la clôture reste modifiable |
+| ODM : types d'OR en référentiel, « OR à régulariser » | À adapter : constante et enum VENTE / GARANTIE ; règle « au moins un OR » |
+| Caisse ≠ site ≠ client ; site analytique du bon | À refaire : une caisse a un seul site, et le site du bon détermine la caisse payeuse |
+| Entité transverse (droits, numérotation, référentiels, gabarit, rapports, vue consolidée) | Nouveau : seulement du texte libre sur les utilisateurs et les ODM |
+| Double authentification (OTP email à la connexion, OTP SMS pour viser une demande urgente) | Nouveau |
+| Gestionnaire des référentiels ; barèmes ODM datés, sans double validation | Nouveau : aujourd'hui l'administrateur tient tout, et les barèmes passent par la double validation |
+| Carburant : besoin porté par l'ODM (véhicule, immatriculation, itinéraire) | À adapter : un seul champ « véhicule » |
+| ERP Helium | Deux commentaires à renommer |
+
+### 47.2 Décisions du 16/10 (utilisateur)
+
+- **Ordre** : on corrige d'abord l'existant contredit (lot V), puis on fait le bloc E, puis la suite du plan v2.3.
+- **Suivi** : un seul fichier, `docs/CONFORMITE.md`, mis à jour en v2.4. Il remplace `CONFORMITE_V23.md`.
+- **Double authentification** : active partout. En dev, le code est écrit dans le journal (mail « log »). Le paramètre de secours `double_authentification_active` est sous double validation.
+- **Données existantes** : les BP de visiteurs et les éventuels bons groupés déjà émis gardent leur cycle ; seules les nouvelles saisies sont bloquées.
+
+### 47.3 Plan
+
+**R → V → E1 → E2 → E3 → E4 → O → F1 → F2 → G → I → H → P3**, environ 33 jours. Le détail et les cases à cocher sont au §11 de `docs/CONFORMITE.md`. Le plan complet est dans `C:\Users\HP\.claude\plans\analyse-mon-devbook-md-et-rosy-sparrow.md`.
+
+| Lot | Contenu | Durée |
+|---|---|---|
+| R | Terminer les correctifs de l'audit v2.3 (codés, pas commités) | 0,5 j |
+| V | Visiteurs en BD seulement, bon groupé retiré, bon complémentaire verrouillé, Helium | 1,5 j |
+| E1 | Entité transverse : table `entites`, `entite_id`, droits entité × rôle, vue consolidée, numérotation, gabarit | 2,5 j |
+| E2 | Double authentification : table `codes_otp`, connexion en deux temps, OTP SMS de visa urgent, urgence sur l'ODM | 1,5 j |
+| E3 | Gestionnaire des référentiels, barèmes ODM datés (`baremes_odm`), types d'OR (`types_or`) | 2 j |
+| E4 | Liaison caisse ↔ site, caisse OM sans site, site analytique modifiable et corrigé par le CDG | 2 j |
+| O | OR à régulariser (échéance, relances, blocage optionnel, suivi) ; immatriculation et itinéraire | 2 j |
+| F1, F2, G, I, H, P3 | Suite du plan v2.3, ajustée à la v2.4 | 21 j |
+
+### 47.4 État de la conformité (v2.4)
+
+| | Règles RG | Fait | Partiel | À faire |
+|---|---:|---:|---:|---:|
+| Total | 165 | 88 | 45 | 32 |
+
+Les règles du lot R passeront à ✅ à son commit.
+
+### 47.5 Décisions proposées (à reporter dans `docs/questions.md` au fil des lots)
+
+| N° | Question | Proposition |
+|---|---|---|
+| Q76 | Urgence sur l'ODM, pour l'OTP de visa ? | Oui : mêmes niveaux et motifs que le bon |
+| Q77 | L'OTP de visa porte-t-il sur le rejet ? | Non : seulement sur l'approbation |
+| Q78 | Qui tient les sites et les caisses ? | L'administrateur, avec double validation ; le gestionnaire des référentiels tient le reste |
+| Q79 | Bon visiteur sans DAF ni DAF adjoint disponible | Le bon attend ; la Finance n'est jamais sautée |
+| Q80 | OR saisi après coup | Reporté sur les bons de l'ODM, avec trace |
+| Q81 | Qui a la vue consolidée ? | Paramètre ; par défaut DAF, DAF adjoint, DP, DP adjoint, administrateur |
+
+### 47.6 À obtenir
+
+- **De Neemba** : types d'OR (PO-28), réponse aux propositions du 14/10 (PO-29), motifs du bon visiteur (PO-30), date des environnements cloud (PO-31), SMTP et SMS (PO-23).
+- **De Thierno** : le cahier Excel des 41 scénarios et la spec technique mise à jour (cloud, double authentification).
+- **Rappel** : la liste du §46.6 reste valable.
+
+## 48. Version v48 — Lot R : correctifs de l'audit v2.3 (16 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Ce lot corrige les écarts graves relevés par l'audit du 15/10 (§46.3).
+
+### 48.1 Règles traitées
+
+| Règle | Mise en œuvre |
+|---|---|
+| §8.2 (visa Finance avant tout décaissement) | `CircuitBon::estEtapeObligatoire` : seules les étapes Chef de service et CDG peuvent être sautées. La Finance et le Directeur Pays attendent un titulaire ou un suppléant, même quand le DP est requis. |
+| RG-M07-08, §8.2 | Le BD de complément d'un BP (`JustifierBp::finaliser`) ne naît plus « Approuvé ». Il est créé « En attente Finance » ; ses étapes Chef de service et CDG sont notées sautées, car déjà visées dans la justification. La Finance est notifiée. |
+| RG-M06-02 | Le code OTP part au téléphone du bénéficiaire seulement. Sans téléphone, aucun code n'est envoyé (plus de repli sur le demandeur). Un code expiré ne paie plus, même vérifié (plus de prolongation de 10 min). Un envoi manqué ne crée pas de code. Le paiement trace « Reçu par » au journal. |
+| RG-M06-01 | Le statut `APPROUVE` s'affiche « Bon à payer » (`BonCaisse::STATUTS_LABELS`, `utils/statuts.js`). |
+| RG-M04-05 | L'écran de visa (`Validations/Show`) affiche les alertes de doublon et de BP en retard. Le composant `AlertesDuBon` est partagé avec la fiche du bon ; il reçoit `AlertesBon::pourAffichage`. |
+| RG-M04-03 | Le code analytique saisi par le CDG est contrôlé par le serveur : il doit être actif et rattaché au service (`ReglesSaisie::regleCodeDuService`). |
+| RG-M12-34 | Le rôle `comptable` entre dans `OrdreMission::ROLES_VISION_GLOBALE`. |
+| §6.7 | Les SLA prennent les valeurs de la spec : chef de service 4 h, CDG 24 h, Finance 8 h, DP 24 h. Ils sont comptés en heures ouvrées (`App\Support\HeuresOuvrees`). Les paramètres `heure_ouverture` / `heure_fermeture` valent 8 h et 17 h par défaut ; les jours fériés et les week-ends ne comptent pas. Un DP en retard est escaladé au DAF (`RelancerValidationsSLA::ESCALADE_MAP`). Les visas d'ODM suivent les mêmes heures ouvrées (`RelancerVisasOdm`). |
+| RG-M03-17 | Le seuil du visa DP en base passe à 1 500 000. La migration d'origine posait 5 000 000, et seul le seeder corrigeait la valeur. |
+| §5.1, Q73 | Au rejet, le commentaire est toujours obligatoire, avec 10 caractères au moins, quel que soit le motif (`ChampsRejet.jsx`, `ValidationController::rejeter`). |
+| §10.1 | Messages au texte exact de la spec : MSG-M03-01, 05, 10, 11 et 15. Les clés MSG-BC de la SFD v1.3 (002, 012, 021, 020, 032) restent, car l'API et le catalogue les utilisent, avec le texte de la spec. MSG-M03-15 nomme le prochain valideur et le délai de l'étape (`CircuitBon::prochaineEtape`), par exemple « Prochaine étape : Chef de service (Thierry GOMIS), délai 4 h ouvrées ». |
+
+### 48.2 Données
+
+Migration `2026_10_19_000001_lot_r_sla_heures_ouvrees`, sur les données seulement :
+- SLA ;
+- heures d'ouverture et de fermeture ;
+- seuil DP.
+
+Son retour en arrière remet les anciennes valeurs. Vérifiée sur une copie de la base (aller, retour, aller), puis appliquée en dev.
+
+### 48.3 Vérifications
+
+- `tests/Feature/LotR/CorrectifsAuditTest.php` (11 tests) et `tests/Unit/HeuresOuvreesTest.php` (10 tests).
+- Tests adaptés aux nouveaux textes :
+  - `MessagesTest`, `CaissesTest`, `SaisieBonTest`, `GenerationBonsOdmTest` ;
+  - `tests/js/messages.test.js`, `statuts.test.js` ;
+  - `JustificationBpTest`, `IncompatibilitesValidationTest`, `SaisieOdmTest`.
+- **Total** : 358 tests PHP et 74 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base de dev : 11 vérifications, sans erreur JavaScript.
+  1. Message de soumission avec le prochain valideur et le délai.
+  2. Doublon visible sur l'écran de visa.
+  3. Rejet avec explication obligatoire.
+  4. « Bon à payer » chez le caissier.
+  5. SLA en base.
+  6. Téléphone.
+
+### 48.4 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_19_000001
+```
+
+Les délais de visa changent :
+- CDG et DP : de 8 h à 24 h ;
+- Finance : de 4 h à 8 h ;
+- les délais ne courent plus le soir ni le week-end.
+
+Prévenir les valideurs.
