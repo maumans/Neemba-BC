@@ -236,8 +236,12 @@ final class PresentationOdm
         $date = $odm->date_validation ?? $odm->date_soumission;
 
         return $detail + [
-            'entite' => $odm->entite,
-            'adresse' => self::ADRESSE_PDF,
+            /* Spec v2.4, RG-M01-08 : gabarit par entité (nom, adresse, logo de l'entité de l'ODM) */
+            'entite' => $odm->entite()->value('nom') ?? $odm->entite,
+            'adresse' => ($entite = $odm->entite()->first()) && $entite->lignesAdresse()
+                ? [$entite->nom, ...$entite->lignesAdresse()]
+                : self::ADRESSE_PDF,
+            'logo' => $entite?->cheminLogo() ?? public_path('logo.png'),
             'rubrique' => OrdreMission::RUBRIQUE_PAR_SERVICE[$odm->service] ?? 'ADMINISTRATION',
             'date_titre' => $date ? Format::date($date) : null,
             'filigrane' => match (true) {

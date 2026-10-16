@@ -15,11 +15,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Visiteur extends Model
 {
     use HasFactory;
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
+
+    /** Référentiel propre à une entité, ou commun à toutes (entité vide) */
+    protected bool $entiteCommune = true;
 
     /** Gestion du référentiel : RH, direction financière, administrateur */
     public const ROLES_GESTION = ['rh', 'daf', 'daf_adjoint', 'chef_comptable', 'administrateur'];
 
     protected $fillable = [
+        'entite_id',
         'nom', 'prenom', 'filiale', 'matricule_groupe', 'numero_om', 'departement_accueil', 'directeur_id',
         'date_debut', 'date_fin', 'actif', 'cree_par_id',
     ];

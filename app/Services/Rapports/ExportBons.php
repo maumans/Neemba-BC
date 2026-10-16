@@ -29,7 +29,7 @@ final class ExportBons
     public static function entetes(): array
     {
         return array_merge(
-            ['N° de bon', 'Date', 'Type', 'Statut', 'Bénéficiaire', 'Motif', 'Montant (GNF)', 'Frais OM (GNF)', 'Montant versé (GNF)',
+            ['N° de bon', 'Entité', 'Date', 'Type', 'Statut', 'Bénéficiaire', 'Motif', 'Montant (GNF)', 'Frais OM (GNF)', 'Montant versé (GNF)',
                 'Caisse', 'Site', 'Service', 'Code analytique', 'OR', 'Mode de paiement', 'Payé le', 'Refacturation inter-filiale', 'Filiale'],
             array_values(self::ETAPES),
             ['ODM', 'Élément', 'Payeur', 'Client', 'OR de la part', 'Code analytique de la part', 'Montant de la part (GNF)'],
@@ -39,7 +39,7 @@ final class ExportBons
     /** @param Collection<int, BonCaisse> $bons */
     public static function lignes(Collection $bons): array
     {
-        $bons->loadMissing(['caisse', 'validations', 'ordreMission']);
+        $bons->loadMissing(['caisse', 'validations', 'ordreMission', 'entite']);
         $lignes = [self::entetes()];
         foreach ($bons as $bon) {
             $commun = self::colonnesBon($bon);
@@ -80,6 +80,7 @@ final class ExportBons
 
         return array_merge([
             $bon->numero,
+            $bon->entite?->code,
             $bon->date_demande ? Carbon::parse($bon->date_demande)->format('d/m/Y') : null,
             $bon->type_bon,
             BonCaisse::STATUTS_LABELS[$bon->statut] ?? $bon->statut,

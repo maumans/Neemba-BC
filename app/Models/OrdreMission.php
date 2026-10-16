@@ -20,6 +20,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class OrdreMission extends Model
 {
     use HasFactory;
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
+
+    /** Entité d'un nouveau bon ou ODM : celle du demandeur (RG-M03-11), sinon l'entité courante */
+    public function entiteParDefaut(): ?int
+    {
+        return ($this->demandeur_id ? User::whereKey($this->demandeur_id)->value('entite_id') : null)
+            ?? \App\Support\EntiteCourante::filtre() ?? Entite::idParDefaut();
+    }
 
     protected $table = 'ordres_mission';
 
@@ -76,6 +85,7 @@ class OrdreMission extends Model
     public const STATUTS_VALIDES = ['VALIDE', 'BONS_GENERES', 'PAYE', 'CLOTURE'];
 
     protected $fillable = [
+        'entite_id',
         'numero', 'prefixe', 'sequence', 'annee',
         'type', 'technique',
         'entite', 'site', 'service', 'code_analytique', 'demandeur_id', 'initiateur_id',

@@ -15,6 +15,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Tiers extends Model
 {
     use HasFactory;
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
+
+    /** Référentiel propre à une entité, ou commun à toutes (entité vide) */
+    protected bool $entiteCommune = true;
 
     protected $table = 'tiers';
 
@@ -35,6 +40,7 @@ class Tiers extends Model
     public const ROLES_VALIDATION = ['comptable', 'chef_comptable', 'controle_gestion', 'daf', 'daf_adjoint'];
 
     protected $fillable = [
+        'entite_id',
         'nom', 'type', 'telephone', 'numero_om', 'nif', 'statut', 'motif_refus', 'origine',
         'propose_par_id', 'propose_le', 'valide_par_id', 'valide_le',
     ];

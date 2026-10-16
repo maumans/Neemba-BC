@@ -19,18 +19,20 @@ class NumeroteurOdm
     /**
      * @return array{numero: string, prefixe: string, sequence: int, annee: int}
      */
-    public static function prochain(string $prefixe, ?int $annee = null): array
+    public static function prochain(string $prefixe, ?int $annee = null, ?int $entite = null): array
     {
         $annee ??= (int) now()->year;
         $prefixe = mb_strtoupper(trim($prefixe));
+        /* Spec v2.4, RG-M01-08 : une séquence par entité, préfixe et année */
+        $entite ??= \App\Models\Entite::idParDefaut();
 
         DB::table('compteurs_odm')->insertOrIgnore([
-            'prefixe' => $prefixe, 'annee' => $annee, 'dernier_numero' => 0, 'created_at' => now(), 'updated_at' => now(),
+            'entite_id' => $entite, 'prefixe' => $prefixe, 'annee' => $annee, 'dernier_numero' => 0, 'created_at' => now(), 'updated_at' => now(),
         ]);
-        $compteur = DB::table('compteurs_odm')->where('prefixe', $prefixe)->where('annee', $annee)->lockForUpdate()->first();
+        $compteur = DB::table('compteurs_odm')->where('entite_id', $entite)->where('prefixe', $prefixe)->where('annee', $annee)->lockForUpdate()->first();
 
         /* Jamais en dessous d'un numéro déjà attribué (ODM saisis hors compteur) */
-        $maxExistant = (int) DB::table('ordres_mission')->where('prefixe', $prefixe)->where('annee', $annee)->max('sequence');
+        $maxExistant = (int) DB::table('ordres_mission')->where('entite_id', $entite)->where('prefixe', $prefixe)->where('annee', $annee)->max('sequence');
         $suivant = max((int) $compteur->dernier_numero, $maxExistant) + 1;
 
         DB::table('compteurs_odm')->where('id', $compteur->id)->update(['dernier_numero' => $suivant, 'updated_at' => now()]);
@@ -62,17 +64,18 @@ class NumeroteurOdm
     }
 
     /** Reprise des carnets papier : le prochain ODM du préfixe et de l'année portera le numéro $dernier + 1 */
-    public static function definirDepart(string $prefixe, int $annee, int $dernier): void
+    public static function definirDepart(string $prefixe, int $annee, int $dernier, ?int $entite = null): void
     {
         DB::table('compteurs_odm')->updateOrInsert(
-            ['prefixe' => mb_strtoupper(trim($prefixe)), 'annee' => $annee],
+            ['entite_id' => $entite ?? \App\Models\Entite::idParDefaut(), 'prefixe' => mb_strtoupper(trim($prefixe)), 'annee' => $annee],
             ['dernier_numero' => max(0, $dernier), 'updated_at' => now(), 'created_at' => now()],
         );
     }
 
     /** Dernier numéro utilisé pour ce préfixe et cette année (0 si aucun) */
-    public static function dernier(string $prefixe, int $annee): int
+    public static function dernier(string $prefixe, int $annee, ?int $entite = null): int
     {
-        return (int) DB::table('compteurs_odm')->where('prefixe', mb_strtoupper(trim($prefixe)))->where('annee', $annee)->value('dernier_numero');
+        return (int) DB::table('compteurs_odm')->where('entite_id', $entite ?? \App\Models\Entite::idParDefaut())
+            ->where('prefixe', mb_strtoupper(trim($prefixe)))->where('annee', $annee)->value('dernier_numero');
     }
 }

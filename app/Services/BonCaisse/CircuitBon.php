@@ -83,8 +83,9 @@ final class CircuitBon
     {
         $roles = $role === 'daf' && self::financeReserveeAuDaf($bon) ? self::ROLES_FINANCE_VISITEUR : (User::ROLES_ETAPES_BON[$role] ?? [$role]);
 
+        /* RG-M01-08 : valideurs de l'entité du bon (droits par entité × rôle) */
         return User::actifs()
-            ->where(fn ($q) => $q->whereIn('role', $roles)->orWhereHas('roles', fn ($r) => $r->whereIn('role', $roles)))
+            ->avecRoleDans($roles, $bon->entite_id)
             ->when($role === 'responsable_service', fn ($q) => $q->where('service', $bon->service))
             ->orderBy('name')
             ->get();

@@ -54,7 +54,7 @@ final class ProlongerOdm
 
             $initial = $precedent->initial();
             $segment = OrdreMission::create($precedent->only([
-                'type', 'technique', 'entite', 'site', 'service', 'code_analytique', 'but', 'destinations', 'vehicule',
+                'type', 'technique', 'entite_id', 'entite', 'site', 'service', 'code_analytique', 'but', 'destinations', 'vehicule',
                 'hebergement_exterieur', 'reference_billet',
             ]) + [
                 'demandeur_id' => $precedent->demandeur_id,

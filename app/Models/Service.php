@@ -14,8 +14,14 @@ use Illuminate\Database\Eloquent\Model;
 class Service extends Model
 {
     use HasFactory;
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
 
-    protected $fillable = ['nom', 'code', 'equivalent_odm', 'prefixe_odm', 'diffusion_odm', 'actif'];
+    /** Référentiel propre à une entité, ou commun à toutes (entité vide) */
+    protected bool $entiteCommune = true;
+
+    protected $fillable = [
+        'entite_id','nom', 'code', 'equivalent_odm', 'prefixe_odm', 'diffusion_odm', 'actif'];
 
     protected $casts = [
         'actif' => 'boolean',

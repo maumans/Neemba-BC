@@ -406,6 +406,9 @@ class BonCaisseController extends Controller
                     'service' => $d->delegant->service,
                     'date_fin' => $d->date_fin->toDateString(),
                 ])->values(),
+            /* Spec v2.4, RG-M03-11 : entité du demandeur, affichée et non modifiable */
+            /* « entite » est aussi un champ texte du compte (import) : la relation se lit par la requête */
+            'entite' => $utilisateur->entite()->value('nom'),
             'utilisateur' => AssistantBonController::beneficiaire($utilisateur) + [
                 'site' => $utilisateur->site,
                 'service' => $utilisateur->service,

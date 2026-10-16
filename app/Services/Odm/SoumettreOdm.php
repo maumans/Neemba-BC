@@ -50,7 +50,7 @@ final class SoumettreOdm
             $statutAvant = $odm->statut;
             $resoumission = $statutAvant === 'REJETE';
             if (!$odm->numero) {
-                $numero = NumeroteurOdm::prochain(NumeroteurOdm::prefixePour($odm->service));
+                $numero = NumeroteurOdm::prochain(NumeroteurOdm::prefixePour($odm->service), null, $odm->entite_id);
                 $odm->fill(['numero' => $numero['numero'], 'prefixe' => $numero['prefixe'], 'sequence' => $numero['sequence'], 'annee' => $numero['annee']]);
             }
             if ($resoumission) {

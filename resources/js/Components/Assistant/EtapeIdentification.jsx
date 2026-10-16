@@ -27,6 +27,7 @@ export default function EtapeIdentification({
     titulaires = [],
     utilisateur,
     choisirTitulaire,
+    entite = null,
 }) {
     const service = services.find((s) => s.nom === donnees.service);
     const codes = codesDuService(codesAnalytiques, service?.id ?? null);
@@ -104,6 +105,11 @@ export default function EtapeIdentification({
                         searchPlaceholder="Rechercher un code…"
                         error={Boolean(erreurs.code_analytique)}
                     />
+                </Champ>
+
+                {/* Spec v2.4, RG-M03-11 : entité du demandeur, non modifiable */}
+                <Champ champ="entite" libelle="Entité" aide="Entité du demandeur, non modifiable.">
+                    <Input id="champ-entite" value={entite || 'Neemba Guinée'} readOnly disabled />
                 </Champ>
 
                 {/* Spec v2.3, RG-M03-11 : site (et caisse émettrice) repris du profil du demandeur, non modifiables */}

@@ -15,10 +15,16 @@ use Illuminate\Database\Eloquent\Model;
 class CodeAnalytique extends Model
 {
     use HasFactory;
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
+
+    /** Référentiel propre à une entité, ou commun à toutes (entité vide) */
+    protected bool $entiteCommune = true;
 
     protected $table = 'codes_analytiques';
 
     protected $fillable = [
+        'entite_id',
         'code',
         'libelle',
         'description',

@@ -329,7 +329,19 @@ const LIBELLES_GROUPES_PARAMETRES = {
     comptabilite: 'Comptabilité (M16)',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], motifsVisiteur = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], motifsVisiteur = [], entites = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
+    /* ─── ENTITÉS (spec v2.4, RG-M01-02) ─── */
+    const [entiteDialog, setEntiteDialog] = useState({ open: false, item: null });
+    const entiteForm = useForm({ nom: '', raison_sociale: '', adresse: '', logo: '' });
+    const openEntiteEdit = (item) => {
+        entiteForm.setData({ nom: item.nom ?? '', raison_sociale: item.raison_sociale ?? '', adresse: item.adresse ?? '', logo: item.logo ?? '' });
+        setEntiteDialog({ open: true, item });
+    };
+    const submitEntite = (e) => {
+        e.preventDefault();
+        entiteForm.put(route('parametrage.entites.update', entiteDialog.item.id), { onSuccess: () => setEntiteDialog({ open: false, item: null }) });
+    };
+
     /* ─── SITES ─── */
     const [siteDialog, setSiteDialog] = useState({ open: false, item: null });
     const siteForm = useForm({ code: '', nom: '', ville: '', adresse: '' });
@@ -593,6 +605,9 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <CardContent>
                         <Tabs defaultValue="sites">
                             <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1 mb-4 p-1">
+                                <TabsTrigger value="entites" className="gap-1 px-2 text-xs sm:text-sm">
+                                    <Building2 className="h-3.5 w-3.5" /> Entités
+                                </TabsTrigger>
                                 <TabsTrigger value="sites" className="gap-1 px-2 text-xs sm:text-sm">
                                     <MapPin className="h-3.5 w-3.5" /> Sites
                                 </TabsTrigger>
@@ -623,6 +638,47 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                             </TabsList>
 
                             {/* Sites */}
+                            {/* Entités (spec v2.4, RG-M01-02, RG-M01-08) */}
+                            <TabsContent value="entites" className="mt-4">
+                                <div className="mb-4 p-4 border border-neemba-200 bg-neemba-50/50 rounded-lg">
+                                    <p className="text-sm text-gray-700">
+                                        Chaque utilisateur, caisse, bon, ordre de mission et référentiel appartient à une entité. Neemba Guinée est seule active ;
+                                        la mise en service de Neemba Mining fait l'objet d'une proposition distincte. La raison sociale, l'adresse et le logo
+                                        sont imprimés sur les bons et les ordres de mission de l'entité.
+                                    </p>
+                                </div>
+                                <div className="overflow-x-auto rounded-md border bg-white">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+                                                <th className="px-3 py-2">Code</th>
+                                                <th className="px-3 py-2">Entité</th>
+                                                <th className="px-3 py-2">Raison sociale</th>
+                                                <th className="px-3 py-2">État</th>
+                                                <th className="px-3 py-2" />
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {entites.map((e) => (
+                                                <tr key={e.id} className="border-b last:border-b-0">
+                                                    <td className="px-3 py-2 font-mono text-xs">{e.code}</td>
+                                                    <td className="px-3 py-2 font-medium">{e.nom}</td>
+                                                    <td className="px-3 py-2 text-gray-600">{e.raison_sociale ?? '—'}</td>
+                                                    <td className="px-3 py-2">
+                                                        <Badge className={e.actif ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}>{e.actif ? 'Active' : 'Prévue, inactive'}</Badge>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right">
+                                                        <Button size="sm" variant="ghost" onClick={() => openEntiteEdit(e)} aria-label={`Modifier ${e.nom}`}>
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </TabsContent>
+
                             <TabsContent value="sites" className="mt-4">
                                 <ParametrageTable
                                     items={sites}
@@ -1138,6 +1194,33 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <Label>Libellé du motif *</Label>
                     <Input value={rejetForm.data.libelle} onChange={(e) => rejetForm.setData('libelle', e.target.value)} placeholder="Ex : Absence de pièce justificative" className="mt-1" required />
                     {rejetForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{rejetForm.errors.libelle}</p>}
+                </div>
+            </FormDialog>
+            <FormDialog
+                open={entiteDialog.open}
+                onClose={() => setEntiteDialog({ open: false, item: null })}
+                title={`Modifier l'entité ${entiteDialog.item?.nom ?? ''}`}
+                onSubmit={submitEntite}
+                processing={entiteForm.processing}
+            >
+                <div>
+                    <Label>Nom *</Label>
+                    <Input value={entiteForm.data.nom} onChange={(e) => entiteForm.setData('nom', e.target.value)} className="mt-1" required />
+                    {entiteForm.errors.nom && <p className="text-sm text-red-500 mt-1">{entiteForm.errors.nom}</p>}
+                </div>
+                <div>
+                    <Label>Raison sociale (documents imprimés)</Label>
+                    <Input value={entiteForm.data.raison_sociale} onChange={(e) => entiteForm.setData('raison_sociale', e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                    <Label>Adresse (une ligne par ligne imprimée)</Label>
+                    <textarea rows={3} value={entiteForm.data.adresse} onChange={(e) => entiteForm.setData('adresse', e.target.value)}
+                        className="mt-1 w-full rounded-md border border-input bg-white px-3 py-2 text-sm" />
+                </div>
+                <div>
+                    <Label>Logo (fichier du dossier public, ex. logo.png)</Label>
+                    <Input value={entiteForm.data.logo} onChange={(e) => entiteForm.setData('logo', e.target.value)} className="mt-1" />
+                    {entiteForm.errors.logo && <p className="text-sm text-red-500 mt-1">{entiteForm.errors.logo}</p>}
                 </div>
             </FormDialog>
             <FormDialog

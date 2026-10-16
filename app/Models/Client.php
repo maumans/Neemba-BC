@@ -13,10 +13,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  */
 class Client extends Model
 {
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
+
+    /** Référentiel propre à une entité, ou commun à toutes (entité vide) */
+    protected bool $entiteCommune = true;
+
     /** Qui gère le référentiel : la Comptabilité (chef comptable), le CDG, l'administrateur */
     public const ROLES_GESTION = ['chef_comptable', 'comptable', 'controle_gestion', 'administrateur'];
 
-    protected $fillable = ['code', 'raison_sociale', 'actif', 'cree_par_id'];
+    protected $fillable = ['entite_id', 'code', 'raison_sociale', 'actif', 'cree_par_id'];
 
     protected function casts(): array
     {

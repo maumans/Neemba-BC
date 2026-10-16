@@ -21,6 +21,8 @@ use InvalidArgumentException;
 class Caisse extends Model
 {
     use HasFactory;
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
 
     const TYPES = [
         'especes' => 'Espèces',
@@ -33,6 +35,7 @@ class Caisse extends Model
     ];
 
     protected $fillable = [
+        'entite_id',
         'code', 'libelle', 'site_id', 'type', 'mode', 'montant_avance',
         /* Lot C (RG-M03-18, RG-M08-11) : code de numérotation, reprise du carnet papier, nombre de chiffres */
         'code_numerotation', 'numero_depart', 'chiffres_numero',

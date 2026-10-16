@@ -80,7 +80,11 @@
     <table class="procedure-header">
         <tr>
             <td class="logo-cell" rowspan="3" style="vertical-align: middle; padding: 5px;">
-                @if(file_exists(public_path('logo.png')))
+                {{-- Spec v2.4, RG-M01-08 : gabarit par entité (logo et raison sociale de l'entité du bon) --}}
+                @php $entiteBon = $bon->entite ?? \App\Models\Entite::parDefaut(); @endphp
+                @if($entiteBon && file_exists($entiteBon->cheminLogo()))
+                    <img src="{{ $entiteBon->cheminLogo() }}" alt="{{ $entiteBon->raison_sociale ?? $entiteBon->nom }}" style="max-width: 100px; max-height: 50px;">
+                @elseif(file_exists(public_path('logo.png')))
                     <img src="{{ public_path('logo.png') }}" alt="NEEMBA CAT" style="max-width: 100px; max-height: 50px;">
                 @else
                     NEEMBA &nbsp; CAT
@@ -316,7 +320,7 @@
 
     <div class="footer">
         Niveau de confidentialité : Jaune — diffusion limitée dans la société et/ou le Groupe<br>
-        Document généré le {{ now()->format('d/m/Y à H:i') }} — NEEMBA Gestion de Caisse — Version : 01
+        Document généré le {{ now()->format('d/m/Y à H:i') }} — {{ $entiteBon?->raison_sociale ?? 'NEEMBA' }} Gestion de Caisse — Version : 01
     </div>
 
 </body>

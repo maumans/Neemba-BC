@@ -27,6 +27,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
+        'entite_id',
         'name',
         'prenom',
         'email',
@@ -195,6 +196,17 @@ class User extends Authenticatable
 
     protected static function booted(): void
     {
+        /* Spec v2.4, RG-M01-02 : entité du compte. Le champ texte « entite » (import des référentiels) désigne l'entité par
+         * son nom ou son code ; à défaut, Neemba Guinée */
+        static::saving(function (User $utilisateur) {
+            if ($utilisateur->isDirty('entite') && filled($utilisateur->entite) && !$utilisateur->isDirty('entite_id')) {
+                $libelle = trim((string) $utilisateur->entite);
+                $trouvee = Entite::where('code', $libelle)->orWhere('nom', $libelle)->value('id');
+                $utilisateur->entite_id = $trouvee ?? $utilisateur->entite_id;
+            }
+            $utilisateur->entite_id ??= Entite::idParDefaut();
+        });
+
         /* Le rôle principal figure toujours parmi les rôles. Un nouveau compte reçoit aussi « demandeur » :
          * tout le monde peut créer un bon tant que l'administration des rôles (M02) n'existe pas. */
         static::created(function (User $utilisateur) {
@@ -215,14 +227,37 @@ class User extends Authenticatable
     }
 
     /**
-     * Attribuer des rôles (ceux déjà présents sont ignorés)
+     * Attribuer des rôles (ceux déjà présents sont ignorés). RG-M01-08 : un rôle vaut dans une entité, par défaut celle du
+     * compte.
      */
-    public function ajouterRoles(array $roles): void
+    public function ajouterRoles(array $roles, ?int $entite = null): void
     {
+        $entite ??= $this->entite_id ?? Entite::idParDefaut();
         foreach (array_unique(array_filter($roles)) as $role) {
-            $this->roles()->firstOrCreate(['role' => $role]);
+            $this->roles()->firstOrCreate(['role' => $role, 'entite_id' => $entite]);
         }
         $this->rolesCharges = null;
+    }
+
+    /**
+     * Spec v2.4, RG-M01-02 : entité du compte. Attention : `$user->entite` lit le champ texte « entite » (import des
+     * référentiels) ; l'entité se lit par `$user->entite()->first()` ou `entite_id`.
+     */
+    public function entite(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Entite::class, 'entite_id');
+    }
+
+    /**
+     * RG-M01-08 : comptes qui ont l'un des rôles dans l'entité donnée (rôle principal dans l'entité du compte ; rôle
+     * attribué dans cette entité ou sans entité). Sans entité : tous les comptes qui ont le rôle.
+     */
+    public function scopeAvecRoleDans($query, array $roles, ?int $entite)
+    {
+        return $query->where(fn ($q) => $q
+            ->where(fn ($p) => $p->whereIn('role', $roles)->when($entite, fn ($e) => $e->where('entite_id', $entite)))
+            ->orWhereHas('roles', fn ($r) => $r->whereIn('role', $roles)
+                ->when($entite, fn ($e) => $e->where(fn ($w) => $w->whereNull('entite_id')->orWhere('entite_id', $entite)))));
     }
 
     /**
@@ -292,20 +327,36 @@ class User extends Authenticatable
         return !empty(array_intersect($this->listeRoles(), (array) $roles));
     }
 
-    /** Rôles chargés (cache de l'instance) */
+    /** Rôles chargés (cache de l'instance), pour l'entité de la clé */
     protected ?array $rolesCharges = null;
+    protected ?string $rolesChargesCle = null;
 
     /**
-     * Rôles de l'utilisateur : rôle principal + rôles attribués
+     * Rôles de l'utilisateur : rôle principal + rôles attribués. RG-M01-08 : pour l'utilisateur connecté, seuls comptent
+     * les rôles de son entité courante (le rôle principal vaut dans l'entité du compte) ; en vue consolidée, hors session
+     * ou pour un autre compte, tous ses rôles.
      */
     public function listeRoles(): array
     {
-        if ($this->rolesCharges === null) {
-            $attribues = $this->exists ? $this->roles()->pluck('role')->all() : [];
-            $this->rolesCharges = array_values(array_unique(array_filter([$this->role, ...$attribues])));
+        $entite = $this->exists && \Illuminate\Support\Facades\Auth::id() === $this->id ? \App\Support\EntiteCourante::filtre() : null;
+        if ($this->rolesCharges === null || $this->rolesChargesCle !== (string) $entite) {
+            $this->rolesChargesCle = (string) $entite;
+            $attribues = $this->exists
+                ? $this->roles()->when($entite, fn ($q) => $q->where(fn ($w) => $w->whereNull('entite_id')->orWhere('entite_id', $entite)))->pluck('role')->all()
+                : [];
+            $principal = $entite === null || $entite === $this->entite_id ? $this->role : null;
+            $this->rolesCharges = array_values(array_unique(array_filter([$principal, ...$attribues])));
         }
 
         return $this->rolesCharges;
+    }
+
+    /** Tous les rôles du compte, toutes entités confondues (vue consolidée, sélecteur d'entité) */
+    public function listeRolesToutesEntites(): array
+    {
+        $attribues = $this->exists ? $this->roles()->pluck('role')->all() : [];
+
+        return array_values(array_unique(array_filter([$this->role, ...$attribues])));
     }
 
     /**

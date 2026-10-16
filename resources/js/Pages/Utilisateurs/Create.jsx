@@ -20,7 +20,7 @@ import {
 } from '@/Components/ui/select';
 import { Combobox } from '@/Components/ui/combobox';
 
-export default function Create({ sites = [], services = [], caisses = [] }) {
+export default function Create({ sites = [], services = [], caisses = [], entites = [] }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         prenom: '',
@@ -35,6 +35,7 @@ export default function Create({ sites = [], services = [], caisses = [] }) {
         service: '',
         site: '',
         caisse_id: null,
+        entite_id: null,
         poste: '',
     });
 
@@ -258,6 +259,18 @@ export default function Create({ sites = [], services = [], caisses = [] }) {
                                         />
                                         {errors.site && <p className="text-sm text-red-500 mt-1">{errors.site}</p>}
                                     </div>
+                                    {/* Spec v2.4, RG-M01-02 : entité du compte (affichée si plusieurs entités sont actives) */}
+                                    {entites.length > 1 && (
+                                        <div>
+                                            <Label htmlFor="entite_id">Entité</Label>
+                                            <select id="entite_id" value={data.entite_id ?? ''} onChange={(e) => setData('entite_id', e.target.value ? Number(e.target.value) : null)}
+                                                className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm">
+                                                <option value="">Entité par défaut</option>
+                                                {entites.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+                                            </select>
+                                            {errors.entite_id && <p className="text-sm text-red-500 mt-1">{errors.entite_id}</p>}
+                                        </div>
+                                    )}
                                     {/* Spec v2.3, RG-M02-03 : caisse de rattachement, qui émet et numérote les bons de l'utilisateur */}
                                     <div>
                                         <Label htmlFor="caisse_id">Caisse de rattachement</Label>

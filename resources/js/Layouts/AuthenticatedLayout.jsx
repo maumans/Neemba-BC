@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/Components/NotificationBell";
+import SelecteurEntite from "@/Components/SelecteurEntite";
 import { Button } from "@/Components/ui/button";
 import { ScrollArea } from "@/Components/ui/scroll-area";
 import { Separator } from "@/Components/ui/separator";
@@ -482,6 +483,9 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </div>
                             )}
                         </div>
+
+                        {/* Spec v2.4, RG-M01-08 : entité de travail (plusieurs entités actives) */}
+                        <SelecteurEntite />
 
                         {/* Notifications + Menu utilisateur desktop */}
                         <div className="hidden sm:flex items-center gap-3">

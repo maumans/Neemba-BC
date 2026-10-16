@@ -19,7 +19,9 @@ use Illuminate\Support\Facades\DB;
  */
 final class ExportEcritures
 {
-    public const COLONNES = ['Date', 'N° de bon', 'Compte', 'Libellé', 'Montant (GNF)', 'Code journal', 'Code analytique', 'Payeur', 'Client', 'OR'];
+    /** Spec v2.4, RG-M16-03 : site analytique et entité en plus */
+    public const COLONNES = ['Date', 'N° de bon', 'Compte', 'Libellé', 'Montant (GNF)', 'Code journal', 'Code analytique', 'Site analytique', 'Entité',
+        'Payeur', 'Client', 'OR'];
 
     /** Imputations validées, non exportées, des bons payés sur la période */
     public static function aExporter(string $du, string $au): Builder
@@ -49,7 +51,7 @@ final class ExportEcritures
     /** Lignes du fichier (en-tête compris) */
     public static function lignes(ExportComptable $export): array
     {
-        $imputations = $export->imputations()->with(['bonCaisse', 'lignes.client'])->get()
+        $imputations = $export->imputations()->with(['bonCaisse.entite', 'lignes.client'])->get()
             ->sortBy(fn (Imputation $i) => [$i->bonCaisse->date_paiement, $i->bonCaisse->numero]);
 
         return array_merge([self::COLONNES], $imputations->flatMap(fn (Imputation $i) => $i->lignes->map(fn (LigneImputation $l) => [
@@ -60,6 +62,8 @@ final class ExportEcritures
             (float) $l->montant,
             $i->code_journal,
             $l->code_analytique,
+            $i->bonCaisse->site ?? '',
+            $i->bonCaisse->entite?->code ?? '',
             ['neemba' => 'Neemba', 'client' => 'Client'][$l->payeur] ?? '',
             $l->client?->code ?? '',
             $l->ordre_reparation ?? '',

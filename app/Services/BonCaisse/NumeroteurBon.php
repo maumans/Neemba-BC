@@ -44,6 +44,8 @@ class NumeroteurBon
         /* Sécurité : jamais en dessous d'un numéro déjà présent pour ce préfixe (bons créés hors compteur) */
         $prefixe = "BC-{$code}-{$annee}-";
         $maxExistant = (int) DB::table('bons_caisse')
+            /* RG-M01-08 : le code d'une caisse est unique dans son entité */
+            ->where('entite_id', $caisse->entite_id)
             ->where('numero', 'like', str_replace(['%', '_'], ['\%', '\_'], $prefixe) . '%')
             ->max(DB::raw('CAST(SUBSTRING(numero, ' . (mb_strlen($prefixe) + 1) . ') AS UNSIGNED)'));
 

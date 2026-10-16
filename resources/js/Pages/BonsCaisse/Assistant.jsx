@@ -128,6 +128,7 @@ export default function Assistant({
     prixLitreReference,
     titulaires = [],
     utilisateur,
+    entite = null,
 }) {
     /* Sans le rôle demandeur, un back-up crée forcément pour un titulaire (US-BC-13) */
     if (!bonInitial && utilisateur && !utilisateur.demandeur && titulaires.length > 0) {
@@ -646,6 +647,7 @@ export default function Assistant({
                                             titulaires={choixTitulaire ? titulaires : []}
                                             utilisateur={utilisateur}
                                             choisirTitulaire={choisirTitulaire}
+                                            entite={entite}
                                         />
                                     )}
                                     {etape === 2 && (

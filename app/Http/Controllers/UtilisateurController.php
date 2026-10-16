@@ -87,6 +87,7 @@ class UtilisateurController extends Controller
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
             'caisses' => self::caisses(),
+            'entites' => \App\Models\Entite::actives()->orderBy('id')->get(['id', 'code', 'nom']),
         ]);
     }
 
@@ -110,6 +111,8 @@ class UtilisateurController extends Controller
             'site' => ['required', 'string', 'max:255'],
             /* Spec v2.3, RG-M02-03 : caisse de rattachement (vide : caisse principale du site) */
             'caisse_id' => ['nullable', 'integer', Rule::exists('caisses', 'id')],
+            /* Spec v2.4, RG-M01-02 : entité du compte (entités actives) */
+            'entite_id' => ['nullable', 'integer', Rule::exists('entites', 'id')->where('actif', true)],
             'poste' => ['nullable', 'string', 'max:255'],
         ], self::MESSAGES);
 
@@ -142,6 +145,7 @@ class UtilisateurController extends Controller
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
             'caisses' => self::caisses(),
+            'entites' => \App\Models\Entite::actives()->orderBy('id')->get(['id', 'code', 'nom']),
         ]);
     }
 
@@ -165,6 +169,8 @@ class UtilisateurController extends Controller
             'site' => ['required', 'string', 'max:255'],
             /* Spec v2.3, RG-M02-03 : caisse de rattachement (vide : caisse principale du site) */
             'caisse_id' => ['nullable', 'integer', Rule::exists('caisses', 'id')],
+            /* Spec v2.4, RG-M01-02 : entité du compte (entités actives) */
+            'entite_id' => ['nullable', 'integer', Rule::exists('entites', 'id')->where('actif', true)],
             'poste' => ['nullable', 'string', 'max:255'],
             'actif' => ['boolean'],
             'roles_complementaires' => ['sometimes', 'array'],

@@ -42,6 +42,8 @@ Route::get('/', function () {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth', 'verified'])->group(function () {
+    /* Spec v2.4, RG-M01-08 : entité de travail, ou vue consolidée pour les rôles habilités */
+    Route::post('/entite-courante', [\App\Http\Controllers\EntiteController::class, 'choisir'])->name('entite.choisir');
 
     /* --- Dashboard --- */
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -324,6 +326,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/parametrage/motifs-urgence', [ParametrageController::class, 'storeMotifUrgence'])->name('parametrage.motifs-urgence.store');
         Route::put('/parametrage/motifs-urgence/{motifUrgence}', [ParametrageController::class, 'updateMotifUrgence'])->name('parametrage.motifs-urgence.update');
         Route::post('/parametrage/motifs-urgence/{motifUrgence}/toggle', [ParametrageController::class, 'toggleMotifUrgence'])->name('parametrage.motifs-urgence.toggle');
+        /* Spec v2.4, RG-M01-02 : entités (raison sociale, adresse et logo des documents imprimés) */
+        Route::put('/parametrage/entites/{entite}', [\App\Http\Controllers\EntiteController::class, 'update'])->name('parametrage.entites.update');
         /* Spec v2.4, RG-M03-28 (PO-30) : motifs du bon exceptionnel au profit d'un visiteur du groupe */
         Route::post('/parametrage/motifs-visiteur', [ParametrageController::class, 'storeMotifVisiteur'])->name('parametrage.motifs-visiteur.store');
         Route::put('/parametrage/motifs-visiteur/{motifVisiteur}', [ParametrageController::class, 'updateMotifVisiteur'])->name('parametrage.motifs-visiteur.update');

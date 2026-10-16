@@ -13,7 +13,8 @@ class RoleUtilisateur extends Model
 {
     protected $table = 'roles_utilisateurs';
 
-    protected $fillable = ['user_id', 'role'];
+    /* Spec v2.4, RG-M01-08 : un rôle vaut dans une entité (vide : toutes) */
+    protected $fillable = ['user_id', 'role', 'entite_id'];
 
     public function utilisateur(): BelongsTo
     {

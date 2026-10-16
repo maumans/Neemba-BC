@@ -43,6 +43,8 @@ class HandleInertiaRequests extends Middleware
                     ))),
                     'peut_initier_bon' => $request->user()->peutInitierBon(),
                 ]) : null,
+                /* Spec v2.4, RG-M01-08 : entité courante, entités accessibles, vue consolidée */
+                'entite' => $request->user() ? \App\Support\EntiteCourante::pourEcran($request->user()) : null,
             ],
             /* Messages flash pour les notifications (succès, erreur) */
             'flash' => [

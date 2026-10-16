@@ -26,6 +26,15 @@ use App\Support\MontantEnLettres;
 class BonCaisse extends Model
 {
     use HasFactory, SoftDeletes;
+    /* Spec v2.4, RG-M01-02, RG-M01-08 : rattaché à une entité */
+    use \App\Models\Concerns\AppartientAUneEntite;
+
+    /** Entité d'un nouveau bon ou ODM : celle du demandeur (RG-M03-11), sinon l'entité courante */
+    public function entiteParDefaut(): ?int
+    {
+        return ($this->demandeur_id ? User::whereKey($this->demandeur_id)->value('entite_id') : null)
+            ?? \App\Support\EntiteCourante::filtre() ?? Entite::idParDefaut();
+    }
 
     /**
      * Nom de la table en base de données (en français)
@@ -36,6 +45,7 @@ class BonCaisse extends Model
      * Champs remplissables en masse
      */
     protected $fillable = [
+        'entite_id',
         'motif_visiteur',
         'commentaire_visiteur',
         'refacturation_inter_filiale',

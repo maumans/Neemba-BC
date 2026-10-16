@@ -34,7 +34,9 @@ final class EnregistrementOdm
         $odm = DB::transaction(function () use ($demandeur) {
             $odm = OrdreMission::create([
                 'type' => 'interieur',
-                'entite' => $demandeur->entite,
+                /* Spec v2.4, RG-M01-02 : entité du demandeur (le champ texte reste pour l'impression) */
+                'entite_id' => $demandeur->entite_id,
+                'entite' => $demandeur->entite()->value('nom') ?? $demandeur->entite,
                 'site' => $demandeur->site,
                 'service' => $demandeur->service,
                 /* RG-M12-02 (PO-06) : case pré-cochée pour Technique et Aftermarket */

@@ -34,11 +34,14 @@ class ParametrageController extends Controller
             'typesCaisse' => Caisse::TYPES,
             'modesCaisse' => Caisse::MODES,
             'services' => Service::orderBy('nom')->get()->map(fn (Service $s) => $s->setAttribute(
-                'dernier_numero_odm', \App\Services\Odm\NumeroteurOdm::dernier(\App\Services\Odm\NumeroteurOdm::prefixePour($s->nom), (int) now()->year),
+                'dernier_numero_odm', \App\Services\Odm\NumeroteurOdm::dernier(\App\Services\Odm\NumeroteurOdm::prefixePour($s->nom), (int) now()->year,
+                    \App\Support\EntiteCourante::filtre()),
             )),
             'codesAnalytiques' => CodeAnalytique::with('service')->orderBy('code')->get(),
             'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
             'motifsVisiteur' => \App\Models\MotifVisiteur::orderBy('ordre')->orderBy('libelle')->get(),
+            /* Spec v2.4, RG-M01-02 : entités (mise en service de Neemba Mining : proposition distincte) */
+            'entites' => \App\Models\Entite::orderBy('id')->get(),
             'motifsRejet' => \App\Models\MotifRejet::orderBy('ordre')->orderBy('libelle')->get(),
             'typesDocument' => TypeDocument::orderBy('nom')->get(),
             'parametres' => Parametre::orderBy('groupe')->orderBy('libelle')->get(),
@@ -122,7 +125,14 @@ class ParametrageController extends Controller
             'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
             'plafond_caisse'  => ['nullable', 'numeric', 'min:0'],
             'solde'           => ['nullable', 'numeric'],
-        ] + self::reglesResponsablesCaisse() + self::reglesNumerotation());
+        ] + self::reglesResponsablesCaisse() + self::reglesNumerotation(), [
+            'code_numerotation.unique' => 'Ce code de numérotation est déjà utilisé par une autre caisse de l\'entité.',
+        ]);
+        /* RG-M01-08 : les bons sont numérotés par caisse ; le code reste unique dans l'entité */
+        if (filled($validated['code_numerotation'] ?? null)) {
+            $request->validate(['code_numerotation' => [\Illuminate\Validation\Rule::unique('caisses', 'code_numerotation')->where('entite_id', $caisse->entite_id)->ignore($caisse->id)]],
+                ['code_numerotation.unique' => 'Ce code de numérotation est déjà utilisé par une autre caisse de l\'entité.']);
+        }
 
         $enAttente = 0;
         foreach ([...Caisse::CHAMPS_SENSIBLES, 'solde'] as $champ) {
@@ -255,13 +265,13 @@ class ParametrageController extends Controller
             return;
         }
         $prefixe = \App\Services\Odm\NumeroteurOdm::prefixePour($service->nom);
-        $actuel = \App\Services\Odm\NumeroteurOdm::dernier($prefixe, (int) now()->year);
+        $actuel = \App\Services\Odm\NumeroteurOdm::dernier($prefixe, (int) now()->year, \App\Support\EntiteCourante::filtre());
         if ((int) $donnees['reprise_carnet'] < $actuel) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'reprise_carnet' => "Le compteur {$prefixe} est déjà au n° {$actuel} : il ne peut pas reculer.",
             ]);
         }
-        \App\Services\Odm\NumeroteurOdm::definirDepart($prefixe, (int) now()->year, (int) $donnees['reprise_carnet']);
+        \App\Services\Odm\NumeroteurOdm::definirDepart($prefixe, (int) now()->year, (int) $donnees['reprise_carnet'], \App\Support\EntiteCourante::filtre());
     }
 
     public function toggleService(Service $service)

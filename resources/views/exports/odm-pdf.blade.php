@@ -128,8 +128,9 @@
     <table class="entete">
         <tr>
             <td style="width: 50%">
-                @if (file_exists(public_path('logo.png')))
-                    <img src="{{ public_path('logo.png') }}" alt="Neemba CAT">
+                {{-- Spec v2.4, RG-M01-08 : logo de l'entité de l'ODM --}}
+                @if (file_exists($odm['logo'] ?? public_path('logo.png')))
+                    <img src="{{ $odm['logo'] ?? public_path('logo.png') }}" alt="{{ $odm['entite'] ?: 'Neemba' }}">
                 @else
                     <strong style="font-size: 14pt">NEEMBA</strong>
                 @endif

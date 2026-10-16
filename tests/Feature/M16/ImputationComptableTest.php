@@ -219,7 +219,7 @@ class ImputationComptableTest extends TestCase
         $export = ExportComptable::sole();
         Excel::assertDownloaded(ExportEcritures::nomFichier($export, 'csv'), fn (EcrituresComptablesExport $e) => $e->getCsvSettings()['delimiter'] === ';');
         $this->assertSame('exportee', $bon->fresh()->imputation->statut);
-        $this->assertSame([ExportEcritures::COLONNES, ['01/09/2026', 'BC-2026-0101', '606100', 'Achat de fournitures', 500000.0, 'CE01', 'TECZZZ', '', '', '']],
+        $this->assertSame([ExportEcritures::COLONNES, ['01/09/2026', 'BC-2026-0101', '606100', 'Achat de fournitures', 500000.0, 'CE01', 'TECZZZ', 'Conakry', 'NGU', '', '', '']],
             ExportEcritures::lignes($export));
 
         $this->enregistrer($bon, [['compte' => '606200', 'libelle' => 'Autre', 'montant' => 500000]])

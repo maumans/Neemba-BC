@@ -102,8 +102,9 @@ final class CircuitOdm
     public static function titulaires(OrdreMission $odm, string $niveau): Collection
     {
         $roles = OrdreMission::NIVEAUX[$niveau]['roles'] ?? [];
+        /* RG-M01-08 : valideurs de l'entité de l'ODM (droits par entité × rôle) */
         $requete = User::actifs()
-            ->where(fn ($q) => $q->whereIn('role', $roles)->orWhereHas('roles', fn ($r) => $r->whereIn('role', $roles)))
+            ->avecRoleDans($roles, $odm->entite_id)
             ->orderBy('name');
 
         if ($niveau !== 'chef_atelier') {

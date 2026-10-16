@@ -213,6 +213,7 @@ final class GenererBonsOdm
             'types_or' => $odm->ordresReparation()->pluck('type', 'numero')->all() ?: null,
             'lie_mission' => false,
             'odm_id' => $odm->id,
+            'entite_id' => $odm->entite_id,
             'genere_par_odm' => true,
             'demandeur_id' => $odm->demandeur_id,
             'initiateur_id' => $odm->demandeur_id,
