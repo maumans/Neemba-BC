@@ -42,9 +42,9 @@
 
 | Module | Règles | ✅ | 🟡 | ❌ | Lot(s) |
 |---|---:|---:|---:|---:|---|
-| M01 Comptes, rôles, sécurité | 9 | 1 | 4 | 4 | E1, E2, E3, G, P3 |
+| M01 Comptes, rôles, sécurité | 9 | 2 | 4 | 3 | E2, E3, G, P3 |
 | M02 Référentiels et paramétrage | 11 | 5 | 3 | 3 | E3, E4, G |
-| M03 Saisie du bon | 28 | 24 | 4 | 0 | E1, E3, E4, G |
+| M03 Saisie du bon | 28 | 25 | 3 | 0 | E3, E4, G |
 | M04 Circuit de validation | 10 | 9 | 0 | 1 | G |
 | M05 Délégations | 4 | 1 | 2 | 1 | G |
 | M06 Paiement | 8 | 7 | 0 | 1 | I |
@@ -55,10 +55,10 @@
 | M12 Ordres de mission | 42 | 37 | 2 | 3 | O |
 | M13 Carburant | 15 | 3 | 8 | 4 | H |
 | M15 Archivage et audit | 3 | 0 | 3 | 0 | G |
-| M16 Imputation comptable | 6 | 5 | 1 | 0 | E1, E4 |
-| **Total des règles RG** | **165** | **99** | **38** | **28** | |
+| M16 Imputation comptable | 6 | 6 | 0 | 0 | — |
+| **Total des règles RG** | **165** | **102** | **36** | **27** | |
 
-Les lots R et V sont terminés et commités le 16/10 : leurs règles sont à ✅.
+Les lots R, V et E1 sont terminés et commités le 16/10 : leurs règles sont à ✅.
 
 **Messages** :
 
@@ -74,7 +74,7 @@ Les lots R et V sont terminés et commités le 16/10 : leurs règles sont à ✅
 **Tableau de bord du DAF (M14)** : incomplet ; les rapports v2.4 sont à créer.
 
 **Ce qui bloque le passage en réel à Conakry (P1)** :
-- le socle entité, la double authentification, les référentiels et les caisses / sites (bloc E) ;
+- la double authentification, les référentiels et les caisses / sites (fin du bloc E) ;
 - le réapprovisionnement et l'encaissement (F1) ;
 - la clôture, le rapport et l'inventaire (F2) ;
 - les signataires habilités (G).
@@ -89,7 +89,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 |---|:-:|---|:-:|:-:|
 | §1.4 / §10.1 Aucun seuil, plafond, taux, barème ni délai codé en dur | 🟡 | Constantes restantes : 10 Mo, 20 fichiers, 50 Mo, dpi, SLA très urgent ÷ 2, coupures, jour de relance, écarts carburant, table d'escalade, conservation 5 ans | O | G |
 | §1.4 Paramètres avec historique et date d'effet | ❌ | Barèmes ODM au lot E3 (RG-M02-10) ; les autres paramètres au lot G (RG-M02-01) | O | E3, G |
-| §2.1 Entité transverse, Neemba Guinée seule active, Neemba Mining prévue **[v2.4]** | 🟡 | Texte libre sur les utilisateurs et les ODM seulement ; voir RG-M01-02 et RG-M01-08 | V4, L | E1 |
+| §2.1 Entité transverse, Neemba Guinée seule active, Neemba Mining prévue **[v2.4]** | ✅ | Lot E1 (mise en service de Mining : proposition distincte) | | |
 | §2.2 ERP Helium (intégration hors périmètre) **[v2.4]** | ✅ | Libellés corrigés (lot V) | | |
 | §2.3 Mobile, tablette, poste fixe | ✅ | — | | |
 | §2.3 Saisie hors ligne (PWA) | ❌ | Ni manifeste ni service worker | P3 | P3 |
@@ -135,7 +135,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | §6.3 Liste des 10 services | ✅ | — | | |
 | §6.3 Code service numérique (100 à 900) | 🟡 | Champ libre, sans contrôle | N (PO-14) | G |
 | §6.4 Codes analytiques (6 caractères, par service, désactivables) | 🟡 | Longueur contrôlée à l'import seulement | O | G |
-| §6.5 Utilisateurs | 🟡 | Ni @neemba.com, ni entité gérée, ni champ suppléant | O, L | E1, G |
+| §6.5 Utilisateurs | 🟡 | Ni @neemba.com, ni champ suppléant (entité : lot E1) | O | G |
 | §6.5 Visiteurs : BD seulement, filiale reprise pour la refacturation **[v2.4]** | ✅ | Lot V | | |
 | §6.5 Tiers | ✅ | — | | |
 | §6.5 Clients, ajoutés par le gestionnaire des référentiels **[v2.4]** | 🟡 | Tenus par la Comptabilité, le CDG et l'administrateur ; fichier attendu (PO-26) | L, N | E3 |
@@ -154,7 +154,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 |---|---|:-:|---|:-:|:-:|
 | RG-M02-01 | Date d'effet sur tout paramètre ; calcul selon la date de soumission | 🟡 | ODM figés à la soumission ; le reste n'a ni date d'effet ni historique ; seuil DP relu au jour du visa | O | E3, G |
 | RG-M02-02 | Paramètre désactivé ou remplacé, jamais supprimé | ✅ | — | | |
-| RG-M02-03 | Rattachement entité / site / caisse ; rôles transverses voient tout | 🟡 | CDG, DAF et DP voient leur étape seulement ; Trésorerie aucun bon ; entité non appliquée | O | E1, G |
+| RG-M02-03 | Rattachement entité / site / caisse ; rôles transverses voient tout | 🟡 | Entité appliquée (lot E1) ; CDG, DAF et DP voient leur étape seulement ; Trésorerie aucun bon | O | G |
 | RG-M02-04 | Statut cadre obligatoire pour l'ODM extérieur | ✅ | — | | |
 | RG-M02-05 | N° OM : 9 chiffres commençant par 6 | ✅ | — | | |
 | RG-M02-06 | Tiers proposé non sélectionnable avant validation | ✅ | Lot B | | |
@@ -171,13 +171,13 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | Règle | Contenu | État | Ce qui manque | Cause | Lot |
 |---|---|:-:|---|:-:|:-:|
 | RG-M01-01 | Comptes au domaine neemba.com uniquement | ❌ | Aucun contrôle (Q70) | O | G |
-| RG-M01-02 | Entité transverse : utilisateurs, caisses, bons, ODM, référentiels, paramètres ; Neemba Guinée active, Mining inactive **[v2.4]** | 🟡 | Texte libre sur les utilisateurs et les ODM seulement | V4, L | E1 |
+| RG-M01-02 | Entité transverse : utilisateurs, caisses, bons, ODM, référentiels, paramètres ; Neemba Guinée active, Mining inactive **[v2.4]** | ✅ | Lot E1 : table `entites`, `entite_id` partout | | |
 | RG-M01-03 | Nouveaux rôles (dont assistant trésorier) | 🟡 | Pas de rôle « assistant trésorier » (Q75) | O | G |
 | RG-M01-04 | Incompatibilités | ✅ | — | | |
 | RG-M01-05 | Second validateur avant l'effet d'un changement sensible | 🟡 | Effet immédiat pour les codes analytiques, l'activation d'un compte, la caisse de rattachement, les sites, les services et les motifs | O | G |
 | RG-M01-06 | Interface adaptative ; hors ligne en P3 | 🟡 | Hors ligne | P3 | P3 |
 | RG-M01-07 | Double authentification : OTP par email à la connexion (durée et essais paramétrables) ; OTP par SMS au valideur pour viser une demande urgente (BD, BP, ODM) **[v2.4]** | ❌ | — | L | E2 |
-| RG-M01-08 | Droits par entité × rôle ; numérotation, référentiels, gabarit du bon, rapports par entité ; vue consolidée **[v2.4]** | ❌ | — | L | E1 |
+| RG-M01-08 | Droits par entité × rôle ; numérotation, référentiels, gabarit du bon, rapports par entité ; vue consolidée **[v2.4]** | 🟡 | Lot E1 : tout est fait côté serveur et à l'écran, sauf l'attribution d'un rôle dans une autre entité depuis l'écran Utilisateurs (utile à la mise en service de Mining) | L | Mise en service de Mining |
 | RG-M01-09 | Rôle « gestionnaire des référentiels », distinct de l'administrateur **[v2.4]** | ❌ | L'administrateur tient les référentiels | L | E3 |
 
 ---
@@ -191,7 +191,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M03-03 | Bénéficiaire du référentiel | ✅ | | | |
 | RG-M03-04 | BP au profit d'un salarié seulement ; visiteur ou tiers → BD **[v2.4]** | ✅ | Lot V : refus serveur (MSG-M03-02), BP non proposé à l'écran | | |
 | RG-M03-05 à 10 | Motif, montant, mode, plafond espèces, frais OM, n° OM | ✅ | | | |
-| RG-M03-11 | Entité et caisse pré-remplies et verrouillées ; site analytique selon RG-M03-27 **[v2.4]** | 🟡 | Caisse faite (lot C) ; entité ni affichée ni verrouillée | L | E1 |
+| RG-M03-11 | Entité et caisse pré-remplies et verrouillées ; site analytique selon RG-M03-27 **[v2.4]** | ✅ | Lots C et E1 | | |
 | RG-M03-12 | Service et code analytique filtré | ✅ | | | |
 | RG-M03-13 | OR : 8 chiffres en 110 ; type choisi dans le référentiel des types d'OR **[v2.4]** | 🟡 | Format fait (lot D) ; type en constante VENTE / GARANTIE | V4 | E3 |
 | RG-M03-14 | Urgence, motif de la liste, SMS très urgent | ✅ | | | |
@@ -204,7 +204,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M03-27 | Site analytique, distinct de la caisse ; site du demandeur par défaut, modifiable à la saisie ; corrigé par le CDG avec trace **[v2.4]** | 🟡 | Le site existe, mais il est figé sur celui du demandeur et sert à trouver la caisse payeuse | V4 | E4 |
 | RG-M03-28 | Bon visiteur : BD exceptionnel, motif d'une liste fermée (PO-30) et commentaire ; Finance réservée au DAF ; marqué « refacturation inter-filiale » avec la filiale ; reporting **[v2.4]** | ✅ | Lot V (liste des motifs attendue du DAF, PO-30 ; rapport par filiale au lot I) | | |
 
-**User stories M03** : couvertes, sauf US-08 (entité, lot E1).
+**User stories M03** : toutes couvertes.
 
 **Messages M03**
 
@@ -300,7 +300,7 @@ SMTP et fournisseur SMS sont à confirmer par l'IT de Neemba (PO-23, cloud Neemb
 | Export Excel opérationnel ; « Frais à refacturer » ; rapport mensuel des BP | ✅ | | | |
 | Rapport « OR à régulariser » (RG-M12-41) **[v2.4]** | ❌ | | L | O |
 | Bons au profit de visiteurs, par filiale d'origine (RG-M03-28) **[v2.4]** | 🟡 | Colonnes de l'export faites (lot V) ; rapport par filiale au lot I | L | I |
-| Tous les tableaux, rapports et exports filtrables par entité, avec vue consolidée **[v2.4]** | ❌ | | L | E1 |
+| Tous les tableaux, rapports et exports filtrables par entité, avec vue consolidée **[v2.4]** | ✅ | Lot E1 : portée globale sur l'entité courante, vue consolidée | | |
 
 ### 8.9 M15 Archivage et journal d'audit
 
@@ -315,7 +315,7 @@ SMTP et fournisseur SMS sont à confirmer par l'IT de Neemba (PO-23, cloud Neemb
 | Règle | Contenu | État | Ce qui manque | Cause | Lot |
 |---|---|:-:|---|:-:|:-:|
 | RG-M16-01, 02, 04, 05, 06 | Imputation, pré-remplissage, alerte J+1, parts d'ODM, corrections | ✅ | devBook §38 ; comptes et journaux attendus (PO-17, PO-25) | | |
-| RG-M16-03 | Export : ajoute le **site analytique** et l'**entité** ; aucun format Helium **[v2.4]** | 🟡 | Les deux colonnes manquent | V4 | E1, E4 |
+| RG-M16-03 | Export : ajoute le **site analytique** et l'**entité** ; aucun format Helium **[v2.4]** | ✅ | Lot E1 (le site analytique devient modifiable au lot E4) | | |
 
 ---
 
@@ -396,7 +396,7 @@ User stories US-01 à 07 et messages MSG-M13-01 à 05 : à faire (H).
 | PO-03 | Un bon par participant **[v2.4 : décidé le 14/10]** | Un bon par participant (lot V) | ✅ | — |
 | PO-09 | Procédure ODM du groupe | Règles de la spec | — | Neemba |
 | PO-11 | Calcul de l'avance carburant | Saisie libre par la Logistique | ❌ (H) | Neemba |
-| PO-12 | Neemba Mining | Neemba Guinée seule active | 🟡 (E1) | Neemba |
+| PO-12 | Neemba Mining | Neemba Guinée seule active (lot E1) | ✅ | Neemba |
 | PO-13 | Codes analytiques, Atelier, CORICA | 22 radicaux importés | 🟡 | CDG |
 | PO-14 | Codes de service numériques | Champ vide | 🟡 (G) | Neemba |
 | PO-15 | Utilisateurs et signataires habilités | Import partiel | 🟡 (G) | Neemba, RH |
@@ -457,15 +457,15 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 - [x] Bon complémentaire de la clôture verrouillé, créé avec sa facture et soumis aussitôt ; facture d'hébergement ignorée hors ODM extérieur payé avant le départ (RG-M12-38)
 - [x] Libellé Helium
 
-### Lot E1 — Entité transverse (≈ 2,5 j)
+### Lot E1 — Entité transverse (≈ 2,5 j) ✅
 
-- [ ] Table `entites` (Neemba Guinée active, Neemba Mining inactive) ; `entite_id` sur les utilisateurs, caisses, bons, ODM, référentiels et paramètres
-- [ ] Droits par entité × rôle (`roles_utilisateurs.entite_id`) ; entité courante en session ; vue consolidée pour les rôles du paramètre
-- [ ] Filtre par entité :
-  - [ ] listes, tableaux de bord, rapports, exports, imputation ;
-  - [ ] circuit des valideurs, visibilité.
-- [ ] Numérotation des bons et des ODM par entité ; gabarit PDF par entité ; entité affichée et verrouillée à la saisie
-- [ ] Tests SC-41 (isolation, consolidé)
+- [x] Table `entites` (Neemba Guinée active, Neemba Mining inactive) ; `entite_id` sur les utilisateurs, caisses, bons, ODM, référentiels et paramètres
+- [x] Droits par entité × rôle (`roles_utilisateurs.entite_id`) ; entité courante en session ; vue consolidée pour les rôles du paramètre
+- [x] Filtre par entité :
+  - [x] listes, tableaux de bord, rapports, exports, imputation ;
+  - [x] circuit des valideurs, visibilité.
+- [x] Numérotation des bons et des ODM par entité ; gabarit PDF par entité ; entité affichée et verrouillée à la saisie
+- [x] Tests SC-41 (isolation, consolidé)
 
 ### Lot E2 — Double authentification (≈ 1,5 j)
 
@@ -600,12 +600,12 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | SC-23 | Génération des bons, un par participant | ✅ | (lot V) |
 | SC-30 à SC-32 | Carburant | ❌ | H |
 | SC-33 | Isolation des caisses et sites | 🟡 | E4, F1 |
-| SC-34 | Imputation et export comptable | 🟡 | E1, E4 (colonnes v2.4) |
+| SC-34 | Imputation et export comptable | ✅ | (colonnes v2.4 : lot E1) |
 | SC-36 | Hors ligne | ❌ | P3 |
 | SC-38 **[v2.4]** | ODM technique « OR à régulariser » | ❌ | O |
 | SC-39 **[v2.4]** | Bon exceptionnel au profit d'un visiteur | ✅ | (lot V ; rapport par filiale au lot I) |
 | SC-40 **[v2.4]** | Double authentification, visa urgent par SMS | ❌ | E2 |
-| SC-41 **[v2.4]** | Isolation par entité et vue consolidée | ❌ | E1 |
+| SC-41 **[v2.4]** | Isolation par entité et vue consolidée | ✅ | (lot E1) |
 
 ---
 
@@ -625,7 +625,7 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | Q78 **[v2.4]** | Qui tient les sites et les caisses ? | L'administrateur, avec double validation ; le gestionnaire des référentiels tient le reste | E3 |
 | Q79 **[v2.4]** | Bon visiteur sans DAF ni DAF adjoint disponible | Le bon attend ; la Finance n'est jamais sautée (appliqué, lot V) | V |
 | Q80 **[v2.4]** | OR saisi après coup | Reporté sur les bons de l'ODM, avec trace | O |
-| Q81 **[v2.4]** | Qui a la vue consolidée ? | Paramètre ; par défaut DAF, DAF adjoint, DP, DP adjoint, administrateur | E1 |
+| Q81 **[v2.4]** | Qui a la vue consolidée ? | Paramètre ; par défaut DAF, DAF adjoint, DP, DP adjoint, administrateur (appliqué, lot E1) | E1 |
 
 **À obtenir de Neemba** :
 - valeurs des caisses et solde de l'Atelier ;
@@ -651,3 +651,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 16/10/2026 | — | — | Spec v2.4 reçue et comparée à la v2.3 : 13 règles nouvelles, 11 modifiées, 4 messages, 4 points ouverts, 4 scénarios. Plan d'intégration validé : R → V → E1 → E2 → E3 → E4 → O → F1 → F2 → G → I → H → P3. 165 règles RG : 88 faites, 45 partielles, 32 à faire. Fichier renommé `CONFORMITE.md` |
 | 16/10/2026 | R | (ce commit) | Correctifs de l'audit terminés : visa Finance jamais sauté, complément de BP soumis à la Finance, OTP au bénéficiaire seulement, « Bon à payer », alertes sur l'écran de visa, code analytique du CDG contrôlé, Comptabilité dans la vue des ODM, SLA 4/24/8/24 h en heures ouvrées avec escalade DP → DAF, rejet toujours motivé, messages MSG-M03-01, 05, 10, 11, 15 au texte exact. 358 tests PHP, 74 JS ; parcours Edge (11 vérifications). 165 règles : 93 faites, 40 partielles, 32 à faire. devBook §48 |
 | 16/10/2026 | V | (ce commit) | Visiteurs du groupe en BD seulement : motif d'une liste fermée (vide, PO-30) et commentaire, « refacturation inter-filiale » avec la filiale, Finance réservée au DAF, DAF notifié, bandeau à chaque étape, colonnes de l'export. Bon d'ODM groupé retiré. Bon complémentaire de la clôture verrouillé, créé avec sa facture et soumis. Helium. 361 tests PHP, 74 JS ; parcours Edge (15 vérifications). 165 règles : 99 faites, 38 partielles, 28 à faire. devBook §49 |
+| 16/10/2026 | E1 | (ce commit) | Entité transverse : table `entites` (Neemba Guinée active, Neemba Mining inactive), `entite_id` sur comptes, caisses, bons, ODM, référentiels, paramètres ; droits par entité × rôle ; portée globale sur l'entité courante ; vue consolidée (paramètre) ; sélecteur d'entité ; valideurs de l'entité du bon ou de l'ODM ; numérotation des ODM par entité ; gabarit PDF ; entité affichée à la saisie ; colonnes entité et site analytique dans les exports. 368 tests PHP, 74 JS ; parcours Edge (15 vérifications). 165 règles : 102 faites, 36 partielles, 27 à faire. devBook §50 |

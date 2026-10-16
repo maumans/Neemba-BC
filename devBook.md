@@ -4808,3 +4808,86 @@ Ensuite :
 - saisir la liste des motifs du bon visiteur fournie par le DAF (PO-30). Tant qu'elle est vide, un bon au profit d'un visiteur ne peut pas être soumis ;
 - prévenir les demandeurs : un visiteur du groupe ne reçoit plus qu'un BD exceptionnel ;
 - prévenir le Chef comptable : la Finance de ces bons revient au DAF et à son adjoint.
+
+## 50. Version v50 — Lot E1 : entité transverse (16 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Premier lot du bloc E de la spec v2.4 (RG-M01-02, RG-M01-08, §2.1, SC-41). Neemba Guinée est seule active ; Neemba Mining est prévue, inactive : sa mise en service fait l'objet d'une proposition distincte.
+
+### 50.1 Modèle
+
+| Élément | Mise en œuvre |
+|---|---|
+| Table `entites` | Champs : code, nom, raison sociale, adresse, logo, actif. **NGU** Neemba Guinée est active ; **NMI** Neemba Mining est inactive. Modèle `Entite`, avec `parDefaut()`, `lignesAdresse()` et `cheminLogo()`. |
+| `entite_id` obligatoire | Sur `users`, `caisses`, `bons_caisse` et `ordres_mission`, repris sur Neemba Guinée. |
+| `entite_id` facultatif | Vide signifie « commun à toutes les entités ». Sur `services`, `codes_analytiques`, `clients`, `tiers`, `visiteurs`, `motifs_urgence`, `motifs_rejet`, `motifs_visiteur` et `parametres`. Les lignes existantes sont rattachées à Neemba Guinée ; les paramètres restent communs. |
+| Champs texte | `users.entite` et `ordres_mission.entite` sont conservés. Le texte du compte, rempli par l'import des référentiels, désigne l'entité par son nom ou son code ; à l'enregistrement, il renseigne `entite_id`. **Attention : `$user->entite` lit ce texte ; la relation se lit par `entite()`.** |
+| Droits par entité × rôle | `roles_utilisateurs.entite_id` : vide, le rôle vaut pour toutes les entités. Les rôles existants sont repris sur l'entité du compte. `User::ajouterRoles($roles, $entite)` prend l'entité du compte par défaut. `listeRoles()` ne retient, pour l'utilisateur connecté, que les rôles de son entité courante (le rôle principal vaut dans l'entité du compte). `listeRolesToutesEntites()` les donne tous. La portée `User::avecRoleDans($roles, $entite)` sert aux circuits. |
+
+### 50.2 Cloisonnement
+
+- **Trait `App\Models\Concerns\AppartientAUneEntite`** : portée globale `entite` et entité par défaut à la création.
+  - Appliqué aux bons, ODM, caisses et référentiels. Pour les bons et les ODM, l'entité par défaut est celle du demandeur.
+  - La portée filtre sur l'**entité courante** de l'utilisateur connecté. Un référentiel commun (entité vide) reste visible partout.
+  - Pas de filtre en vue consolidée, ni hors session (commandes, tâches planifiées).
+  - Listes, tableaux de bord, rapports, exports, imputation et liaison des routes suivent donc l'entité : un bon d'une autre entité répond 404.
+  - `deLEntite($id)` lève la portée pour une entité donnée (null : toutes).
+- **`App\Support\EntiteCourante`**, entité de travail de l'utilisateur connecté :
+  - par défaut, celle du compte ; au choix, une autre entité active où il a des droits ;
+  - choix gardé en session ; calcul mis en cache dans la requête ;
+  - vue consolidée pour les rôles du paramètre `roles_vue_consolidee` (défaut : DAF, DAF adjoint, DP, DP adjoint, administrateur ; Q81), seulement si plusieurs entités sont actives.
+- **Écrans** :
+  - route `entite.choisir` ;
+  - sélecteur `SelecteurEntite` dans le bandeau, affiché seulement avec plusieurs entités ou la vue consolidée ;
+  - données partagées `auth.entite`.
+- **Valideurs** : `CircuitBon::titulaires` et `CircuitOdm::titulaires` ne retiennent que les valideurs de l'entité du bon ou de l'ODM.
+
+### 50.3 Numérotation, impression, saisie, exports
+
+| Élément | Mise en œuvre |
+|---|---|
+| Numérotation | **Bons** : déjà par caisse, et la caisse porte l'entité. Le code de numérotation est unique dans l'entité, et `NumeroteurBon` ne cherche le plus grand numéro que dans l'entité. **ODM** : `compteurs_odm` unique sur (entité, préfixe, année) ; `NumeroteurOdm::prochain`, `definirDepart` et `dernier` prennent l'entité. |
+| Gabarit d'impression | Le PDF du bon prend le logo et la raison sociale de l'entité du bon. Le PDF de l'ODM prend le nom, l'adresse et le logo de l'entité de l'ODM. |
+| Saisie (RG-M03-11) | L'entité du demandeur est affichée et verrouillée dans l'assistant. L'ODM prend l'entité du demandeur ; la prolongation la reprend ; les bons générés prennent celle de l'ODM. |
+| Paramétrage | Onglet « Entités » : nom, raison sociale, adresse, logo. La mise en service ne se fait pas depuis l'écran. Sur la fiche utilisateur, l'entité se choisit quand plusieurs entités sont actives. |
+| Exports | L'export Excel des bons gagne la colonne « Entité ». L'export comptable gagne « Site analytique » et « Entité » (RG-M16-03). |
+
+### 50.4 Données
+
+Migration `2026_10_21_000001_lot_e1_entite_transverse` :
+- table `entites` ;
+- colonnes `entite_id` et reprise sur Neemba Guinée ;
+- index uniques par entité sur `roles_utilisateurs` et `compteurs_odm` ;
+- paramètre `roles_vue_consolidee`.
+
+Vérifiée sur une copie de la base : aller, retour, aller, retour, aller. Le premier retour a échoué : la clé étrangère de `compteurs_odm` s'appuyait sur le nouvel index unique. Elle est maintenant retirée d'abord. La migration a ensuite été appliquée en dev.
+
+### 50.5 Vérifications
+
+- `tests/Feature/LotE1/EntiteTest.php`, 7 tests, Neemba Mining activée pour le test :
+  - isolation des bons ;
+  - vue consolidée réservée aux rôles habilités ;
+  - droits par entité × rôle et valideurs de l'entité ;
+  - numérotation des ODM par entité ;
+  - référentiels propres et communs ;
+  - entité à la saisie (avec le champ texte du compte rempli) et dans l'export ;
+  - sans seconde entité active, rien ne change à l'écran.
+- `ImputationComptableTest` : colonnes de l'export comptable.
+- **Total** : 368 tests PHP et 74 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base de dev, Neemba Mining activée dans la copie : 15 vérifications, sans erreur JavaScript.
+  - Onglet « Entités », entité de l'assistant.
+  - Pas de sélecteur pour le demandeur.
+  - Sélecteur du DAF ; bon de Mining en 404, puis ouvert en vue consolidée.
+  - PDF du bon ; téléphone.
+
+  Défaut relevé par le parcours : l'assistant plantait sur un compte réel. Son champ texte « entite » masquait la relation ; c'est corrigé, et un test couvre le cas.
+
+### 50.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_21_000001
+```
+
+Rien ne change à l'écran tant que seule Neemba Guinée est active. La mise en service de Neemba Mining, qui fait l'objet d'une proposition distincte, demandera :
+- de l'activer en base ;
+- de créer ses caisses, référentiels et comptes ;
+- d'attribuer, depuis l'écran Utilisateurs, les rôles des personnes qui travaillent dans les deux entités. Cet écran est encore à faire : RG-M01-08 reste partiel sur ce seul point.
