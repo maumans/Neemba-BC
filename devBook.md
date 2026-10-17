@@ -4160,3 +4160,64 @@ Ensuite :
 - vérifier `seuil_validation_dp` (1 500 000 attendu) ;
 - désigner les gestionnaires et suppléants des caisses ;
 - régler `blocage_bp_en_retard` si le défaut « partiel » ne convient pas.
+
+## 42. Version v42 — Conformité v2.3, lot B « bénéficiaires : tiers et visiteurs du groupe » (17 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
+
+### 42.1 Règles traitées
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M03-03, ANO-06 | Le bénéficiaire est choisi dans un référentiel : salarié, visiteur du groupe ou tiers validé. Il n'y a plus de saisie libre. Le nom et le téléphone (n° OM, à défaut le téléphone) sont repris du référentiel, et le téléphone reste modifiable pour un tiers ou un visiteur. Un ancien type saisi librement est refusé à la saisie (MSG-APP-059). |
+| RG-M02-06, US-03 | Le demandeur **propose** un tiers depuis l'étape 2 (« Proposer un tiers »). Le tiers n'est pas sélectionnable tant qu'il n'est pas validé : il apparaît grisé, « en attente de validation », pour celui qui l'a proposé (MSG-M03-03). La Comptabilité, le Chef comptable, le CDG, le DAF et le DAF adjoint sont notifiés ; leur notification ouvre l'écran des tiers. Ils valident, ou refusent avec un motif, et le demandeur est notifié. Un tiers créé par l'un d'eux est validé d'emblée. Un tiers se désactive, il ne se supprime pas. |
+| RG-M02-07 | Si le téléphone, le n° OM ou le NIF est déjà celui d'un tiers non refusé (formats normalisés), la proposition est bloquée avec le nom du tiers existant (MSG-M03-04). Le contrôle vaut aussi à la modification. |
+| RG-M03-04 | Un BP n'est pas accepté pour un tiers (MSG-M03-02). Un BP est accepté pour un visiteur du groupe actif. |
+| §6.5 Visiteurs | Fiche : nom, prénom, filiale, matricule groupe, n° OM, département d'accueil, directeur responsable de la régularisation, période de séjour. Elle est tenue par les RH, la direction financière et l'administrateur. Le directeur s'affiche quand on choisit le visiteur, et un visiteur hors période de séjour est signalé. |
+| RG-M03-20, RG-M03-21 | Le doublon probable et les BP en retard reconnaissent le bénéficiaire par son tiers ou son visiteur, et non plus par son seul nom. |
+
+### 42.2 Données
+
+Migration `2026_10_17_000002_lot_b_tiers_et_visiteurs` :
+- nouvelles tables `tiers` et `visiteurs` ;
+- `bons_caisse.tiers_id` et `visiteur_id` ;
+- `type_beneficiaire` passe d'une énumération à une chaîne (employe, visiteur, tiers, plus les anciens types) ;
+- reprise (Q62) : les noms distincts des bons « fournisseur / prestataire / autre » deviennent des tiers **proposés**, d'origine « reprise ». Les anciens bons gardent leur texte et sont rattachés au tiers repris. Les noms identiques à la casse et aux espaces près ne forment qu'un tiers.
+
+La migration a été vérifiée sur une copie de la base (aller, retour, aller, avec deux bons de test fusionnés en un seul tiers), puis appliquée en dev. La base de dev n'a aucun tiers à reprendre.
+
+### 42.3 Écrans
+
+- **Assistant, étape 2** : trois cartes, Salarié, Visiteur du groupe et Tiers, chacune avec sa recherche. Le choix d'un tiers propose aussi « Proposer un tiers » (raison sociale, type, téléphone, n° OM, NIF).
+- **Référentiels → Tiers** : onglets Proposé, Validé, Refusé et Désactivé, avec leurs compteurs ; Valider, Refuser (motif), Modifier, Désactiver ou Réactiver ; les tiers repris sont signalés.
+- **Référentiels → Visiteurs du groupe** : liste et fiche du visiteur.
+
+### 42.4 Vérifications
+
+- **`tests/Feature/LotB/TiersVisiteursTest.php`** (5 tests) :
+  1. proposition en attente ;
+  2. doublon ;
+  3. validation, refus, choix dans un bon, BP refusé, désactivation ;
+  4. création par un valideur ;
+  5. visiteur et BP, avec BP en retard du visiteur.
+- **Tests adaptés** : un ancien bénéficiaire libre est refusé ; un tiers sans téléphone payé en espèces bloque toujours.
+- **Total** : **320 tests PHP** et **71 tests JavaScript** passent.
+- **Parcours dans Edge**, sur une copie de la base de dev : 14 vérifications, aucune erreur JavaScript.
+  1. proposition par Souadou ;
+  2. doublon ;
+  3. validation par le CDG Maïmouna BARRY ;
+  4. choix du tiers et téléphone repris ;
+  5. BP refusé au tiers ;
+  6. visiteur créé par l'administrateur ;
+  7. BP au visiteur ;
+  8. téléphone.
+
+### 42.5 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_17_000002
+```
+
+Ensuite :
+- faire valider par la Comptabilité ou le CDG les tiers repris (Référentiels → Tiers, onglet « Proposé ») ;
+- faire saisir aux RH les visiteurs du groupe en séjour.
