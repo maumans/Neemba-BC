@@ -11,7 +11,8 @@ use App\Services\LectureTicket\LectureTickets;
 use App\Support\Format;
 
 /**
- * Écran Contrôle (US-BC-10, SFD §5.4.7) : les 12 contrôles du bon avant soumission.
+ * Écran Contrôle (US-BC-10, SFD §5.4.7) : les 12 contrôles du bon avant soumission, plus le doublon probable (13)
+ * et le BP en retard du bénéficiaire (14) de la spec v2.3.
  * Recalculés à l'ouverture de l'étape 5 et refaits par le serveur à la soumission (RG-BC-24, RG-BC-27).
  *
  * Niveau : « ok » (vert), « avertissement » (orange, n'empêche pas la soumission), « bloquant » (rouge).
@@ -40,6 +41,10 @@ class ControlesBon
         'MSG-BC-024' => 'RG-BC-22',
         'MSG-BC-025' => 'RG-BC-22',
         'MSG-BC-026' => 'RG-BC-22',
+        'MSG-M03-16' => 'RG-M03-26',
+        'MSG-M03-12' => 'RG-M03-20',
+        'MSG-M03-13' => 'RG-M03-21',
+        'MSG-M03-14' => 'RG-M03-21',
     ];
 
     /**
@@ -65,6 +70,8 @@ class ControlesBon
             self::visaDirecteurPays($bon),
             self::suiviApresPaiement($bon),
             self::delegation($bon, $auteur),
+            self::doublonProbable($bon),
+            self::bpEnRetard($bon),
         ];
     }
 
@@ -174,23 +181,18 @@ class ControlesBon
     }
 
     /**
-     * RG-BC-19 : pièce identique à une pièce d'un autre bon non annulé.
-     * Rouge tant que le demandeur n'a pas confirmé et justifié ; orange ensuite (visible du CDG).
+     * RG-M03-26 (spec v2.3) : une pièce identique (même empreinte) à une pièce d'un autre bon non annulé bloque la
+     * soumission, avec le numéro du bon d'origine (MSG-M03-16). La confirmation de la SFD v1.3 ne lève plus le blocage.
      */
     private static function piecesDejaUtilisees(BonCaisse $bon): array
     {
-        $doublons = $bon->piecesActives->filter(fn (PieceJointe $piece) => $piece->doublon_de_id !== null);
-        $nonConfirme = $doublons->first(fn (PieceJointe $piece) => !$piece->doublon_confirme);
+        $doublon = $bon->piecesActives->first(fn (PieceJointe $piece) => $piece->doublon_de_id !== null);
 
-        if ($nonConfirme) {
-            $valeurs = self::valeursDoublon($nonConfirme);
+        if ($doublon) {
+            $valeurs = self::valeursDoublon($doublon);
 
             return self::controle(6, 'PIECE_DEJA_UTILISEE', 'Pièces déjà utilisées', self::BLOQUANT,
-                ErreurMetier::texte('MSG-BC-019', $valeurs), 'MSG-BC-019', $valeurs, 4, 'pieces');
-        }
-        if ($doublons->isNotEmpty()) {
-            return self::controle(6, 'DOUBLON_JUSTIFIE', 'Pièces déjà utilisées', self::AVERTISSEMENT,
-                "{$doublons->count()} pièce(s) déjà présentée(s) sur un autre bon, confirmée(s) et justifiée(s) : le contrôle de gestion en sera informé.");
+                ErreurMetier::texte('MSG-M03-16', $valeurs), 'MSG-M03-16', $valeurs, 4, 'pieces');
         }
 
         return self::controle(6, 'PIECES_UNIQUES', 'Pièces déjà utilisées', self::OK, 'Aucune pièce déjà présentée sur un autre bon');
@@ -320,6 +322,56 @@ class ControlesBon
 
         return self::controle(12, 'DELEGATION', 'Délégation', self::OK,
             "Délégation de {$bon->demandeur->nom_complet} active jusqu'au " . Format::date($delegation->date_fin));
+    }
+
+    /**
+     * Contrôle 13 — RG-M03-20 : même bénéficiaire et même montant sur la période paramétrée. Le demandeur confirme
+     * qu'il ne s'agit pas d'un doublon ; l'alerte reste ensuite visible des valideurs (RG-M04-05).
+     */
+    private static function doublonProbable(BonCaisse $bon): array
+    {
+        $autre = AlertesBon::doublonProbable($bon);
+        if (!$autre) {
+            return self::controle(13, 'DOUBLON_PROBABLE_ABSENT', 'Doublon probable', self::OK, 'Aucun bon du même montant pour ce bénéficiaire');
+        }
+        $valeurs = AlertesBon::valeursDoublon($autre);
+        $texte = ErreurMetier::texte('MSG-M03-12', $valeurs);
+        if (AlertesBon::doublonConfirme($bon, $autre)) {
+            return self::controle(13, 'DOUBLON_PROBABLE_CONFIRME', 'Doublon probable', self::AVERTISSEMENT,
+                $texte . ' Confirmé par ' . $bon->doublon_probable['confirme_par'] . ' : les valideurs en seront informés.', 'MSG-M03-12', $valeurs);
+        }
+
+        return self::controle(13, 'DOUBLON_PROBABLE', 'Doublon probable', self::BLOQUANT, $texte, 'MSG-M03-12', $valeurs);
+    }
+
+    /**
+     * Contrôle 14 — RG-M03-21, RG-M07-06 : BP du bénéficiaire en retard de régularisation. Selon le paramètre, le bon
+     * est signalé (bandeau pour les valideurs) ou bloqué ; une dérogation du DAF lève le blocage pour ce bon.
+     */
+    private static function bpEnRetard(BonCaisse $bon): array
+    {
+        $retards = AlertesBon::bpEnRetard($bon);
+        if ($retards->isEmpty()) {
+            return self::controle(14, 'BP_EN_RETARD_ABSENT', 'BP en retard du bénéficiaire', self::OK, 'Aucun bon provisoire en retard');
+        }
+        $valeurs = AlertesBon::valeursRetard($bon, $retards->first());
+        if (!AlertesBon::bloqueParBpEnRetard($bon, $retards)) {
+            return self::controle(14, 'BP_EN_RETARD_SIGNALE', 'BP en retard du bénéficiaire', self::AVERTISSEMENT,
+                ErreurMetier::texte('MSG-M03-14', $valeurs), 'MSG-M03-14', $valeurs);
+        }
+        if (AlertesBon::derogationAccordee($bon)) {
+            return self::controle(14, 'BP_EN_RETARD_DEROGATION', 'BP en retard du bénéficiaire', self::AVERTISSEMENT,
+                'Dérogation accordée par ' . $bon->derogation_bp['decide_par'] . ' : ' . $bon->derogation_bp['decision_motif'], 'MSG-M03-14', $valeurs);
+        }
+        $derogation = $bon->derogation_bp['statut'] ?? null;
+        $suite = match ($derogation) {
+            'demandee' => ' Dérogation demandée au DAF, en attente de sa décision.',
+            'refusee' => ' Dérogation refusée par ' . $bon->derogation_bp['decide_par'] . ' : ' . $bon->derogation_bp['decision_motif'],
+            default => '',
+        };
+
+        return self::controle(14, 'BP_EN_RETARD', 'BP en retard du bénéficiaire', self::BLOQUANT,
+            ErreurMetier::texte('MSG-M03-13', $valeurs) . $suite, 'MSG-M03-13', $valeurs + ['derogation' => $derogation]);
     }
 
     private static function controle(int $numero, string $code, string $libelle, string $niveau, string $message,

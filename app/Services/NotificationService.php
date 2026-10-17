@@ -707,6 +707,14 @@ class NotificationService
         );
     }
 
+    /** RG-M07-06 : demande de dérogation « BP en retard » (aux DAF) et décision (au demandeur) */
+    public static function notifierDerogationBp(BonCaisse $bon, User $expediteur, \Illuminate\Support\Collection $destinataires, string $titre, string $message): void
+    {
+        foreach ($destinataires as $destinataire) {
+            self::creerEtDiffuser($destinataire, $bon, $expediteur, 'derogation_bp', $titre, $message);
+        }
+    }
+
     /* ----------------------------------------------------------------
      * MÉTHODES PRIVÉES
      * ---------------------------------------------------------------- */

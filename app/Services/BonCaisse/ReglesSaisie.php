@@ -124,7 +124,8 @@ class ReglesSaisie
             'justification_urgence' => $urgent ? ['required', 'string', 'min:10', 'max:300'] : ['nullable'],
 
             /* Étape 2 — RG-BC-06, RG-BC-07 */
-            'type_beneficiaire' => ['required', Rule::in(array_keys(BonCaisse::TYPES_BENEFICIAIRE))],
+            /* RG-M03-04 : un BP n'est émis qu'au profit d'un salarié (visiteurs du groupe : lot B) */
+            'type_beneficiaire' => ['required', Rule::in($bp ? ['employe'] : array_keys(BonCaisse::TYPES_BENEFICIAIRE))],
             'beneficiaire_id' => $employe
                 ? ['required', Rule::exists('users', 'id')->where('actif', true)]
                 : ['nullable'],
@@ -189,6 +190,7 @@ class ReglesSaisie
             'motif.min' => __('MSG-BC-002'),
             'montant.required' => $obligatoire,   // avant « montant.* » : le premier message qui correspond l'emporte
             'montant.*' => __('MSG-BC-003'),
+            'type_beneficiaire.in' => __('MSG-M03-02'),
             'beneficiaire.min' => __('MSG-BC-004'),
             'beneficiaire.max' => __('MSG-BC-004'),
             'justification_urgence.min' => __('MSG-BC-005'),

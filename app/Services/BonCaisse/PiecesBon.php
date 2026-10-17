@@ -89,14 +89,6 @@ class PiecesBon
         return $piece;
     }
 
-    /** RG-BC-19 : le demandeur confirme que la pièce concerne une autre dépense et l'explique */
-    public static function confirmerDoublon(PieceJointe $piece, string $justification): PieceJointe
-    {
-        $piece->update(['doublon_confirme' => true, 'justification_doublon' => trim($justification)]);
-
-        return $piece;
-    }
-
     /* ------------------------------------------------------------------ */
 
     private static function verifierLimites(BonCaisse $bon, UploadedFile $fichier, ?PieceJointe $remplacee = null): void

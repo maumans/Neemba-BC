@@ -12,7 +12,8 @@ use Illuminate\Support\Collection;
 /**
  * Qui vise un bon de caisse, et à quelle étape (spec v2.2 : RG-M01-04, RG-M03-24, RG-M04-09).
  *
- * - Titulaires d'une étape : rôle propre ou complémentaire ; pour le chef de service, celui du service du bon.
+ * - Titulaires d'une étape : rôle propre ou complémentaire ; pour le chef de service, celui du service du bon ;
+ *   Finance : DAF, DAF adjoint ou Chef comptable ; Directeur Pays : DP ou DP adjoint (spec v2.3 §8.2, RG-M05-04).
  * - Suppléant : délégation active qui couvre la validation, donnée par un titulaire ; il vise « au titre de » ce titulaire.
  * - Incompatibilité : on ne vise jamais un bon dont on est le demandeur, l'initiateur ou le bénéficiaire.
  * - RG-M04-09 : si les seuls titulaires d'une étape sont incompatibles et sans suppléant, le bon passe automatiquement
@@ -51,7 +52,8 @@ final class CircuitBon
     public static function titulaires(BonCaisse $bon, string $role): Collection
     {
         return User::actifs()
-            ->where(fn ($q) => $q->where('role', $role)->orWhereHas('roles', fn ($r) => $r->where('role', $role)))
+            ->where(fn ($q) => $q->whereIn('role', User::ROLES_ETAPES_BON[$role] ?? [$role])
+                ->orWhereHas('roles', fn ($r) => $r->whereIn('role', User::ROLES_ETAPES_BON[$role] ?? [$role])))
             ->when($role === 'responsable_service', fn ($q) => $q->where('service', $bon->service))
             ->orderBy('name')
             ->get();

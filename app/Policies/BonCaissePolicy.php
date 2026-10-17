@@ -30,10 +30,13 @@ class BonCaissePolicy
         return $this->estAuteur($utilisateur, $bon);
     }
 
-    /** Le statut est vérifié par l'annulation (409 MSG-BC-034 si le bon est déjà en validation) */
+    /**
+     * RG-M04-07 (spec v2.3) : le demandeur tant qu'aucun visa n'est donné, puis le DAF seulement ; le statut est
+     * vérifié par l'annulation elle-même (409 MSG-BC-034).
+     */
     public function annuler(User $utilisateur, BonCaisse $bon): bool
     {
-        return $this->estAuteur($utilisateur, $bon);
+        return $this->estAuteur($utilisateur, $bon) || $utilisateur->aLeRole(\App\Services\BonCaisse\AnnulerBon::ROLES_DAF);
     }
 
     private function estAuteur(User $utilisateur, BonCaisse $bon): bool

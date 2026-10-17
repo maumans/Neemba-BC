@@ -68,6 +68,9 @@ class HistoriqueAction extends Model
     const ACTION_ANNULATION = 'annulation';
     /* M16 : imputation comptable du bon payé */
     const ACTION_IMPUTATION = 'imputation';
+    /* Lot A (spec v2.3) : doublon probable confirmé, dérogation « BP en retard » */
+    const ACTION_DOUBLON = 'doublon_confirme';
+    const ACTION_DEROGATION = 'derogation';
 
     /** Labels lisibles pour chaque action */
     const ACTIONS_LABELS = [
@@ -91,6 +94,8 @@ class HistoriqueAction extends Model
         'mouvement_caisse' => 'Mouvement de caisse',
         'delegation' => 'Délégation de pouvoirs',
         'imputation' => 'Imputation comptable',
+        'doublon_confirme' => 'Doublon probable confirmé',
+        'derogation' => 'Dérogation « BP en retard »',
     ];
 
     /** Icônes pour chaque action (noms Lucide) */

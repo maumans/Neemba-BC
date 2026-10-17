@@ -164,24 +164,38 @@ class AssistantBonController extends Controller
         return response()->json(['supprimee' => true]);
     }
 
-    /** PATCH /api/v1/bons/{bon}/pieces/{piece}/doublon — RG-BC-19 : confirmation et justification (TC-BC-018) */
+    /**
+     * PATCH /api/v1/bons/{bon}/pieces/{piece}/doublon — RG-M03-26 (spec v2.3) : une pièce déjà soumise bloque ; la
+     * confirmation de la SFD v1.3 n'est plus admise, la pièce doit être retirée (MSG-M03-16).
+     */
     public function confirmerDoublon(Request $request, BonCaisse $bonCaisse, PieceJointe $piece): JsonResponse
     {
         Gate::authorize('modifier', $bonCaisse);
         $this->verifierPiece($bonCaisse, $piece);
         abort_if($piece->doublon_de_id === null, 404);
 
-        $request->validate([
-            'confirme' => ['accepted'],
-            'justification' => ['required', 'string', 'min:10', 'max:500'],
-        ], [
-            'confirme.accepted' => __('MSG-APP-009'),
-            'justification.required' => __('MSG-BC-001'),
-            'justification.min' => __('MSG-BC-005'),
-        ]);
-        PiecesBon::confirmerDoublon($piece, $request->input('justification'));
+        throw new ErreurMetier('PIECE_DEJA_UTILISEE', 'MSG-M03-16', ControlesBon::valeursDoublon($piece), 'RG-M03-26', 'pieces', 422);
+    }
 
-        return response()->json(['piece' => self::piece($piece->fresh(), $bonCaisse)]);
+    /** POST /api/v1/bons/{bon}/doublon-probable — RG-M03-20 : le demandeur confirme qu'il ne s'agit pas d'un doublon */
+    public function confirmerDoublonProbable(Request $request, BonCaisse $bonCaisse): JsonResponse
+    {
+        Gate::authorize('modifier', $bonCaisse);
+        $request->validate(['confirme' => ['accepted']], ['confirme.accepted' => __('MSG-APP-009')]);
+        \App\Services\BonCaisse\AlertesBon::confirmerDoublon($bonCaisse, $request->user());
+
+        return response()->json(['doublon_probable' => $bonCaisse->fresh()->doublon_probable]);
+    }
+
+    /** POST /api/v1/bons/{bon}/derogation-bp — RG-M07-06 : dérogation « BP en retard » demandée au DAF, avec un motif */
+    public function demanderDerogationBp(Request $request, BonCaisse $bonCaisse): JsonResponse
+    {
+        Gate::authorize('modifier', $bonCaisse);
+        $request->validate(['motif' => ['required', 'string', 'min:10', 'max:500']],
+            ['motif.required' => __('MSG-BC-001'), 'motif.min' => __('MSG-BC-002')]);
+        $bon = \App\Services\BonCaisse\AlertesBon::demanderDerogation($bonCaisse, $request->user(), $request->input('motif'));
+
+        return response()->json(['derogation_bp' => $bon->derogation_bp]);
     }
 
     /** GET /api/v1/bons/{bon}/pieces/{piece}/lecture — suivi de la lecture d'un ticket (interrogé par l'écran) */
@@ -346,7 +360,8 @@ class AssistantBonController extends Controller
         if ($piece->doublon_de_id !== null) {
             $valeurs = ControlesBon::valeursDoublon($piece);
             $doublon = $valeurs + [
-                'message' => ErreurMetier::texte('MSG-BC-019', $valeurs),
+                /* RG-M03-26 (spec v2.3) : la pièce doit être retirée, la confirmation n'est plus admise */
+                'message' => ErreurMetier::texte('MSG-M03-16', $valeurs) . ' Retirez-la ou remplacez-la.',
                 'confirme' => $piece->doublon_confirme,
                 'justification' => $piece->justification_doublon,
             ];

@@ -62,6 +62,12 @@ class Parametre extends Model
             'variante_a' => 'Variante A : bons générés pour le montant total, ODM « à refacturer »',
             'variante_b' => 'Variante B : aucun bon si tout est à la charge de clients',
         ],
+        /* RG-M07-06 */
+        'blocage_bp_en_retard' => [
+            'aucun' => 'Aucun : alerte seule',
+            'partiel' => 'Partiel : nouveau BP bloqué, BD autorisé avec bandeau',
+            'total' => 'Total : aucun nouveau bon',
+        ],
         'odm_frais_om_repartition' => [
             'prorata' => 'Au prorata des parts',
             'neemba' => 'À 100 % sur Neemba',
@@ -131,7 +137,8 @@ class Parametre extends Model
 
     public static function seuilDP(): float
     {
-        return (float) static::valeur('seuil_validation_dp', 5000000);
+        /* RG-M03-17 : 1 500 000 GNF par défaut */
+        return (float) static::valeur('seuil_validation_dp', 1500000);
     }
 
     public static function delaiRegularisationMission(): int

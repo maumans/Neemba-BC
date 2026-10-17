@@ -519,6 +519,14 @@ class BonCaisseController extends Controller
                 : null,
             /* Spec v2.3 : répartition (lecture seule) des lignes de l'ODM payées par ce bon */
             'repartitionOdm' => \App\Services\Odm\RepartitionOdm::pourBon($bonCaisse),
+            /* Lot A (spec v2.3) : alertes visibles à chaque étape (RG-M04-05), annulation (RG-M04-07), paiement (RG-M06-01) */
+            'alertes' => self::alertes($bonCaisse),
+            'peutAnnuler' => \App\Services\BonCaisse\AnnulerBon::peutAnnuler($bonCaisse, $utilisateur),
+            'annulationParDaf' => !$estProprietaire && \App\Services\BonCaisse\AnnulerBon::peutAnnuler($bonCaisse, $utilisateur),
+            'refusPaiement' => $bonCaisse->statut === 'APPROUVE' && $utilisateur->peutPayer()
+                ? \App\Services\BonCaisse\ControleCaissier::refus($bonCaisse, $utilisateur) : null,
+            'peutDeciderDerogation' => ($bonCaisse->derogation_bp['statut'] ?? null) === 'demandee'
+                && $utilisateur->aLeRole(\App\Services\BonCaisse\AlertesBon::ROLES_DEROGATION),
             /* Bandeau « ordre de mission » en tête de la fiche ; le lien n'est proposé qu'à qui peut ouvrir l'ODM */
             'odmLie' => ($odm = $bonCaisse->ordreMission) ? [
                 'id' => $odm->id,
@@ -556,6 +564,10 @@ class BonCaisseController extends Controller
 
         if (!$caissier->peutPayer()) {
             abort(403, 'Seul un caissier peut générer un code OTP.');
+        }
+        /* RG-M06-01, RG-M08-12, RG-M01-04 : site du caissier, et jamais un bon dont il est bénéficiaire */
+        if ($refus = \App\Services\BonCaisse\ControleCaissier::refus($bonCaisse, $caissier)) {
+            return back()->with('error', $refus);
         }
 
         if ($bonCaisse->statut !== 'APPROUVE') {
@@ -609,6 +621,9 @@ class BonCaisseController extends Controller
         if (!$caissier->peutPayer()) {
             abort(403, 'Seul un caissier peut vérifier un code OTP.');
         }
+        if ($refus = \App\Services\BonCaisse\ControleCaissier::refus($bonCaisse, $caissier)) {
+            return back()->with('error', $refus);
+        }
 
         $request->validate([
             'code_otp' => ['required', 'string', 'size:6'],
@@ -645,6 +660,10 @@ class BonCaisseController extends Controller
 
         if (!$caissier->peutPayer()) {
             abort(403, 'Seul un caissier peut effectuer un paiement.');
+        }
+        /* RG-M06-01, RG-M01-04 : site du caissier, jamais un bon dont il est bénéficiaire (la caisse est vérifiée plus bas) */
+        if ($refus = \App\Services\BonCaisse\ControleCaissier::refus($bonCaisse, $caissier)) {
+            return back()->with('error', $refus);
         }
 
         $request->validate([
@@ -688,6 +707,11 @@ class BonCaisseController extends Controller
         $montant = (float) $bonCaisse->montant;
         /* La caisse décaisse le montant versé : montant du bon, plus les frais Orange Money */
         $montantVerse = (float) $frais['montant_verse'];
+
+        /* RG-M06-01, RG-M08-12, RG-M01-04 : le caissier paie sur sa caisse, jamais un bon dont il est bénéficiaire */
+        if ($refus = \App\Services\BonCaisse\ControleCaissier::refus($bonCaisse, $caissier, $caisse)) {
+            return back()->with('error', $refus);
+        }
 
         /* Contrôles faits avant de consommer l'OTP, pour que le caissier n'ait pas à en régénérer un. */
         if (in_array($request->mode_paiement_effectif, BonCaisse::MODES_PAIEMENT_CAISSE, true) && !$caisse) {
@@ -860,6 +884,44 @@ class BonCaisseController extends Controller
         return redirect()
             ->route('bons-caisse.show', $bonCaisse)
             ->with('success', 'Régularisation enregistrée avec succès. La finalisation sera automatique lors du paiement.');
+    }
+
+    /** POST /bons-caisse/{bon}/derogation-bp — RG-M07-06 : le DAF accorde ou refuse la dérogation, avec un motif */
+    public function deciderDerogationBp(Request $request, BonCaisse $bonCaisse)
+    {
+        $donnees = $request->validate([
+            'decision' => ['required', Rule::in(['accorder', 'refuser'])],
+            'motif' => ['required', 'string', 'min:10', 'max:500'],
+        ], ['motif.required' => __('MSG-BC-001'), 'motif.min' => __('MSG-BC-002')]);
+        \App\Services\BonCaisse\AlertesBon::deciderDerogation($bonCaisse, Auth::user(), $donnees['decision'] === 'accorder', $donnees['motif']);
+
+        return back()->with('success', $donnees['decision'] === 'accorder' ? 'Dérogation accordée.' : 'Dérogation refusée.');
+    }
+
+    /**
+     * Alertes du bon affichées à chaque étape (RG-M04-05) : doublon probable confirmé par le demandeur (RG-M03-20),
+     * BP du bénéficiaire en retard (RG-M03-21), dérogation du DAF (RG-M07-06).
+     */
+    private static function alertes(BonCaisse $bon): array
+    {
+        $retards = \App\Services\BonCaisse\AlertesBon::bpEnRetard($bon);
+
+        return [
+            'doublon' => $bon->doublon_probable ? $bon->doublon_probable + [
+                'texte' => \App\Exceptions\ErreurMetier::texte('MSG-M03-12', array_intersect_key($bon->doublon_probable, array_flip(['montant', 'beneficiaire', 'numero', 'date']))),
+                'confirme_le_format' => Format::dateHeure($bon->doublon_probable['confirme_le'] ?? null),
+            ] : null,
+            'bp_en_retard' => $retards->map(fn (BonCaisse $bp) => [
+                'id' => $bp->id,
+                'numero' => $bp->numero,
+                'montant' => (float) $bp->montant,
+                'echeance' => Format::date($bp->date_limite_regularisation),
+            ])->values()->all(),
+            'derogation' => $bon->derogation_bp ? $bon->derogation_bp + [
+                'demande_le_format' => Format::dateHeure($bon->derogation_bp['demande_le'] ?? null),
+                'decide_le_format' => isset($bon->derogation_bp['decide_le']) ? Format::dateHeure($bon->derogation_bp['decide_le']) : null,
+            ] : null,
+        ];
     }
 
     /**

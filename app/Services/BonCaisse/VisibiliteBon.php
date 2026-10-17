@@ -40,6 +40,11 @@ final class VisibiliteBon
                 $autorise = true;
             }
 
+            /* RG-M07-06 : le DAF examine la dérogation « BP en retard » demandée sur ce bon */
+            if ($bon->derogation_bp !== null && $utilisateur->aLeRole(AlertesBon::ROLES_DEROGATION)) {
+                $autorise = true;
+            }
+
             /* Vérifier si le bon est déjà validé par cet utilisateur (suivi) */
             if (!$autorise) {
                 $dejaValide = \App\Models\Validation::where('bon_caisse_id', $bon->id)

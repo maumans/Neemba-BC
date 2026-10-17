@@ -36,6 +36,8 @@ class BonCaisse extends Model
      * Champs remplissables en masse
      */
     protected $fillable = [
+        'doublon_probable',
+        'derogation_bp',
         'numero',
         'type_bon',
         'site',
@@ -105,6 +107,8 @@ class BonCaisse extends Model
     {
         return [
             'references_or' => 'array',
+            'doublon_probable' => 'array',
+            'derogation_bp' => 'array',
             'lie_mission' => 'boolean',
             'genere_par_odm' => 'boolean',
             'montant_fcfa' => 'decimal:2',

@@ -107,7 +107,8 @@ class PiecesEtTicketsTest extends TestCase
      * ------------------------------------------------------------------ */
 
     /** TC-BC-018 */
-    public function test_une_piece_deja_jointe_a_un_autre_bon_doit_etre_confirmee_et_justifiee(): void
+    /** RG-M03-26 (spec v2.3) : une pièce déjà soumise bloque, avec le numéro du bon d'origine ; la confirmation ne suffit plus */
+    public function test_une_piece_deja_jointe_a_un_autre_bon_bloque_la_soumission(): void
     {
         $premier = $this->bon();
         $this->deposer($premier, UploadedFile::fake()->createWithContent('facture_batterie.pdf', $this->pdfTexte('Facture 4512')), 'facture');
@@ -117,29 +118,18 @@ class PiecesEtTicketsTest extends TestCase
         $piece = $this->deposer($second, UploadedFile::fake()->createWithContent('facture_copie.pdf', $this->pdfTexte('Facture 4512')), 'facture')
             ->assertJsonPath('piece.doublon.numero', 'BC-2026-0011')
             ->assertJsonPath('piece.doublon.confirme', false)
-            ->assertJsonPath('piece.doublon.message', "Cette pièce a déjà été jointe au bon BC-2026-0011 du 02/10/2026. "
-                . "Confirmez qu'elle concerne une autre dépense et expliquez pourquoi.")
+            ->assertJsonPath('piece.doublon.message', 'Cette pièce a déjà été jointe au bon BC-2026-0011 du 02/10/2026. Retirez-la ou remplacez-la.')
             ->json('piece.id');
 
         $controles = $this->controles($second);
         $this->assertSame('bloquant', $controles[6]['niveau']);
-        $this->assertSame('MSG-BC-019', $controles[6]['message_cle']);
+        $this->assertSame('MSG-M03-16', $controles[6]['message_cle']);
 
-        $url = route('api.bons.pieces.doublon', [$second, $piece]);
-        $this->actingAs($this->souadou)->patchJson($url, ['justification' => 'Deuxième batterie, même fournisseur'])
-            ->assertStatus(422)->assertJsonPath('errors.confirme.0', __('MSG-APP-009'));
-        $this->actingAs($this->souadou)->patchJson($url, ['confirme' => true, 'justification' => 'Même'])
-            ->assertStatus(422)->assertJsonPath('errors.justification.0', __('MSG-BC-005'));
-        $this->actingAs($this->souadou)->patchJson($url, ['confirme' => true, 'justification' => 'Deuxième batterie, même fournisseur'])
-            ->assertOk()->assertJsonPath('piece.doublon.confirme', true);
-
-        $this->assertSame('avertissement', $this->controles($second)[6]['niveau']);
-
-        /* Bandeau de la fiche, visible du contrôle de gestion */
-        $this->actingAs($this->souadou)->get(route('bons-caisse.show', $second))
-            ->assertInertia(fn ($page) => $page
-                ->where('bonCaisse.pieces_jointes.0.doublon_de.bon_caisse.numero', 'BC-2026-0011')
-                ->where('bonCaisse.pieces_jointes.0.justification_doublon', 'Deuxième batterie, même fournisseur'));
+        /* L'ancienne confirmation (SFD v1.3) est refusée : la pièce reste bloquante */
+        $this->actingAs($this->souadou)->patchJson(route('api.bons.pieces.doublon', [$second, $piece]),
+            ['confirme' => true, 'justification' => 'Deuxième batterie, même fournisseur'])
+            ->assertStatus(422)->assertJsonPath('message', 'Cette pièce a déjà été jointe au bon BC-2026-0011 du 02/10/2026.');
+        $this->assertSame('bloquant', $this->controles($second)[6]['niveau']);
     }
 
     public function test_une_piece_d_un_bon_annule_n_est_pas_un_doublon(): void

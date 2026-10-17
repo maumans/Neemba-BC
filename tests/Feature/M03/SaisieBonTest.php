@@ -399,14 +399,34 @@ class SaisieBonTest extends TestCase
     }
 
     /** TC-BC-030 */
-    public function test_un_bon_en_validation_ne_peut_pas_etre_annule(): void
+    /** RG-M04-07 (spec v2.3) : le demandeur annule tant qu'aucun visa n'est donné ; ensuite, le DAF seulement */
+    public function test_l_annulation_d_un_bon_soumis(): void
     {
-        $bon = $this->bonComplet();
-        $this->actingAs($this->souadou)->postJson(route('api.bons.soumettre', $bon), [], ['Idempotency-Key' => 'cle-4'])->assertOk();
+        $sansVisa = $this->bonComplet();
+        $this->actingAs($this->souadou)->postJson(route('api.bons.soumettre', $sansVisa), [], ['Idempotency-Key' => 'cle-4'])->assertOk();
+        $this->actingAs($this->souadou)->postJson(route('api.bons.annuler', $sansVisa), ['motif' => 'Dépense finalement prise en charge par le client'])
+            ->assertOk();
+        $this->assertSame('ANNULE', $sansVisa->fresh()->statut);
 
-        $this->actingAs($this->souadou)->postJson(route('api.bons.annuler', $bon), ['motif' => 'Je ne veux plus de ce bon'])
+        $vise = $this->bonComplet();
+        $this->actingAs($this->souadou)->postJson(route('api.bons.soumettre', $vise), [], ['Idempotency-Key' => 'cle-4b'])->assertOk();
+        $vise->validations()->orderBy('niveau')->first()->update(['statut' => 'approuve', 'date_validation' => now()]);
+        $this->actingAs($this->souadou)->postJson(route('api.bons.annuler', $vise), ['motif' => 'Je ne veux plus de ce bon'])
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Ce bon ne peut plus être annulé : il est déjà en validation, approuvé ou payé.');
+            ->assertJsonPath('message', "Ce bon ne peut plus être annulé : un visa a déjà été donné (seul le DAF peut alors l'annuler) ou il est payé.");
+        $this->actingAs(User::factory()->create())->postJson(route('api.bons.annuler', $vise), ['motif' => 'Tentative par un tiers'])
+            ->assertForbidden();
+
+        $daf = User::factory()->role('daf')->create();
+        $this->actingAs($daf)->postJson(route('api.bons.annuler', $vise), ['motif' => 'Doublon de la facture déjà payée'])->assertOk();
+        $vise->refresh();
+        $this->assertSame('ANNULE', $vise->statut);
+        $this->assertSame('Annulé par le DAF : Doublon de la facture déjà payée',
+            $vise->historiqueActions()->where('action', 'annulation')->value('commentaire'));
+
+        $paye = $this->bonComplet();
+        $paye->update(['statut' => 'PAYE']);
+        $this->actingAs($daf)->postJson(route('api.bons.annuler', $paye), ['motif' => 'Annulation après paiement'])->assertStatus(409);
     }
 
     public function test_un_autre_utilisateur_ne_peut_pas_modifier_le_bon(): void

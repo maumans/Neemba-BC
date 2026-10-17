@@ -411,19 +411,6 @@ export default function Assistant({
         }
     };
 
-    /** RG-BC-19 : renvoie les erreurs par champ, ou null */
-    const confirmerDoublon = async (piece, confirme, justification) => {
-        try {
-            const { data } = await axios.patch(route('api.bons.pieces.doublon', [bonActuel.current.id, piece.id]), { confirme, justification });
-            remplacerDansLaListe(data.piece);
-            return null;
-        } catch (erreur) {
-            if (erreur.response?.status === 422) return erreursParChamp(erreur.response.data.errors ?? {});
-            signaler(erreur);
-            return null;
-        }
-    };
-
     /** RG-BC-21 : « Valider la lecture » ; renvoie les erreurs par champ, ou null */
     const validerLecture = async (piece, valeurs, confirmes) => {
         try {
@@ -672,7 +659,6 @@ export default function Assistant({
                                             typer={typerPiece}
                                             supprimer={supprimerPiece}
                                             remplacer={remplacerPiece}
-                                            confirmerDoublon={confirmerDoublon}
                                             validerLecture={validerLecture}
                                             actualiser={actualiserPiece}
                                             desactive={occupe}
@@ -686,6 +672,7 @@ export default function Assistant({
                                             chargement={chargementControles}
                                             onCorriger={corriger}
                                             onRelancer={chargerControles}
+                                            bonId={bonActuel.current?.id}
                                         />
                                     )}
                                 </CardContent>

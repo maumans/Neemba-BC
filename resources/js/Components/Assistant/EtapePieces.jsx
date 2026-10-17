@@ -2,7 +2,7 @@
  * Étape 4 « Pièces » (E-03.6, US-BC-08, US-BC-09) : chaque fichier est envoyé dès son dépôt, avec barre de progression.
  *
  * - Qualité par ligne (RG-BC-16) : conforme, qualité moyenne, illisible (MSG-BC-018, la pièce ne compte pas).
- * - Pièce déjà jointe à un autre bon (RG-BC-19) : confirmation et justification (MSG-BC-019).
+ * - Pièce déjà jointe à un autre bon (RG-M03-26, spec v2.3) : bloquante, à retirer ou remplacer (MSG-M03-16).
  * - Ticket carburant : lecture puis panneau de vérification (RG-BC-20, RG-BC-21).
  * - Une pièce jamais soumise se supprime ; une pièce déjà soumise se remplace par une nouvelle version.
  */
@@ -11,7 +11,6 @@ import { Camera, ExternalLink, FileText, Loader2, RefreshCw, ScanLine, Trash2, U
 import { Badge } from '@/Components/ui/badge';
 import { Button } from '@/Components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
-import { Textarea } from '@/Components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { erreurFichier, typePieceParDefaut } from '@/utils/assistant';
 import { msg } from '@/utils/messages';
@@ -29,49 +28,12 @@ function taille(octets) {
 }
 
 /** RG-BC-19 : confirmer qu'une pièce déjà utilisée concerne une autre dépense */
-function Doublon({ piece, confirmer, desactive }) {
-    const [confirme, setConfirme] = useState(false);
-    const [justification, setJustification] = useState('');
-    const [erreurs, setErreurs] = useState({});
-    const [envoi, setEnvoi] = useState(false);
-    const doublon = piece.doublon;
-
-    if (doublon.confirme) {
-        return (
-            <p className="mt-2 rounded-md bg-orange-50 px-3 py-2 text-xs text-orange-800">
-                Pièce déjà présentée sur le bon {doublon.numero}. Justification : {doublon.justification}
-            </p>
-        );
-    }
-
-    const envoyer = async () => {
-        setEnvoi(true);
-        setErreurs((await confirmer(piece, confirme, justification)) ?? {});
-        setEnvoi(false);
-    };
-
+/** RG-M03-26 : une pièce déjà jointe à un autre bon bloque la soumission ; elle se retire ou se remplace */
+function Doublon({ piece }) {
     return (
-        <div className="mt-2 space-y-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-            <p>{doublon.message}</p>
-            <label className="flex items-center gap-2">
-                <input type="checkbox" className="rounded border-red-300 text-red-600" checked={confirme} onChange={(e) => setConfirme(e.target.checked)} disabled={desactive} />
-                Je confirme que cette pièce concerne une autre dépense
-            </label>
-            {erreurs.confirme && <p className="text-red-700">{erreurs.confirme}</p>}
-            <Textarea
-                rows={2}
-                value={justification}
-                maxLength={500}
-                onChange={(e) => setJustification(e.target.value)}
-                placeholder="Pourquoi cette pièce est-elle jointe une seconde fois ? (10 caractères minimum)"
-                className="bg-white"
-                disabled={desactive}
-            />
-            {erreurs.justification && <p className="text-red-700">{erreurs.justification}</p>}
-            <Button type="button" size="sm" variant="outline" onClick={envoyer} disabled={desactive || envoi}>
-                {envoi && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Confirmer
-            </Button>
-        </div>
+        <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+            {piece.doublon.message}
+        </p>
     );
 }
 
@@ -116,7 +78,6 @@ export default function EtapePieces({
     typer,
     supprimer,
     remplacer,
-    confirmerDoublon,
     validerLecture,
     actualiser,
     desactive,
@@ -367,7 +328,7 @@ export default function EtapePieces({
                                     </div>
                                 </div>
                                 {illisible && <p className="mt-2 text-sm text-red-600">{msg('MSG-BC-018')}</p>}
-                                {piece.doublon && <Doublon piece={piece} confirmer={confirmerDoublon} desactive={desactive} />}
+                                {piece.doublon && <Doublon piece={piece} />}
                                 <Lecture piece={piece} ouvrir={setPanneau} />
                             </li>
                         );

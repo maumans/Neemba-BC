@@ -86,6 +86,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/bons/{bonCaisse}/pieces/{piece}', [AssistantBonController::class, 'supprimerPiece'])->name('bons.pieces.supprimer');
         Route::post('/bons/{bonCaisse}/pieces/{piece}/remplacer', [AssistantBonController::class, 'remplacerPiece'])->name('bons.pieces.remplacer');
         Route::patch('/bons/{bonCaisse}/pieces/{piece}/doublon', [AssistantBonController::class, 'confirmerDoublon'])->name('bons.pieces.doublon');
+        /* Lot A (spec v2.3) : doublon probable confirmé (RG-M03-20), dérogation « BP en retard » demandée au DAF (RG-M07-06) */
+        Route::post('/bons/{bonCaisse}/doublon-probable', [AssistantBonController::class, 'confirmerDoublonProbable'])->name('bons.doublon-probable');
+        Route::post('/bons/{bonCaisse}/derogation-bp', [AssistantBonController::class, 'demanderDerogationBp'])->name('bons.derogation-bp');
         Route::get('/bons/{bonCaisse}/pieces/{piece}/lecture', [AssistantBonController::class, 'lecture'])->name('bons.pieces.lecture');
         Route::post('/bons/{bonCaisse}/pieces/{piece}/lecture', [AssistantBonController::class, 'validerLecture'])->name('bons.pieces.lecture.valider');
 
@@ -129,6 +132,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('bons-caisse.regulariser');
     Route::post('/bons-caisse/{bonCaisse}/pre-regulariser', [BonCaisseController::class, 'preRegulariser'])
         ->name('bons-caisse.pre-regulariser');
+    /* RG-M07-06 : le DAF accorde ou refuse la dérogation « BP en retard » d'un bon */
+    Route::post('/bons-caisse/{bonCaisse}/derogation-bp', [BonCaisseController::class, 'deciderDerogationBp'])
+        ->middleware('role:daf,daf_adjoint')
+        ->name('bons-caisse.derogation-bp');
     Route::post('/bons-caisse/{bonCaisse}/archiver', [BonCaisseController::class, 'archiver'])
         ->middleware('role:daf,directeur_pays,caissier')
         ->name('bons-caisse.archiver');
@@ -136,7 +143,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('bons-caisse.export-pdf');
 
     /* --- Validations (réservées aux validateurs) --- */
-    Route::middleware('role:responsable_service,controle_gestion,daf,directeur_pays')->group(function () {
+    Route::middleware('role:responsable_service,controle_gestion,daf,daf_adjoint,chef_comptable,directeur_pays,dp_adjoint')->group(function () {
         Route::get('/validations', [ValidationController::class, 'index'])->name('validations.index');
         Route::get('/validations/{bonCaisse}', [ValidationController::class, 'show'])->name('validations.show');
         Route::post('/validations/{bonCaisse}/approuver', [ValidationController::class, 'approuver'])

@@ -25,7 +25,7 @@
     "MSG-BC-031": "Soumettre le bon de :montant GNF pour :beneficiaire ? Il partira en validation et ne sera plus modifiable, sauf en cas de rejet.",
     "MSG-BC-032": "Bon :numero soumis. Il est en attente de validation par le chef de service.",
     "MSG-BC-033": "Votre délégation pour :titulaire n'est plus active. Le bon reste en brouillon.",
-    "MSG-BC-034": "Ce bon ne peut plus être annulé : il est déjà en validation, approuvé ou payé.",
+    "MSG-BC-034": "Ce bon ne peut plus être annulé : un visa a déjà été donné (seul le DAF peut alors l'annuler) ou il est payé.",
     "MSG-BC-035": "Enregistrer le brouillon avant de quitter ?",
     "MSG-BC-040": "Champs manquants : :liste.",
     "MSG-BC-041": "Le solde actuel de la :caisse ne couvre pas ce montant. Le paiement pourra attendre un réapprovisionnement.",
@@ -93,5 +93,14 @@
     "MSG-APP-050": "La répartition de l'ordre de mission est corrigée : indiquez le motif de la correction.",
     "MSG-APP-051": "Ce bon n'est pas encore payé : il ne s'impute qu'après paiement.",
     "MSG-APP-052": "Aucune écriture imputée à exporter sur cette période.",
-    "MSG-APP-053": "Un des participants choisis ne fait pas partie de cet ordre de mission."
+    "MSG-APP-053": "Un des participants choisis ne fait pas partie de cet ordre de mission.",
+    "MSG-M03-02": "Un bon provisoire ne peut être émis qu'au profit d'un salarié ou d'un visiteur du groupe.",
+    "MSG-M03-12": "Un bon de :montant GNF pour :beneficiaire existe déjà (:numero, :date). Confirmez qu'il ne s'agit pas d'un doublon.",
+    "MSG-M03-13": ":beneficiaire a un bon provisoire non régularisé en retard (:numero, échéance :date). Aucun nouveau bon provisoire ne peut être émis.",
+    "MSG-M03-14": ":beneficiaire a un bon provisoire non régularisé en retard (:numero). Ce bon définitif sera signalé aux valideurs.",
+    "MSG-M03-16": "Cette pièce a déjà été jointe au bon :numero du :date.",
+    "MSG-APP-054": "Ce bon n'est pas bloqué par un bon provisoire en retard : aucune dérogation n'est nécessaire.",
+    "MSG-APP-055": "Une dérogation est déjà demandée ou accordée pour ce bon.",
+    "MSG-APP-056": "Aucune demande de dérogation n'est en attente pour ce bon.",
+    "MSG-APP-057": "Vous ne pouvez pas payer ce bon : :motif"
 }

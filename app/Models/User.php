@@ -72,6 +72,23 @@ class User extends Authenticatable
     public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh', 'logistique', 'comptable'];
 
     /** Rôle principal proposé à l'écran Utilisateurs ; les autres rôles s'ajoutent en rôles complémentaires */
+    /**
+     * Spec v2.3 §8.2 (Annexe 1) et RG-M05-04 : rôles qui tiennent chaque étape du circuit des bons.
+     * Finance : DAF, DAF adjoint ou Chef comptable ; Directeur Pays : DP ou DP adjoint.
+     */
+    public const ROLES_ETAPES_BON = [
+        'responsable_service' => ['responsable_service'],
+        'controle_gestion' => ['controle_gestion'],
+        'daf' => ['daf', 'daf_adjoint', 'chef_comptable'],
+        'directeur_pays' => ['directeur_pays', 'dp_adjoint'],
+    ];
+
+    /** Étapes du circuit des bons tenues par ces rôles */
+    public static function etapesBon(array $roles): array
+    {
+        return array_keys(array_filter(self::ROLES_ETAPES_BON, fn (array $tenants) => array_intersect($tenants, $roles)));
+    }
+
     public const ROLES_PRINCIPAUX = ['demandeur', 'responsable_service', 'controle_gestion', 'daf', 'directeur_pays', 'caissier', 'administrateur'];
 
     /** RG-M02-05 : n° Orange Money au format guinéen, 9 chiffres commençant par 6 */
@@ -299,12 +316,7 @@ class User extends Authenticatable
      */
     public function peutValider(): bool
     {
-        $rolesValidateurs = [
-            'responsable_service',
-            'controle_gestion',
-            'daf',
-            'directeur_pays',
-        ];
+        $rolesValidateurs = array_merge(...array_values(self::ROLES_ETAPES_BON));
 
         if ($this->aLeRole($rolesValidateurs)) {
             return true;
@@ -324,8 +336,8 @@ class User extends Authenticatable
      */
     public function rolesValidationEffectifs(): array
     {
-        // Inclure d'abord les rôles propres de l'utilisateur
-        $roles = $this->listeRoles();
+        // Inclure d'abord les rôles propres de l'utilisateur, et l'étape du circuit que tient un adjoint
+        $roles = array_values(array_unique(array_merge($this->listeRoles(), self::etapesBon($this->listeRoles()))));
 
         // Ajouter les rôles de tous les délégants actifs ayant autorisé la 'validation'
         $delegations = \App\Models\Delegation::actives()
@@ -336,7 +348,7 @@ class User extends Authenticatable
         foreach ($delegations as $delegation) {
             /* Seuls les rôles de validation du titulaire passent au suppléant (principal ou complémentaires) */
             if ($delegation->autorise('validation') && $delegation->delegant) {
-                $rolesTitulaire = array_intersect($delegation->delegant->listeRoles(), ['responsable_service', 'controle_gestion', 'daf', 'directeur_pays']);
+                $rolesTitulaire = self::etapesBon($delegation->delegant->listeRoles());
                 $roles = array_values(array_unique(array_merge($roles, $rolesTitulaire)));
             }
         }
