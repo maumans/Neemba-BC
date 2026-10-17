@@ -17,7 +17,7 @@ export const ETAPES = [
 /** Champs de chaque étape, dans l'ordre de l'écran (même liste que ReglesSaisie::CHAMPS_PAR_ETAPE) */
 export const CHAMPS_PAR_ETAPE = {
     1: ['demandeur_id', 'type_bon', 'code_analytique', 'site', 'service', 'niveau_urgence', 'motif_urgence', 'justification_urgence'],
-    2: ['type_beneficiaire', 'beneficiaire_id', 'beneficiaire', 'telephone_beneficiaire'],
+    2: ['type_beneficiaire', 'beneficiaire_id', 'visiteur_id', 'tiers_id', 'beneficiaire', 'telephone_beneficiaire'],
     3: ['motif', 'categorie_depense', 'montant', 'mode_paiement', 'vehicule', 'references_or', 'lie_mission', 'date_retour_mission'],
     4: ['pieces'],
 };

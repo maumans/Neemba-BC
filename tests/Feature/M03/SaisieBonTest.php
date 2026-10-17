@@ -161,17 +161,19 @@ class SaisieBonTest extends TestCase
             ->assertJsonCount(0, 'resultats');
     }
 
-    public function test_un_tiers_a_un_nom_libre_de_3_a_120_caracteres(): void
+    /** RG-M03-03 (spec v2.3) : plus de bénéficiaire en texte libre */
+    public function test_un_beneficiaire_ne_se_saisit_plus_en_texte_libre(): void
     {
         $bon = $this->brouillon();
-        $this->etape(2, ['type_beneficiaire' => 'fournisseur', 'beneficiaire' => 'GK'], $bon)
-            ->assertJsonPath('erreurs.beneficiaire.0', 'Le nom doit comporter entre 3 et 120 caractères.');
+        $this->etape(2, ['type_beneficiaire' => 'fournisseur', 'beneficiaire' => 'GARAGE KABA'], $bon)
+            ->assertJsonPath('erreurs.type_beneficiaire.0', __('MSG-APP-059'));
     }
 
     /** TC-BC-006 */
     public function test_un_tiers_paye_en_especes_sans_telephone_bloque_la_soumission(): void
     {
-        $bon = $this->bonComplet(['type_beneficiaire' => 'fournisseur', 'beneficiaire' => 'GARAGE KABA', 'telephone_beneficiaire' => null]);
+        $tiers = \App\Models\Tiers::create(['nom' => 'GARAGE KABA', 'type' => 'fournisseur', 'statut' => 'valide']);
+        $bon = $this->bonComplet(['type_beneficiaire' => 'tiers', 'tiers_id' => $tiers->id, 'telephone_beneficiaire' => null]);
 
         $controle = collect($this->controles($bon))->firstWhere('numero', 8);
         $this->assertSame('bloquant', $controle['niveau']);

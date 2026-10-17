@@ -91,11 +91,33 @@ class EnregistrementBon
             $bon->justification_urgence = null;
         }
 
-        /* RG-BC-06 / RG-BC-07 : employé repris du référentiel, tiers saisi librement */
-        if ($bon->type_beneficiaire === 'employe') {
+        /*
+         * RG-M03-03 (spec v2.3) : bénéficiaire repris d'un référentiel. Salarié : nom et téléphone du profil.
+         * Visiteur du groupe ou tiers : nom du référentiel ; téléphone pré-rempli (n° OM, sinon téléphone) au choix,
+         * modifiable ensuite. Les anciens types (saisie libre de la SFD v1.3) gardent leur texte.
+         */
+        $type = $bon->type_beneficiaire;
+        if ($type !== 'visiteur') {
+            $bon->visiteur_id = null;
+        }
+        if ($type !== 'tiers') {
+            $bon->tiers_id = null;
+        }
+        if ($type === 'employe') {
             $employe = $bon->beneficiaire_id ? User::find($bon->beneficiaire_id) : null;
             $bon->beneficiaire = $employe?->nom_complet;
             $bon->telephone_beneficiaire = ReglesSaisie::normaliserTelephone($employe?->telephone);
+        } elseif (in_array($type, ['visiteur', 'tiers'], true)) {
+            $bon->beneficiaire_id = null;
+            $choisi = $type === 'visiteur'
+                ? ($bon->visiteur_id ? \App\Models\Visiteur::find($bon->visiteur_id) : null)
+                : ($bon->tiers_id ? \App\Models\Tiers::find($bon->tiers_id) : null);
+            $bon->beneficiaire = $choisi ? ($type === 'visiteur' ? $choisi->nom_complet : $choisi->nom) : null;
+            $prerempli = $choisi ? ($choisi->numero_om ?? ($type === 'tiers' ? $choisi->telephone : null)) : null;
+            if ($bon->isDirty(['visiteur_id', 'tiers_id', 'type_beneficiaire']) && !array_key_exists('telephone_beneficiaire', $saisie)) {
+                $bon->telephone_beneficiaire = $prerempli;
+            }
+            $bon->telephone_beneficiaire = ReglesSaisie::normaliserTelephone($bon->telephone_beneficiaire ?: $prerempli);
         } else {
             $bon->beneficiaire_id = null;
             $bon->telephone_beneficiaire = ReglesSaisie::normaliserTelephone($bon->telephone_beneficiaire);

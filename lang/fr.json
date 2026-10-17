@@ -102,5 +102,11 @@
     "MSG-APP-054": "Ce bon n'est pas bloqué par un bon provisoire en retard : aucune dérogation n'est nécessaire.",
     "MSG-APP-055": "Une dérogation est déjà demandée ou accordée pour ce bon.",
     "MSG-APP-056": "Aucune demande de dérogation n'est en attente pour ce bon.",
-    "MSG-APP-057": "Vous ne pouvez pas payer ce bon : :motif"
+    "MSG-APP-057": "Vous ne pouvez pas payer ce bon : :motif",
+    "MSG-M03-03": "Ce tiers est en attente de validation par la comptabilité. Vous serez notifié dès qu'il sera utilisable.",
+    "MSG-M03-04": "Ce tiers existe déjà : :nom. Sélectionnez-le dans la liste.",
+    "MSG-APP-058": "Ce tiers a déjà été traité.",
+    "MSG-APP-059": "Choisissez le bénéficiaire dans un référentiel : salarié, visiteur du groupe ou tiers validé.",
+    "MSG-APP-060": "Ce tiers est refusé ou désactivé : il ne peut plus être choisi.",
+    "MSG-APP-061": "Ce visiteur du groupe n'est plus actif."
 }

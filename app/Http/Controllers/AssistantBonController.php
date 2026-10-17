@@ -258,6 +258,91 @@ class AssistantBonController extends Controller
         return response()->json(['resultats' => $resultats]);
     }
 
+    /**
+     * GET /api/v1/referentiels/tiers?q= — RG-M03-03 : tiers validés ; les tiers que l'utilisateur a proposés et qui
+     * attendent leur validation apparaissent, non sélectionnables (RG-M02-06)
+     */
+    public function tiers(Request $request): JsonResponse
+    {
+        $recherche = trim((string) $request->query('q'));
+        if (mb_strlen($recherche) < 2) {
+            return response()->json(['resultats' => []]);
+        }
+        $resultats = \App\Models\Tiers::query()
+            ->where(fn ($q) => $q->where('statut', 'valide')
+                ->orWhere(fn ($q2) => $q2->where('statut', 'propose')->where('propose_par_id', $request->user()->id)))
+            ->where(fn ($q) => $q->where('nom', 'like', "%{$recherche}%")->orWhere('telephone', 'like', "%{$recherche}%")
+                ->orWhere('numero_om', 'like', "%{$recherche}%")->orWhere('nif', 'like', "%{$recherche}%"))
+            ->orderBy('nom')->limit(20)->get()
+            ->map(fn (\App\Models\Tiers $t) => self::tiersChoisi($t));
+
+        return response()->json(['resultats' => $resultats]);
+    }
+
+    /** GET /api/v1/referentiels/visiteurs?q= — RG-M03-03 : visiteurs du groupe actifs */
+    public function visiteurs(Request $request): JsonResponse
+    {
+        $recherche = trim((string) $request->query('q'));
+        if (mb_strlen($recherche) < 2) {
+            return response()->json(['resultats' => []]);
+        }
+        $resultats = \App\Models\Visiteur::actifs()->with('directeur')
+            ->where(fn ($q) => $q->where('nom', 'like', "%{$recherche}%")->orWhere('prenom', 'like', "%{$recherche}%")
+                ->orWhere('filiale', 'like', "%{$recherche}%")->orWhere('matricule_groupe', 'like', "%{$recherche}%"))
+            ->orderBy('nom')->limit(20)->get()
+            ->map(fn (\App\Models\Visiteur $v) => self::visiteurChoisi($v));
+
+        return response()->json(['resultats' => $resultats]);
+    }
+
+    /** POST /api/v1/tiers — US-03, RG-M02-06, RG-M02-07 : proposition d'un tiers (contrôle de doublon) */
+    public function proposerTiers(Request $request): JsonResponse
+    {
+        $donnees = $request->validate([
+            'nom' => ['required', 'string', 'min:3', 'max:150'],
+            'type' => ['required', Rule::in(array_keys(\App\Models\Tiers::TYPES))],
+            'telephone' => ['nullable', 'regex:/^(\+224)?\s?6[\d\s]{8,11}$/'],
+            'numero_om' => ['nullable', 'regex:/^(\+224)?\s?6[\d\s]{8,11}$/'],
+            'nif' => ['nullable', 'string', 'max:40'],
+        ], [
+            'nom.required' => __('MSG-BC-001'),
+            'nom.min' => __('MSG-BC-004'),
+            'telephone.regex' => __('MSG-BC-006'),
+            'numero_om.regex' => __('MSG-BC-006'),
+        ]);
+        $tiers = \App\Services\Referentiels\ReferentielTiers::proposer($donnees, $request->user());
+
+        return response()->json([
+            'tiers' => self::tiersChoisi($tiers),
+            'message' => $tiers->estValide() ? "Tiers « {$tiers->nom} » ajouté et validé." : __('MSG-M03-03'),
+        ], 201);
+    }
+
+    public static function tiersChoisi(\App\Models\Tiers $t): array
+    {
+        return [
+            'id' => $t->id,
+            'nom' => $t->nom,
+            'libelle' => $t->libelle(),
+            'telephone' => $t->numero_om ?? $t->telephone,
+            'statut' => $t->statut,
+            'selectionnable' => $t->estValide(),
+        ];
+    }
+
+    public static function visiteurChoisi(\App\Models\Visiteur $v): array
+    {
+        return [
+            'id' => $v->id,
+            'nom' => $v->nom_complet,
+            'libelle' => $v->libelle() . ($v->enSejour() ? '' : ' — hors période de séjour'),
+            'telephone' => $v->numero_om,
+            'departement_accueil' => $v->departement_accueil,
+            'directeur' => $v->directeur?->nom_complet,
+            'selectionnable' => true,
+        ];
+    }
+
     /** GET /api/v1/referentiels/caisse-payeuse?site=&mode= — RG-BC-11, RG-BC-12 */
     public function caissePayeuse(Request $request): JsonResponse
     {
@@ -332,7 +417,7 @@ class AssistantBonController extends Controller
     /** Bon au format de l'assistant */
     public static function bon(BonCaisse $bon): array
     {
-        $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse', 'caisse', 'beneficiaireUtilisateur']);
+        $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse', 'caisse', 'beneficiaireUtilisateur', 'tiers', 'visiteur.directeur']);
 
         $bon->loadMissing(['demandeur', 'initiateur']);
 
@@ -348,6 +433,8 @@ class AssistantBonController extends Controller
             'montant_lettres' => $bon->montant_lettres,
             'caisse' => $bon->caisse ? ['libelle' => $bon->caisse->libelle, 'plafond_retrait' => $bon->caisse->plafond_retrait !== null ? (float) $bon->caisse->plafond_retrait : null] : null,
             'beneficiaire_libelle' => $bon->beneficiaireUtilisateur ? self::beneficiaire($bon->beneficiaireUtilisateur)['libelle'] : null,
+            'tiers' => $bon->tiers ? self::tiersChoisi($bon->tiers) : null,
+            'visiteur' => $bon->visiteur ? self::visiteurChoisi($bon->visiteur) : null,
             'commentaire_rejet' => $bon->commentaire_rejet,
             'pieces' => $bon->piecesActives->map(fn (PieceJointe $p) => self::piece($p, $bon))->values()->all(),
         ];

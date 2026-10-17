@@ -51,6 +51,8 @@ function valeursDe(bon, demandeur) {
         justification_urgence: bon?.justification_urgence ?? '',
         type_beneficiaire: bon?.type_beneficiaire ?? 'employe',
         beneficiaire_id: bon ? bon.beneficiaire_id : demandeur.id,
+        visiteur_id: bon?.visiteur_id ?? null,
+        tiers_id: bon?.tiers_id ?? null,
         beneficiaire: bon?.beneficiaire ?? demandeur.nom_complet,
         telephone_beneficiaire: (bon ? bon.telephone_beneficiaire : demandeur.telephone) ?? '',
         motif: bon?.motif ?? '',
@@ -127,6 +129,8 @@ export default function Assistant({
     const [bon, setBon] = useState(bonInitial);
     const [donnees, setDonnees] = useState(() => valeursDe(bonInitial, demandeur));
     const [employeChoisi, setEmployeChoisi] = useState(() => employeDe(bonInitial, demandeur));
+    /* Spec v2.3 (RG-M03-03) : visiteur du groupe ou tiers validé choisi à l'étape 2 */
+    const [referentielChoisi, setReferentielChoisi] = useState(() => ({ tiers: bonInitial?.tiers ?? null, visiteur: bonInitial?.visiteur ?? null }));
     const [etape, setEtape] = useState(etapeInitiale);
     const [visitees, setVisitees] = useState(() => new Set(Array.from({ length: etapeInitiale }, (_, i) => i + 1)));
     const [etats, setEtats] = useState(() =>
@@ -175,6 +179,16 @@ export default function Assistant({
             changer('beneficiaire_id', employe?.id ?? null);
             changer('beneficiaire', employe?.nom_complet ?? '');
             changer('telephone_beneficiaire', employe?.telephone ?? '');
+        },
+        [changer],
+    );
+
+    const choisirReferentiel = useCallback(
+        (type, element) => {
+            setReferentielChoisi((actuel) => ({ ...actuel, [type]: element ?? null }));
+            changer(type === 'tiers' ? 'tiers_id' : 'visiteur_id', element?.id ?? null);
+            changer('beneficiaire', element?.nom ?? '');
+            changer('telephone_beneficiaire', element?.telephone ?? '');
         },
         [changer],
     );
@@ -634,6 +648,9 @@ export default function Assistant({
                                             typesBeneficiaire={typesBeneficiaire}
                                             employeChoisi={employeChoisi}
                                             choisirEmploye={choisirEmploye}
+                                            tiersChoisi={referentielChoisi.tiers}
+                                            visiteurChoisi={referentielChoisi.visiteur}
+                                            choisirReferentiel={choisirReferentiel}
                                             demandeur={demandeur}
                                         />
                                     )}

@@ -36,6 +36,8 @@ class BonCaisse extends Model
      * Champs remplissables en masse
      */
     protected $fillable = [
+        'tiers_id',
+        'visiteur_id',
         'doublon_probable',
         'derogation_bp',
         'numero',
@@ -177,14 +179,17 @@ class BonCaisse extends Model
 
     /** Types de bénéficiaire */
     const TYPES_BENEFICIAIRE = [
-        'employe' => 'Employé',
+        'employe' => 'Salarié',
+        'visiteur' => 'Visiteur du groupe',
+        'tiers' => 'Tiers validé',
+        /* Saisie libre de la SFD v1.3, conservée pour les anciens bons */
         'fournisseur' => 'Fournisseur / prestataire',
         'prestataire' => 'Prestataire',
         'autre' => 'Autre tiers',
     ];
 
-    /** Types proposés dans l'assistant (US-BC-04) ; « prestataire » est conservé pour les anciens bons */
-    const TYPES_BENEFICIAIRE_ASSISTANT = ['employe', 'fournisseur', 'autre'];
+    /** Spec v2.3, RG-M03-03 : bénéficiaire choisi dans un référentiel (salarié, visiteur du groupe, tiers validé) */
+    const TYPES_BENEFICIAIRE_ASSISTANT = ['employe', 'visiteur', 'tiers'];
 
     /** Modes de paiement */
     const MODES_PAIEMENT = [
@@ -289,6 +294,18 @@ class BonCaisse extends Model
     public function imputation(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Imputation::class);
+    }
+
+    /** Spec v2.3 : tiers validé (RG-M03-03) */
+    public function tiers(): BelongsTo
+    {
+        return $this->belongsTo(Tiers::class, 'tiers_id');
+    }
+
+    /** Spec v2.3 : visiteur du groupe (RG-M03-04) */
+    public function visiteur(): BelongsTo
+    {
+        return $this->belongsTo(Visiteur::class, 'visiteur_id');
     }
 
     public function ordreMission(): BelongsTo

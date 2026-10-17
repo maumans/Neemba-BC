@@ -124,6 +124,20 @@ const navigationItems = [
         roles: ["chef_comptable", "comptable", "controle_gestion", "administrateur"],
     },
     {
+        /* Spec v2.3, §6.5 : tiers proposés par les demandeurs, validés par la Comptabilité ou le CDG */
+        label: "Tiers",
+        href: "tiers.index",
+        icon: Building2,
+        roles: ["comptable", "chef_comptable", "controle_gestion", "daf", "daf_adjoint", "administrateur"],
+    },
+    {
+        /* Spec v2.3, §6.5 : visiteurs du groupe (BP possibles) */
+        label: "Visiteurs du groupe",
+        href: "visiteurs.index",
+        icon: Users,
+        roles: ["rh", "daf", "daf_adjoint", "chef_comptable", "administrateur"],
+    },
+    {
         label: "Taux du jour",
         href: "tresorerie.taux.index",
         icon: Landmark,

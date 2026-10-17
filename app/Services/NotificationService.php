@@ -707,6 +707,15 @@ class NotificationService
         );
     }
 
+    /** RG-M02-06 : tiers proposé (aux valideurs, avec le lien vers l'écran des tiers) ; tiers validé ou refusé (au demandeur) */
+    public static function notifierTiers(\Illuminate\Support\Collection $destinataires, User $expediteur, string $type, string $titre, string $message): void
+    {
+        foreach ($destinataires as $destinataire) {
+            self::creerEtDiffuserSimple($destinataire, $expediteur, $type, $titre, $message,
+                $type === 'tiers_propose' ? ['lien' => route('tiers.index', ['statut' => 'propose'])] : []);
+        }
+    }
+
     /** RG-M07-06 : demande de dérogation « BP en retard » (aux DAF) et décision (au demandeur) */
     public static function notifierDerogationBp(BonCaisse $bon, User $expediteur, \Illuminate\Support\Collection $destinataires, string $titre, string $message): void
     {

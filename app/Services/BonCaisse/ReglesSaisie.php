@@ -34,7 +34,7 @@ class ReglesSaisie
     /** Champs saisis à chaque étape (l'étape 4 porte sur les pièces, contrôlées à part) */
     const CHAMPS_PAR_ETAPE = [
         1 => ['type_bon', 'code_analytique', 'site', 'service', 'niveau_urgence', 'motif_urgence', 'justification_urgence'],
-        2 => ['type_beneficiaire', 'beneficiaire_id', 'beneficiaire', 'telephone_beneficiaire'],
+        2 => ['type_beneficiaire', 'beneficiaire_id', 'visiteur_id', 'tiers_id', 'beneficiaire', 'telephone_beneficiaire'],
         3 => ['motif', 'categorie_depense', 'montant', 'mode_paiement', 'vehicule', 'references_or', 'lie_mission', 'date_retour_mission'],
     ];
 
@@ -49,6 +49,8 @@ class ReglesSaisie
         'justification_urgence' => 'Justification',
         'type_beneficiaire' => 'Type de bénéficiaire',
         'beneficiaire_id' => 'Bénéficiaire',
+        'visiteur_id' => 'Visiteur du groupe',
+        'tiers_id' => 'Tiers',
         'beneficiaire' => 'Nom du bénéficiaire',
         'telephone_beneficiaire' => 'Téléphone',
         'motif' => 'Motif de la demande',
@@ -109,7 +111,8 @@ class ReglesSaisie
     public static function reglesCompletes(array $d, bool $avecPlafond = true): array
     {
         $categorie = CategorieDepense::where('code', $d['categorie_depense'] ?? null)->first();
-        $employe = ($d['type_beneficiaire'] ?? 'employe') === 'employe';
+        $typeBeneficiaire = $d['type_beneficiaire'] ?? 'employe';
+        $employe = $typeBeneficiaire === 'employe';
         $urgent = ($d['niveau_urgence'] ?? 'normale') !== 'normale';
         $bp = ($d['type_bon'] ?? null) === 'BP';
 
@@ -124,12 +127,17 @@ class ReglesSaisie
             'justification_urgence' => $urgent ? ['required', 'string', 'min:10', 'max:300'] : ['nullable'],
 
             /* Étape 2 — RG-BC-06, RG-BC-07 */
-            /* RG-M03-04 : un BP n'est émis qu'au profit d'un salarié (visiteurs du groupe : lot B) */
-            'type_beneficiaire' => ['required', Rule::in($bp ? ['employe'] : array_keys(BonCaisse::TYPES_BENEFICIAIRE))],
+            /* RG-M03-03 : salarié, visiteur du groupe ou tiers validé, aucune saisie libre ; RG-M03-04 : pas de BP pour un tiers */
+            'type_beneficiaire' => ['required', Rule::in(BonCaisse::TYPES_BENEFICIAIRE_ASSISTANT),
+                fn ($attribut, $valeur, $echec) => $bp && $valeur === 'tiers' ? $echec(__('MSG-M03-02')) : null],
             'beneficiaire_id' => $employe
                 ? ['required', Rule::exists('users', 'id')->where('actif', true)]
                 : ['nullable'],
-            'beneficiaire' => $employe ? ['nullable'] : ['required', 'string', 'min:3', 'max:120'],
+            'visiteur_id' => $typeBeneficiaire === 'visiteur'
+                ? ['required', Rule::exists('visiteurs', 'id')->where('actif', true)]
+                : ['nullable'],
+            'tiers_id' => $typeBeneficiaire === 'tiers' ? ['required', self::regleTiersValide()] : ['nullable'],
+            'beneficiaire' => ['nullable', 'string', 'max:150'],
             'telephone_beneficiaire' => ['nullable', 'regex:/^(\+224)?6\d{8}$/'],
 
             /* Étape 3 — RG-BC-08 à RG-BC-14 */
@@ -165,7 +173,9 @@ class ReglesSaisie
             'justification_urgence' => ['nullable', 'string', 'max:300'],
             'type_beneficiaire' => ['nullable', Rule::in(array_keys(BonCaisse::TYPES_BENEFICIAIRE))],
             'beneficiaire_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
-            'beneficiaire' => ['nullable', 'string', 'max:120'],
+            'visiteur_id' => ['nullable', 'integer', Rule::exists('visiteurs', 'id')],
+            'tiers_id' => ['nullable', 'integer', Rule::exists('tiers', 'id')],
+            'beneficiaire' => ['nullable', 'string', 'max:150'],
             'telephone_beneficiaire' => ['nullable', 'regex:/^(\+224)?6\d{8}$/'],
             'motif' => ['nullable', 'string', 'max:200'],
             'categorie_depense' => ['nullable', Rule::exists('categories_depense', 'code')],
@@ -181,6 +191,21 @@ class ReglesSaisie
     }
 
     /** Messages exacts de la SFD (§5.6) */
+    /** RG-M02-06 : seul un tiers validé est sélectionnable (MSG-M03-03 s'il attend sa validation) */
+    private static function regleTiersValide(): \Closure
+    {
+        return function ($attribut, $valeur, $echec) {
+            $tiers = \App\Models\Tiers::find($valeur);
+            if (!$tiers) {
+                $echec(__('MSG-BC-001'));
+            } elseif ($tiers->statut === 'propose') {
+                $echec(__('MSG-M03-03'));
+            } elseif (!$tiers->estValide()) {
+                $echec(__('MSG-APP-060'));
+            }
+        };
+    }
+
     public static function messages(): array
     {
         $obligatoire = __('MSG-BC-001');
@@ -190,7 +215,8 @@ class ReglesSaisie
             'motif.min' => __('MSG-BC-002'),
             'montant.required' => $obligatoire,   // avant « montant.* » : le premier message qui correspond l'emporte
             'montant.*' => __('MSG-BC-003'),
-            'type_beneficiaire.in' => __('MSG-M03-02'),
+            'type_beneficiaire.in' => __('MSG-APP-059'),
+            'visiteur_id.exists' => __('MSG-APP-061'),
             'beneficiaire.min' => __('MSG-BC-004'),
             'beneficiaire.max' => __('MSG-BC-004'),
             'justification_urgence.min' => __('MSG-BC-005'),

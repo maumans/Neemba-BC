@@ -208,6 +208,9 @@ export default function NotificationBell() {
             router.visit(route('bons-caisse.show', notification.bon_caisse_id));
         } else if (notification.metadata?.odm_id) {
             router.visit(route('odm.show', notification.metadata.odm_id));
+        } else if (notification.metadata?.lien) {
+            /* Lot B : tiers proposé → écran des tiers à valider */
+            router.visit(notification.metadata.lien);
         } else if (notification.type === 'delegation') {
             router.visit(route('delegations.index'));
         }

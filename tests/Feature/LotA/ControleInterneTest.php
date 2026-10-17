@@ -117,9 +117,10 @@ class ControleInterneTest extends TestCase
     /** RG-M03-04 : un BP n'est émis qu'au profit d'un salarié */
     public function test_un_bp_ne_va_pas_a_un_tiers(): void
     {
+        $tiers = \App\Models\Tiers::create(['nom' => 'Garage du Niger', 'type' => 'fournisseur', 'telephone' => '+224622000000', 'statut' => 'valide']);
         $bon = $this->brouillon(['type_bon' => 'BP']);
         $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), [
-            'type_beneficiaire' => 'fournisseur', 'beneficiaire' => 'Garage du Niger', 'telephone_beneficiaire' => '622000000',
+            'type_beneficiaire' => 'tiers', 'tiers_id' => $tiers->id,
         ])->assertOk();
 
         $controle = collect($this->controles($bon))->firstWhere('numero', 1);

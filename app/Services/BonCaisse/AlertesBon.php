@@ -26,7 +26,8 @@ final class AlertesBon
     /** Autre bon soumis du même bénéficiaire et du même montant, dans les N derniers jours (paramètre) */
     public static function doublonProbable(BonCaisse $bon): ?BonCaisse
     {
-        if ($bon->genere_par_odm || !(float) $bon->montant || (!$bon->beneficiaire_id && blank($bon->beneficiaire))) {
+        if ($bon->genere_par_odm || !(float) $bon->montant
+            || (!$bon->beneficiaire_id && !$bon->tiers_id && !$bon->visiteur_id && blank($bon->beneficiaire))) {
             return null;
         }
         $jours = (int) Parametre::valeur('doublon_delai_jours', 7);
@@ -36,9 +37,12 @@ final class AlertesBon
             ->whereNotIn('statut', ['BROUILLON', 'ANNULE'])
             ->where('montant', $bon->montant)
             ->whereBetween('date_soumission', [$reference->copy()->subDays($jours), $reference])
-            ->when($bon->beneficiaire_id,
-                fn ($q) => $q->where('beneficiaire_id', $bon->beneficiaire_id),
-                fn ($q) => $q->whereNull('beneficiaire_id')->where('beneficiaire', $bon->beneficiaire))
+            ->where(fn ($q) => match (true) {
+                (bool) $bon->beneficiaire_id => $q->where('beneficiaire_id', $bon->beneficiaire_id),
+                (bool) $bon->tiers_id => $q->where('tiers_id', $bon->tiers_id),
+                (bool) $bon->visiteur_id => $q->where('visiteur_id', $bon->visiteur_id),
+                default => $q->whereNull('beneficiaire_id')->where('beneficiaire', $bon->beneficiaire),
+            })
             ->latest('date_soumission')
             ->first();
     }
@@ -79,16 +83,17 @@ final class AlertesBon
         return ($bon->doublon_probable['bon_id'] ?? null) === $autre->id && !empty($bon->doublon_probable['confirme_le']);
     }
 
-    /** BP du bénéficiaire (salarié) non régularisés au-delà de leur échéance */
+    /** BP du bénéficiaire (salarié ou visiteur du groupe) non régularisés au-delà de leur échéance */
     public static function bpEnRetard(BonCaisse $bon): Collection
     {
-        if (!$bon->beneficiaire_id) {
+        if (!$bon->beneficiaire_id && !$bon->visiteur_id) {
             return collect();
         }
 
         return BonCaisse::enRetardRegularisation()
             ->where('type_bon', 'BP')
-            ->where('beneficiaire_id', $bon->beneficiaire_id)
+            ->when($bon->beneficiaire_id, fn ($q) => $q->where('beneficiaire_id', $bon->beneficiaire_id),
+                fn ($q) => $q->where('visiteur_id', $bon->visiteur_id))
             ->whereKeyNot($bon->id)
             ->orderBy('date_limite_regularisation')
             ->get();

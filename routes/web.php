@@ -12,6 +12,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RapportCaisseController;
 use App\Http\Controllers\TauxChangeController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\TiersController;
+use App\Http\Controllers\VisiteurController;
 use App\Http\Controllers\ImputationController;
 use App\Http\Controllers\UtilisateurController;
 use App\Http\Controllers\ParametrageController;
@@ -73,6 +75,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     /* --- API JSON de l'assistant « Nouveau bon de caisse » (SFD M03, §5.7) --- */
     Route::prefix('api/v1')->name('api.')->group(function () {
         Route::get('/referentiels/beneficiaires', [AssistantBonController::class, 'beneficiaires'])->name('referentiels.beneficiaires');
+        /* Lot B (spec v2.3, RG-M03-03, RG-M02-06) : tiers validés, visiteurs du groupe, proposition d'un tiers */
+        Route::get('/referentiels/tiers', [AssistantBonController::class, 'tiers'])->name('referentiels.tiers');
+        Route::get('/referentiels/visiteurs', [AssistantBonController::class, 'visiteurs'])->name('referentiels.visiteurs');
+        Route::post('/tiers', [AssistantBonController::class, 'proposerTiers'])->name('tiers.proposer');
         /* Spec v2.3, §6.5 : clients actifs, pour les sélecteurs des ODM */
         Route::get('/referentiels/clients', [ClientController::class, 'recherche'])->name('referentiels.clients');
         Route::get('/referentiels/caisse-payeuse', [AssistantBonController::class, 'caissePayeuse'])->name('referentiels.caisse-payeuse');
@@ -227,6 +233,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/referentiels/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
         Route::post('/referentiels/clients/{client}/basculer', [ClientController::class, 'basculer'])->name('clients.basculer');
         Route::post('/referentiels/clients/import', [ClientController::class, 'importer'])->name('clients.importer');
+    });
+
+    /* --- Lot B (spec v2.3, §6.5) : tiers (validation par la Comptabilité ou le CDG), visiteurs du groupe --- */
+    Route::middleware('role:comptable,chef_comptable,controle_gestion,daf,daf_adjoint,administrateur')->group(function () {
+        Route::get('/referentiels/tiers', [TiersController::class, 'index'])->name('tiers.index');
+        Route::post('/referentiels/tiers', [TiersController::class, 'store'])->name('tiers.store');
+        Route::put('/referentiels/tiers/{tiers}', [TiersController::class, 'update'])->name('tiers.update');
+        Route::post('/referentiels/tiers/{tiers}/decision', [TiersController::class, 'decider'])->name('tiers.decider');
+        Route::post('/referentiels/tiers/{tiers}/basculer', [TiersController::class, 'basculer'])->name('tiers.basculer');
+    });
+    Route::middleware('role:rh,daf,daf_adjoint,chef_comptable,administrateur')->group(function () {
+        Route::get('/referentiels/visiteurs', [VisiteurController::class, 'index'])->name('visiteurs.index');
+        Route::post('/referentiels/visiteurs', [VisiteurController::class, 'store'])->name('visiteurs.store');
+        Route::put('/referentiels/visiteurs/{visiteur}', [VisiteurController::class, 'update'])->name('visiteurs.update');
+        Route::post('/referentiels/visiteurs/{visiteur}/basculer', [VisiteurController::class, 'basculer'])->name('visiteurs.basculer');
     });
 
     /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */
