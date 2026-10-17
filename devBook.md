@@ -4221,3 +4221,63 @@ php artisan migrate        # 2026_10_17_000002
 Ensuite :
 - faire valider par la Comptabilité ou le CDG les tiers repris (Référentiels → Tiers, onglet « Proposé ») ;
 - faire saisir aux RH les visiteurs du groupe en séjour.
+
+## 43. Version v43 — Conformité v2.3, lot C « numérotation par caisse et caisse de rattachement » (17 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
+
+### 43.1 Règles traitées
+
+| Règle | Mise en œuvre |
+|---|---|
+| RG-M03-18 | Numéro attribué à la soumission sur la **caisse émettrice**, au format `BC-[code caisse]-[AAAA]-[00001]`, avec une séquence par caisse et par année (table `compteurs_bons`, verrouillée). Le nombre de chiffres vient du paramètre `numero_bon_chiffres` (5), ou de la caisse. Les numéros déjà attribués (`BC-AAAA-NNNN`) ne changent pas (Q62). Repli sans aucune caisse paramétrée : ancienne séquence annuelle. |
+| RG-M08-11 | « Numéro de départ » de la caisse, qui reprend le carnet papier. Il ne compte que pour la première séquence de la caisse ; l'année suivante repart à 1. Exemple : Atelier à 5123 sur 7 chiffres, soit `BC-ATL-2026-0005123`. |
+| RG-M02-03, RG-M03-11 | **Caisse de rattachement** de l'utilisateur (`users.caisse_id`, à défaut la caisse principale espèces de son site). Elle devient la caisse émettrice du bon, et le site du bon est celui du profil : il ne se modifie plus dans l'assistant. Pour un bon « pour le compte de », ce sont ceux du titulaire. Pour un bon d'ODM, ceux du demandeur de l'ODM. |
+| RG-M08-01 | En espèces, une caisse émettrice active paie ses propres bons : la caisse Atelier paie ceux de l'Atelier. En Orange Money, c'est toujours la caisse OM. |
+| RG-M06-01, RG-M08-12 | Un caissier rattaché à une caisse voit et paie les bons que cette caisse émet ou paie. Sans rattachement, il reste limité à son site (lot A). |
+
+### 43.2 Données
+
+Migration `2026_10_17_000003_lot_c_numerotation_par_caisse` :
+- `caisses.code_numerotation`, `numero_depart`, `chiffres_numero` ;
+- codes de la spec (§6.1) posés sur les caisses existantes : CKY, ATL, OM, BOK, SAG, SGL, SGT, COR ;
+- table `compteurs_bons` ;
+- `users.caisse_id` (rattachement initial : caisse principale du site) ;
+- `bons_caisse.caisse_emettrice_id` ;
+- paramètre `numero_bon_chiffres`.
+
+La migration a été vérifiée sur une copie de la base (aller, retour, aller), puis appliquée en dev.
+
+### 43.3 Écrans
+
+- **Paramétrage → Caisses** : « Code des numéros », « Numéro de départ » et « Chiffres », avec un aperçu du premier numéro. Le formulaire défile désormais, boutons toujours visibles : il dépassait la hauteur d'un écran.
+- **Utilisateurs** (création et modification) : « Caisse de rattachement ».
+- **Assistant** : le site est en lecture seule (repris du profil), et le résumé affiche la caisse émettrice.
+
+### 43.4 Vérifications
+
+- **`tests/Feature/LotC/NumerotationCaisseTest.php`** (4 tests) :
+  1. une séquence par caisse, anciens numéros inchangés ;
+  2. carnet Atelier repris sur 7 chiffres, payé par la caisse Atelier, remise à 1 l'année suivante ;
+  3. caissier rattaché à une caisse ;
+  4. paramétrage de la numérotation.
+- **Tests adaptés** : format des numéros et site figé.
+- **Total** : **324 tests PHP** et **71 tests JavaScript** passent.
+- **Parcours dans Edge**, sur une copie de la base de dev : 9 vérifications, aucune erreur JavaScript.
+  1. paramétrage de l'Atelier ;
+  2. Raby TOUNKARA rattachée à l'Atelier ;
+  3. son bon `BC-ATL-2026-0005123`, payé par la caisse Atelier ;
+  4. bon de Souadou `BC-CKY-2026-00001` ;
+  5. téléphone.
+
+### 43.5 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_17_000003
+```
+
+Ensuite :
+- vérifier les codes des caisses ;
+- saisir le numéro de départ de chaque carnet (Atelier : « BC N° 0005xxx ») et ses chiffres ;
+- activer la caisse Atelier ;
+- rattacher les utilisateurs de l'Atelier et les caissiers à leur caisse.
