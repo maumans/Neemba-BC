@@ -86,6 +86,7 @@ class UtilisateurController extends Controller
         return Inertia::render('Utilisateurs/Create', [
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
+            'caisses' => self::caisses(),
         ]);
     }
 
@@ -107,6 +108,8 @@ class UtilisateurController extends Controller
             'role' => ['required', Rule::in(User::ROLES_PRINCIPAUX)],
             'service' => ['required', 'string', 'max:255'],
             'site' => ['required', 'string', 'max:255'],
+            /* Spec v2.3, RG-M02-03 : caisse de rattachement (vide : caisse principale du site) */
+            'caisse_id' => ['nullable', 'integer', Rule::exists('caisses', 'id')],
             'poste' => ['nullable', 'string', 'max:255'],
         ], self::MESSAGES);
 
@@ -120,6 +123,13 @@ class UtilisateurController extends Controller
             ->with('success', 'Utilisateur créé avec succès.');
     }
 
+    /** Caisses proposées comme caisse de rattachement (RG-M02-03) */
+    private static function caisses()
+    {
+        return \App\Models\Caisse::actives()->with('site')->orderBy('libelle')->get()
+            ->map(fn (\App\Models\Caisse $c) => ['id' => $c->id, 'libelle' => $c->libelle, 'code' => $c->codeNumerotation(), 'site' => $c->site?->nom]);
+    }
+
     /**
      * Formulaire d'édition d'un utilisateur
      */
@@ -131,6 +141,7 @@ class UtilisateurController extends Controller
             'roles' => User::ROLES,
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
+            'caisses' => self::caisses(),
         ]);
     }
 
@@ -152,6 +163,8 @@ class UtilisateurController extends Controller
             'role' => ['required', Rule::in(User::ROLES_PRINCIPAUX)],
             'service' => ['required', 'string', 'max:255'],
             'site' => ['required', 'string', 'max:255'],
+            /* Spec v2.3, RG-M02-03 : caisse de rattachement (vide : caisse principale du site) */
+            'caisse_id' => ['nullable', 'integer', Rule::exists('caisses', 'id')],
             'poste' => ['nullable', 'string', 'max:255'],
             'actif' => ['boolean'],
             'roles_complementaires' => ['sometimes', 'array'],

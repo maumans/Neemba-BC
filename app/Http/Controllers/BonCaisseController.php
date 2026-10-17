@@ -180,11 +180,13 @@ class BonCaisseController extends Controller
                     $q->orWhereIn('id', $bonsDejaValides);
                 }
 
-                /* 4. Caissier : bons de son site à payer/régulariser */
+                /* 4. Caissier : bons de sa caisse (émettrice ou payeuse, lot C), à défaut de son site, à payer/régulariser */
                 if (in_array('caissier', $roles)) {
                     $q->orWhere(function ($q2) use ($utilisateur) {
                         $q2->whereIn('statut', ['APPROUVE', 'PAYE', 'EN_ATTENTE_REGULARISATION', 'REGULARISE', 'ARCHIVE']);
-                        if ($utilisateur->site) {
+                        if ($utilisateur->caisse_id) {
+                            $q2->where(fn ($q3) => $q3->where('caisse_emettrice_id', $utilisateur->caisse_id)->orWhere('caisse_id', $utilisateur->caisse_id));
+                        } elseif ($utilisateur->site) {
                             $q2->where('site', $utilisateur->site);
                         }
                     });
@@ -460,8 +462,8 @@ class BonCaisseController extends Controller
         /* Soldes des caisses qui paieraient ce bon (RG-BC-12) : caisse espèces du site et caisse OM */
         $soldeCaisseSite = null;
         if ($utilisateur->aLeRole(['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
-            $caisseEspeces = Caisse::payeusePour($bonCaisse->site, 'especes');
-            $caisseOm = Caisse::payeusePour($bonCaisse->site, 'orange_money');
+            $caisseEspeces = $bonCaisse->caissePayeuse('especes');
+            $caisseOm = $bonCaisse->caissePayeuse('orange_money');
             $montant = (float) $bonCaisse->montant;
             $total = (float) ($caisseEspeces?->solde ?? 0) + (float) ($caisseOm?->solde ?? 0);
 
@@ -703,7 +705,7 @@ class BonCaisseController extends Controller
 
         /* Caisse payeuse (RG-BC-12) : espèces → caisse espèces du site (à défaut caisse principale de Conakry),
          * Orange Money → caisse OM de Conakry ; virement et autre → paiement hors caisse, rien n'est débité. */
-        $caisse = Caisse::payeusePour($bonCaisse->site, $request->mode_paiement_effectif);
+        $caisse = $bonCaisse->caissePayeuse($request->mode_paiement_effectif);
         $montant = (float) $bonCaisse->montant;
         /* La caisse décaisse le montant versé : montant du bon, plus les frais Orange Money */
         $montantVerse = (float) $frais['montant_verse'];

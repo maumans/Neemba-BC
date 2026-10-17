@@ -36,6 +36,7 @@ class BonCaisse extends Model
      * Champs remplissables en masse
      */
     protected $fillable = [
+        'caisse_emettrice_id',
         'tiers_id',
         'visiteur_id',
         'doublon_probable',
@@ -294,6 +295,18 @@ class BonCaisse extends Model
     public function imputation(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Imputation::class);
+    }
+
+    /** Spec v2.3, RG-M03-11, RG-M03-18 : caisse émettrice (rattachement du demandeur), qui numérote le bon */
+    public function caisseEmettrice(): BelongsTo
+    {
+        return $this->belongsTo(Caisse::class, 'caisse_emettrice_id');
+    }
+
+    /** Caisse qui paierait le bon dans ce mode (RG-BC-12 ; la caisse émettrice paie en espèces, lot C) */
+    public function caissePayeuse(?string $mode = null): ?Caisse
+    {
+        return Caisse::payeusePour((string) $this->site, $mode ?? $this->mode_paiement, $this->caisseEmettrice);
     }
 
     /** Spec v2.3 : tiers validé (RG-M03-03) */

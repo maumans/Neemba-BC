@@ -143,10 +143,15 @@ class EnregistrementBon
             }
         }
 
+        /* Lot C (RG-M03-11) : caisse émettrice = caisse de rattachement du titulaire ; site du profil, non modifiable */
+        $titulaire = $bon->demandeur_id ? User::find($bon->demandeur_id) : null;
+        $emettrice = Caisse::deRattachement($titulaire);
+        $bon->caisse_emettrice_id = $emettrice?->id;
+        $bon->setRelation('caisseEmettrice', $emettrice);
+        $bon->site = $titulaire?->site ?: ($emettrice?->site?->nom ?? $bon->site);
+
         /* RG-BC-12 : caisse payeuse prévue (le paiement inscrit la caisse réellement débitée) */
-        $bon->caisse_id = $bon->site && $bon->mode_paiement
-            ? Caisse::payeusePour($bon->site, $bon->mode_paiement)?->id
-            : null;
+        $bon->caisse_id = $bon->site && $bon->mode_paiement ? $bon->caissePayeuse()?->id : null;
 
         $bon->save();
 

@@ -267,6 +267,7 @@ class ReglesSaisie
         }
         $donnees['montant'] = $bon->montant !== null ? (int) round((float) $bon->montant) : null;
         $donnees['genere_par_odm'] = (bool) $bon->genere_par_odm;
+        $donnees['caisse_emettrice_id'] = $bon->caisse_emettrice_id;
 
         return $donnees;
     }
@@ -335,7 +336,7 @@ class ReglesSaisie
             if ($valeur !== 'especes' || empty($d['site']) || empty($d['montant'])) {
                 return;
             }
-            $caisse = Caisse::payeusePour($d['site'], 'especes');
+            $caisse = Caisse::payeusePour($d['site'], 'especes', !empty($d['caisse_emettrice_id']) ? Caisse::find($d['caisse_emettrice_id']) : null);
             if ($caisse && $caisse->depassePlafondRetrait((float) $d['montant'])) {
                 $echec(ErreurMetier::texte('MSG-BC-012', [
                     'plafond' => (float) $caisse->plafond_retrait,

@@ -20,7 +20,7 @@ import {
 } from '@/Components/ui/select';
 import { Combobox } from '@/Components/ui/combobox';
 
-export default function Create({ sites = [], services = [] }) {
+export default function Create({ sites = [], services = [], caisses = [] }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         prenom: '',
@@ -34,6 +34,7 @@ export default function Create({ sites = [], services = [] }) {
         role: 'demandeur',
         service: '',
         site: '',
+        caisse_id: null,
         poste: '',
     });
 
@@ -256,6 +257,23 @@ export default function Create({ sites = [], services = [] }) {
                                             error={errors.site}
                                         />
                                         {errors.site && <p className="text-sm text-red-500 mt-1">{errors.site}</p>}
+                                    </div>
+                                    {/* Spec v2.3, RG-M02-03 : caisse de rattachement, qui émet et numérote les bons de l'utilisateur */}
+                                    <div>
+                                        <Label htmlFor="caisse_id">Caisse de rattachement</Label>
+                                        <select
+                                            id="caisse_id"
+                                            value={data.caisse_id ?? ''}
+                                            onChange={(e) => setData('caisse_id', e.target.value ? Number(e.target.value) : null)}
+                                            className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                                        >
+                                            <option value="">Automatique : caisse principale du site</option>
+                                            {caisses.map((c) => (
+                                                <option key={c.id} value={c.id}>{c.libelle} ({c.code}{c.site ? ` · ${c.site}` : ''})</option>
+                                            ))}
+                                        </select>
+                                        <p className="mt-1 text-xs text-gray-500">Ses bons sont émis et numérotés sur cette caisse (ex. caisse Atelier).</p>
+                                        {errors.caisse_id && <p className="text-sm text-red-500 mt-1">{errors.caisse_id}</p>}
                                     </div>
                                     <div>
                                         <Label htmlFor="poste">Poste</Label>

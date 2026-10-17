@@ -54,7 +54,7 @@ class ControlesBon
     public static function executer(BonCaisse $bon, ?\App\Models\User $auteur = null): array
     {
         $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse']);
-        $caisse = Caisse::payeusePour((string) $bon->site, $bon->mode_paiement);
+        $caisse = $bon->caissePayeuse();
         $montant = (float) $bon->montant;
 
         return [

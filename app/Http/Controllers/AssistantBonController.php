@@ -343,10 +343,12 @@ class AssistantBonController extends Controller
         ];
     }
 
-    /** GET /api/v1/referentiels/caisse-payeuse?site=&mode= — RG-BC-11, RG-BC-12 */
+    /** GET /api/v1/referentiels/caisse-payeuse?site=&mode=&bon= — RG-BC-11, RG-BC-12 ; la caisse émettrice du bon paie en espèces */
     public function caissePayeuse(Request $request): JsonResponse
     {
-        $caisse = Caisse::payeusePour((string) $request->query('site'), $request->query('mode'));
+        $bon = $request->filled('bon') ? BonCaisse::find($request->integer('bon')) : null;
+        $emettrice = $bon?->caisseEmettrice ?? Caisse::deRattachement($request->user());
+        $caisse = Caisse::payeusePour((string) $request->query('site'), $request->query('mode'), $emettrice);
 
         return response()->json(['caisse' => $caisse ? [
             'code' => $caisse->code,
@@ -417,7 +419,7 @@ class AssistantBonController extends Controller
     /** Bon au format de l'assistant */
     public static function bon(BonCaisse $bon): array
     {
-        $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse', 'caisse', 'beneficiaireUtilisateur', 'tiers', 'visiteur.directeur']);
+        $bon->loadMissing(['piecesActives.lectureTicket', 'piecesActives.doublonDe.bonCaisse', 'caisse', 'beneficiaireUtilisateur', 'tiers', 'visiteur.directeur', 'caisseEmettrice']);
 
         $bon->loadMissing(['demandeur', 'initiateur']);
 
@@ -433,6 +435,8 @@ class AssistantBonController extends Controller
             'montant_lettres' => $bon->montant_lettres,
             'caisse' => $bon->caisse ? ['libelle' => $bon->caisse->libelle, 'plafond_retrait' => $bon->caisse->plafond_retrait !== null ? (float) $bon->caisse->plafond_retrait : null] : null,
             'beneficiaire_libelle' => $bon->beneficiaireUtilisateur ? self::beneficiaire($bon->beneficiaireUtilisateur)['libelle'] : null,
+            /* Lot C (RG-M03-11) : caisse émettrice, qui numérote le bon */
+            'caisse_emettrice' => $bon->caisseEmettrice ? $bon->caisseEmettrice->libelle . ' (' . $bon->caisseEmettrice->codeNumerotation() . ')' : null,
             'tiers' => $bon->tiers ? self::tiersChoisi($bon->tiers) : null,
             'visiteur' => $bon->visiteur ? self::visiteurChoisi($bon->visiteur) : null,
             'commentaire_rejet' => $bon->commentaire_rejet,

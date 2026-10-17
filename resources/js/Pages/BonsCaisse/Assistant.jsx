@@ -343,8 +343,8 @@ export default function Assistant({
         let actif = true;
         const url = route('api.referentiels.caisse-payeuse');
         Promise.all([
-            axios.get(url, { params: { site, mode: 'especes' } }),
-            mode && mode !== 'especes' ? axios.get(url, { params: { site, mode } }) : Promise.resolve(null),
+            axios.get(url, { params: { site, mode: 'especes', bon: bonActuel.current?.id } }),
+            mode && mode !== 'especes' ? axios.get(url, { params: { site, mode, bon: bonActuel.current?.id } }) : Promise.resolve(null),
         ])
             .then(([especes, autre]) => {
                 if (!actif) return;
@@ -571,6 +571,7 @@ export default function Assistant({
             : null,
         type: donnees.type_bon,
         site: donnees.site,
+        emettrice: bon?.caisse_emettrice,
         caisse: caisses.payeuse?.libelle ?? (['cheque', 'virement'].includes(donnees.mode_paiement) ? 'Aucune (hors caisse)' : null),
         service: donnees.service,
         beneficiaire: donnees.type_beneficiaire === 'employe' ? employeChoisi?.nom_complet : donnees.beneficiaire,

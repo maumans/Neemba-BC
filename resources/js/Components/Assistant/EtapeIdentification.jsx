@@ -2,6 +2,7 @@
  * Étape 1 « Identification » (E-03.3, US-BC-02, US-BC-03) : type, code analytique, site, service, urgence.
  */
 import { Combobox } from '@/Components/ui/combobox';
+import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -102,17 +103,9 @@ export default function EtapeIdentification({
                     />
                 </Champ>
 
-                <Champ champ="site" libelle="Site" obligatoire erreur={erreurs.site}>
-                    <Select value={donnees.site || undefined} onValueChange={(valeur) => changer('site', valeur)}>
-                        <SelectTrigger id="champ-site">
-                            <SelectValue placeholder="Choisir le site" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {sites.map((site) => (
-                                <SelectItem key={site} value={site}>{site}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                {/* Spec v2.3, RG-M03-11 : site (et caisse émettrice) repris du profil du demandeur, non modifiables */}
+                <Champ champ="site" libelle="Site" obligatoire erreur={erreurs.site} aide="Repris du profil du demandeur, non modifiable.">
+                    <Input id="champ-site" value={donnees.site || 'Site non renseigné au profil'} readOnly disabled />
                 </Champ>
 
                 <Champ champ="service" libelle="Service" obligatoire erreur={erreurs.service}>

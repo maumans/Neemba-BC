@@ -125,13 +125,14 @@ function ParametrageTable({ items, columns, onAdd, onEdit, onToggle, addLabel })
 function FormDialog({ open, onClose, title, children, onSubmit, processing }) {
     return (
         <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-            <DialogContent>
+            {/* Contenu défilant, boutons toujours visibles : la fiche d'une caisse dépasse la hauteur d'un écran */}
+            <DialogContent className="flex max-h-[90vh] flex-col">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={onSubmit}>
-                    <div className="space-y-4 py-4">{children}</div>
-                    <DialogFooter>
+                <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
+                    <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-4">{children}</div>
+                    <DialogFooter className="border-t pt-3">
                         <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
                         <Button type="submit" disabled={processing}>Enregistrer</Button>
                     </DialogFooter>
@@ -361,6 +362,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
         code: '', libelle: '', site_id: '', type: 'especes', mode: 'standard',
         montant_avance: '', plafond_retrait: '', seuil_alerte: '', plafond_caisse: '', solde: '',
         gestionnaire_id: '', suppleant_id: '', encaissements_clients: false, reapprovisionnement: '',
+        code_numerotation: '', numero_depart: '', chiffres_numero: '',
     });
     const nomUtilisateur = (id) => utilisateursActifs.find((u) => u.id === id)?.libelle ?? '';
 
@@ -388,6 +390,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
             seuil_alerte: item.seuil_alerte ?? '', plafond_caisse: item.plafond_caisse ?? '', solde: item.solde ?? '',
             gestionnaire_id: item.gestionnaire_id ?? '', suppleant_id: item.suppleant_id ?? '',
             encaissements_clients: Boolean(item.encaissements_clients), reapprovisionnement: item.reapprovisionnement ?? '',
+            code_numerotation: item.code_numerotation ?? '', numero_depart: item.numero_depart ?? '', chiffres_numero: item.chiffres_numero ?? '',
         });
         setCaisseDialog({ open: true, item });
     };
@@ -404,6 +407,9 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
             gestionnaire_id: d.gestionnaire_id === '' ? null : d.gestionnaire_id,
             suppleant_id: d.suppleant_id === '' ? null : d.suppleant_id,
             reapprovisionnement: d.reapprovisionnement === '' ? null : d.reapprovisionnement,
+            code_numerotation: d.code_numerotation === '' ? null : d.code_numerotation,
+            numero_depart: d.numero_depart === '' ? null : d.numero_depart,
+            chiffres_numero: d.chiffres_numero === '' ? null : d.chiffres_numero,
         }));
         if (caisseDialog.item) {
             caisseForm.put(route('parametrage.caisses.update', caisseDialog.item.id), options);
@@ -779,6 +785,28 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                         <Input value={caisseForm.data.libelle} onChange={(e) => caisseForm.setData('libelle', e.target.value)} placeholder="Ex : Caisse principale Conakry" className="mt-1" required />
                         {caisseForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.libelle}</p>}
                     </div>
+                </div>
+                {/* Lot C (RG-M03-18, RG-M08-11) : numérotation des bons émis sur cette caisse */}
+                <div className="grid grid-cols-3 gap-4">
+                    <div>
+                        <Label>Code des numéros</Label>
+                        <Input value={caisseForm.data.code_numerotation} maxLength={10} onChange={(e) => caisseForm.setData('code_numerotation', e.target.value.toUpperCase())} placeholder="Ex : CKY, ATL" className="mt-1" />
+                        {caisseForm.errors.code_numerotation && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.code_numerotation}</p>}
+                    </div>
+                    <div>
+                        <Label>Numéro de départ</Label>
+                        <Input type="number" min="1" value={caisseForm.data.numero_depart} onChange={(e) => caisseForm.setData('numero_depart', e.target.value)} placeholder="Suite du carnet" className="mt-1" />
+                        {caisseForm.errors.numero_depart && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.numero_depart}</p>}
+                    </div>
+                    <div>
+                        <Label>Chiffres</Label>
+                        <Input type="number" min="3" max="9" value={caisseForm.data.chiffres_numero} onChange={(e) => caisseForm.setData('chiffres_numero', e.target.value)} placeholder="Paramètre (5)" className="mt-1" />
+                        {caisseForm.errors.chiffres_numero && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.chiffres_numero}</p>}
+                    </div>
+                    <p className="col-span-3 -mt-2 text-[11px] text-gray-400">
+                        Bons émis sur cette caisse : BC-{caisseForm.data.code_numerotation || 'CODE'}-{new Date().getFullYear()}-{String(caisseForm.data.numero_depart || 1).padStart(Number(caisseForm.data.chiffres_numero) || 5, '0')}.
+                        Le numéro de départ reprend la suite du carnet papier ; il ne compte que pour la première séquence de la caisse.
+                    </p>
                 </div>
                 {caisseDialog.item ? (
                     <p className="text-xs text-gray-500">

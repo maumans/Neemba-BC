@@ -31,6 +31,7 @@ function Contenu({ resume }) {
             {resume.pourLeCompteDe && <Ligne libelle="Pour le compte de">{resume.pourLeCompteDe}</Ligne>}
             {resume.initiePar && <Ligne libelle="Initié par">{resume.initiePar}</Ligne>}
             <Ligne libelle="Site">{resume.site}</Ligne>
+            {resume.emettrice && <Ligne libelle="Caisse émettrice">{resume.emettrice}</Ligne>}
             <Ligne libelle="Caisse payeuse">{resume.caisse}</Ligne>
             <Ligne libelle="Service">{resume.service}</Ligne>
             <Ligne libelle="Bénéficiaire">{resume.beneficiaire}</Ligne>

@@ -99,7 +99,7 @@ class ParametrageController extends Controller
             'plafond_retrait' => ['nullable', 'numeric', 'min:0'],
             'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
             'plafond_caisse'  => ['nullable', 'numeric', 'min:0'],
-        ] + self::reglesResponsablesCaisse());
+        ] + self::reglesResponsablesCaisse() + self::reglesNumerotation());
 
         Caisse::create($validated + ['solde' => 0, 'actif' => true]);
 
@@ -120,7 +120,7 @@ class ParametrageController extends Controller
             'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
             'plafond_caisse'  => ['nullable', 'numeric', 'min:0'],
             'solde'           => ['nullable', 'numeric'],
-        ] + self::reglesResponsablesCaisse());
+        ] + self::reglesResponsablesCaisse() + self::reglesNumerotation());
 
         $enAttente = 0;
         foreach ([...Caisse::CHAMPS_SENSIBLES, 'solde'] as $champ) {
@@ -148,11 +148,25 @@ class ParametrageController extends Controller
         /* Code, libellé, gestionnaire, suppléant, encaissements et réapprovisionnement : modifiés tout de suite */
         $caisse->update(array_intersect_key($validated, array_flip([
             'code', 'libelle', 'gestionnaire_id', 'suppleant_id', 'encaissements_clients', 'reapprovisionnement',
+            'code_numerotation', 'numero_depart', 'chiffres_numero',
         ])));
 
         return back()->with('success', $enAttente
             ? "Caisse mise à jour. {$enAttente} modification(s) sensible(s) en attente de double validation."
             : 'Caisse mise à jour.');
+    }
+
+    /**
+     * Lot C (RG-M03-18, RG-M08-11) : code de la caisse dans les numéros de bons, numéro de départ (reprise du carnet
+     * papier, pris en compte à la première séquence de la caisse) et nombre de chiffres (sinon le paramètre général)
+     */
+    private static function reglesNumerotation(): array
+    {
+        return [
+            'code_numerotation' => ['nullable', 'string', 'max:10', 'regex:/^[A-Z0-9]+$/'],
+            'numero_depart' => ['nullable', 'integer', 'min:1', 'max:99999999'],
+            'chiffres_numero' => ['nullable', 'integer', 'min:3', 'max:9'],
+        ];
     }
 
     /** Matrice de paramétrage par caisse (référentiel Neemba, point 14) : champs sans double validation */

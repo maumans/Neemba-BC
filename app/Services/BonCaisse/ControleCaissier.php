@@ -24,7 +24,15 @@ final class ControleCaissier
         if ($bon->beneficiaire_id === $caissier->id) {
             return 'Vous êtes le bénéficiaire de ce bon : un autre caissier doit le payer (RG-M01-04).';
         }
-        if ($caissier->site && $bon->site && $caissier->site !== $bon->site && !$caissier->aLeRole('administrateur')) {
+        /* Lot C (RG-M02-03) : un caissier rattaché à une caisse paie les bons qu'elle émet ou paie ; sinon, ceux de son site */
+        if ($caissier->caisse_id && !$caissier->aLeRole('administrateur')) {
+            $payeuse = $caisse ?? $bon->caissePayeuse();
+            if (!in_array((int) $caissier->caisse_id, array_map('intval', array_filter([$bon->caisse_emettrice_id, $payeuse?->id])), true)) {
+                $libelle = $bon->caisseEmettrice?->libelle ?? $payeuse?->libelle ?? 'une autre caisse';
+
+                return "Ce bon relève de la {$libelle} : seul un caissier de cette caisse peut le payer (RG-M06-01).";
+            }
+        } elseif ($caissier->site && $bon->site && $caissier->site !== $bon->site && !$caissier->aLeRole('administrateur')) {
             return "Ce bon relève du site {$bon->site} : seul un caissier de ce site peut le payer (RG-M06-01).";
         }
         if ($caisse && ($caisse->gestionnaire_id || $caisse->suppleant_id) && !self::tientLaCaisse($caisse, $caissier)) {

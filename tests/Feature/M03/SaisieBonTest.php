@@ -224,9 +224,14 @@ class SaisieBonTest extends TestCase
     }
 
     /** TC-BC-010 : Boké, plafond 1 000 000 */
+    /** Lot C (RG-M03-11) : le site vient du profil du demandeur, non modifiable ; le plafond est celui de sa caisse */
     public function test_le_plafond_depend_de_la_caisse_du_site(): void
     {
-        $bon = $this->brouillon(['site' => 'Boke']);
+        $this->assertSame('Conakry', $this->brouillon(['site' => 'Boke'])->site);
+
+        $this->souadou->update(['site' => 'Boke']);
+        $bon = $this->brouillon();
+        $this->assertSame(['Boke', 'BOK-ESP'], [$bon->site, $bon->caisseEmettrice->code]);
         $this->etape(3, $this->depense(['montant' => 1200000, 'mode_paiement' => 'especes']), $bon)
             ->assertJsonPath('erreurs.mode_paiement.0', fn ($message) => str_contains($message, 'caisse principale Boke'));
     }
@@ -331,10 +336,10 @@ class SaisieBonTest extends TestCase
         $this->actingAs($this->souadou)
             ->postJson(route('api.bons.soumettre', $bon), [], ['Idempotency-Key' => 'cle-1'])
             ->assertOk()
-            ->assertJsonPath('numero', 'BC-' . now()->year . '-0001')
+            ->assertJsonPath('numero', 'BC-CKY-' . now()->year . '-00001')
             ->assertJsonPath('statut', 'EN_ATTENTE_CHEF_SERVICE')
             ->assertJsonPath('caisse.code', 'CKY-ESP')
-            ->assertSessionHas('success', 'Bon BC-' . now()->year . '-0001 soumis. Il est en attente de validation par le chef de service.');
+            ->assertSessionHas('success', 'Bon BC-CKY-' . now()->year . '-00001 soumis. Il est en attente de validation par le chef de service.');
 
         $bon->refresh();
         $this->assertNotNull($bon->date_soumission);
@@ -352,7 +357,7 @@ class SaisieBonTest extends TestCase
 
         $premier->assertOk();
         $second->assertOk()->assertJsonPath('numero', $premier->json('numero'));
-        $this->assertSame(1, (int) DB::table('compteurs_numerotation')->value('dernier_numero'));
+        $this->assertSame(1, (int) DB::table('compteurs_bons')->value('dernier_numero'));
         $this->assertSame(3, $bon->validations()->count());
     }
 
@@ -370,16 +375,16 @@ class SaisieBonTest extends TestCase
 
         $this->assertNull($bon->fresh()->numero);
         $this->assertSame('BROUILLON', $bon->fresh()->statut);
-        $this->assertSame(0, (int) DB::table('compteurs_numerotation')->value('dernier_numero'));
+        $this->assertSame(0, (int) DB::table('compteurs_bons')->value('dernier_numero'));
     }
 
     public function test_la_numerotation_ne_redescend_pas_sous_un_numero_existant(): void
     {
-        BonCaisse::factory()->statut('PAYE')->create(['numero' => 'BC-' . now()->year . '-0010', 'demandeur_id' => $this->souadou->id]);
+        BonCaisse::factory()->statut('PAYE')->create(['numero' => 'BC-CKY-' . now()->year . '-00010', 'demandeur_id' => $this->souadou->id]);
         $bon = $this->bonComplet();
 
         $this->actingAs($this->souadou)->postJson(route('api.bons.soumettre', $bon), [], ['Idempotency-Key' => 'cle-3'])
-            ->assertJsonPath('numero', 'BC-' . now()->year . '-0011');
+            ->assertJsonPath('numero', 'BC-CKY-' . now()->year . '-00011');
     }
 
     /* ------------------------------------------------------------------
@@ -479,7 +484,7 @@ class SaisieBonTest extends TestCase
 
         $this->assertSame(1, $bon->validations()->where('version', 1)->where('statut', 'rejete')->count());
         $this->assertSame(3, $bon->validations()->where('version', 2)->where('statut', 'en_attente')->count());
-        $this->assertSame(1, (int) DB::table('compteurs_numerotation')->value('dernier_numero'));
+        $this->assertSame(1, (int) DB::table('compteurs_bons')->value('dernier_numero'));
     }
 
     /* ------------------------------------------------------------------

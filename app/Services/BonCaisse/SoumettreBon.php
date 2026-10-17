@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\DB;
  *
  * Dans une seule transaction, bon verrouillé :
  * - les 12 contrôles sont refaits ; un contrôle bloquant refuse la soumission sans consommer de numéro ;
- * - le numéro BC-AAAA-NNNN est attribué (un bon resoumis garde le sien et passe à la version suivante) ;
+ * - le numéro BC-[caisse]-AAAA-NNNNN est attribué sur la caisse émettrice (un bon resoumis garde le sien et passe à la
+ *   version suivante) ;
  * - les étapes de validation sont créées, statut EN_ATTENTE_CHEF_SERVICE.
  * La même clé d'idempotence rejouée renvoie le bon déjà soumis (double clic).
  * Les valideurs sont notifiés après la validation de la transaction.
@@ -57,11 +58,16 @@ class SoumettreBon
             $statutAvant = $bon->statut;
             $resoumission = $statutAvant === 'REJETE';
 
-            $bon->numero ??= NumeroteurBon::prochain();
+            /* Lot C (RG-M03-18) : séquence de la caisse émettrice ; un bon resoumis garde son numéro */
+            if (!$bon->caisse_emettrice_id) {
+                $bon->caisse_emettrice_id = Caisse::deRattachement($bon->demandeur)?->id;
+                $bon->unsetRelation('caisseEmettrice');
+            }
+            $bon->numero ??= NumeroteurBon::prochain($bon->caisseEmettrice);
             if ($resoumission) {
                 $bon->version = ($bon->version ?? 1) + 1;
             }
-            $bon->caisse_id = Caisse::payeusePour((string) $bon->site, $bon->mode_paiement)?->id;
+            $bon->caisse_id = $bon->caissePayeuse()?->id;
             $bon->statut = 'EN_ATTENTE_CHEF_SERVICE';
             $bon->date_soumission = now();
             $bon->cle_soumission = $cleIdempotence;

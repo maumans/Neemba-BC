@@ -37,6 +37,7 @@ class User extends Authenticatable
         'role',
         'service',
         'site',
+        'caisse_id',
         'poste',
         'actif',
         'entite',
@@ -181,6 +182,12 @@ class User extends Authenticatable
     /**
      * Rôles attribués (un utilisateur peut en avoir plusieurs ; le rôle principal reste dans users.role)
      */
+    /** Spec v2.3, RG-M02-03 : caisse de rattachement */
+    public function caisse(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Caisse::class, 'caisse_id');
+    }
+
     public function roles(): HasMany
     {
         return $this->hasMany(RoleUtilisateur::class, 'user_id');

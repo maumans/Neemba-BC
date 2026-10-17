@@ -237,7 +237,8 @@ final class GenererBonsOdm
             'date_demande' => today(),
             'statut' => 'BROUILLON',
         ], $attributs));
-        $bon->caisse_id = \App\Models\Caisse::payeusePour((string) $bon->site, $bon->mode_paiement)?->id;
+        $bon->caisse_emettrice_id = \App\Models\Caisse::deRattachement($odm->demandeur)?->id;
+        $bon->caisse_id = $bon->caissePayeuse()?->id;
         $bon->save();
 
         return $bon;

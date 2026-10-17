@@ -34,6 +34,8 @@ class Caisse extends Model
 
     protected $fillable = [
         'code', 'libelle', 'site_id', 'type', 'mode', 'montant_avance',
+        /* Lot C (RG-M03-18, RG-M08-11) : code de numérotation, reprise du carnet papier, nombre de chiffres */
+        'code_numerotation', 'numero_depart', 'chiffres_numero',
         'solde', 'plafond_retrait', 'seuil_alerte', 'actif',
         /* Matrice de paramétrage par caisse (référentiel Neemba, point 14) */
         'plafond_caisse', 'gestionnaire_id', 'suppleant_id', 'encaissements_clients',
@@ -97,15 +99,38 @@ class Caisse extends Model
      * espèces → caisse espèces active du site (à défaut : caisse principale de Conakry) ;
      * Orange Money → caisse OM de Conakry ; chèque, virement, autre → aucune (paiement hors caisse).
      */
-    public static function payeusePour(string $nomSite, ?string $modePaiement): ?self
+    public static function payeusePour(string $nomSite, ?string $modePaiement, ?self $emettrice = null): ?self
     {
         return match ($modePaiement) {
-            'especes' => static::actives()->where('type', 'especes')->where('mode', 'standard')
-                ->duSite($nomSite)->orderBy('id')->first()
+            /* Lot C (RG-M03-11, RG-M08-01) : une caisse espèces émettrice active paie ses bons (caisse Atelier comprise) */
+            'especes' => ($emettrice && $emettrice->actif && $emettrice->type === 'especes' ? $emettrice : null)
+                ?? static::actives()->where('type', 'especes')->where('mode', 'standard')
+                    ->duSite($nomSite)->orderBy('id')->first()
                 ?? static::principaleConakry(),
             'orange_money' => static::actives()->where('type', 'orange_money')->orderBy('id')->first(),
             default => null,
         };
+    }
+
+    /**
+     * Spec v2.3, RG-M02-03, RG-M03-11 : caisse de rattachement d'un utilisateur, sur laquelle il émet ses bons. À défaut
+     * de rattachement (ou caisse désactivée) : caisse principale espèces de son site, sinon celle de Conakry.
+     */
+    public static function deRattachement(?User $utilisateur): ?self
+    {
+        $caisse = $utilisateur?->caisse_id ? static::find($utilisateur->caisse_id) : null;
+
+        return ($caisse?->actif ? $caisse : null)
+            ?? ($utilisateur?->site ? static::actives()->where('type', 'especes')->where('mode', 'standard')->duSite($utilisateur->site)->orderBy('id')->first() : null)
+            ?? static::principaleConakry()
+            ?? ($utilisateur?->site ? static::actives()->duSite($utilisateur->site)->orderBy('id')->first() : null)
+            ?? static::actives()->orderBy('id')->first();
+    }
+
+    /** RG-M03-18 : code de la caisse dans les numéros de bons (à défaut, le début de son code : CKY-ESP → CKY) */
+    public function codeNumerotation(): string
+    {
+        return $this->code_numerotation ?: strtoupper(explode('-', (string) $this->code)[0]);
     }
 
     /** Caisse principale (espèces) de Conakry */
