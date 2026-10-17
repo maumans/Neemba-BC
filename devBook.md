@@ -4076,3 +4076,87 @@ Branche `odm-generation-selective`, partie de `odm-pdf`. Commits locaux, non pou
   4. « Générer tous les bons » ;
   5. bandeau et accès à l'ODM depuis le bon ;
   6. téléphone, sans défilement horizontal.
+
+## 41. Version v41 — Conformité v2.3, lot A « contrôle interne » (17 Octobre 2026)
+
+Branche `v23-conformite`, partie de `odm-generation-selective`. Commits locaux, non poussés, non déployés.
+
+### 41.1 Origine
+
+Le 14/10, un audit du code contre la spec v2.3 (modules M01 à M15, hors M12, M14 et M16 déjà faits) a relevé :
+- M01–M03 : 11 règles faites, 17 partielles, 13 absentes ;
+- M04–M07 : 8 faites, 12 partielles, 9 absentes ;
+- M08–M15 : environ 10 faites, 30 partielles, 30 absentes.
+
+Ordre retenu par l'utilisateur :
+- A — contrôle interne ;
+- B — bénéficiaires et tiers ;
+- C — numérotation par caisse ;
+- D — saisie et paiement ;
+- E — régularisation des BP ;
+- F — caisses (M08 à M10) ;
+- G — gouvernance ;
+- H — carburant (M13).
+
+Décisions pour les lots suivants (Q62) :
+- numérotation par caisse : les anciens numéros restent tels quels ;
+- tiers déjà saisis en texte libre : repris comme tiers « proposés », à valider.
+
+Commit préalable `c6d2bfd` (failles relevées par l'audit) :
+- **régularisation d'un BP** : la route n'avait aucun contrôle ; elle est réservée au demandeur ;
+- **PDF d'un bon** : il suit désormais les droits de la fiche ;
+- **vue PDF du bon** : elle plantait depuis le lot 1 (`$seuildp`), elle est réparée.
+
+### 41.2 Règles traitées
+
+| Règle | Mise en œuvre |
+|---|---|
+| §8.2, RG-M05-04 | `User::ROLES_ETAPES_BON` donne les rôles de chaque étape. **Finance** : DAF, DAF adjoint ou Chef comptable. **Directeur Pays** : DP ou DP adjoint. Ces rôles servent aux titulaires (`CircuitBon::titulaires`), aux rôles effectifs (`rolesValidationEffectifs`), aux délégations et à la route « Validations ». |
+| RG-M06-01, RG-M08-12, RG-M01-04 | `ControleCaissier::refus` : le caissier paie les bons de son site. Si la caisse a un gestionnaire désigné, seuls le gestionnaire, le suppléant ou leur délégué au paiement la tiennent. Le caissier ne paie jamais un bon dont il est bénéficiaire. Le contrôle s'applique à l'OTP, à sa vérification et au paiement. La fiche affiche le motif à la place du formulaire. |
+| RG-M04-07 | `AnnulerBon::peutAnnuler` : le demandeur ou l'initiateur annule tant qu'aucun visa n'est donné (une étape sautée ne compte pas comme un visa). Ensuite, seuls le DAF ou le DAF adjoint annulent, jusqu'à l'approbation, avec un motif tracé « Annulé par le DAF ». Un bon payé ne s'annule jamais. |
+| RG-M03-04 | Un BP n'est émis qu'au profit d'un salarié (MSG-M03-02). Les visiteurs du groupe viendront au lot B. |
+| RG-M03-26 | Une pièce déjà soumise bloque la soumission (MSG-M03-16). La confirmation de la SFD v1.3 est refusée, et l'écran demande de retirer ou de remplacer la pièce. |
+| RG-M03-20, RG-M04-05 | Contrôle 13 : même bénéficiaire et même montant sur `doublon_delai_jours` (7 jours par défaut). Il bloque jusqu'à ce que le demandeur confirme ; la confirmation est conservée dans `bons_caisse.doublon_probable`. Les valideurs voient l'alerte sur la fiche. Les bons d'ODM n'y sont pas soumis. |
+| RG-M03-21, RG-M07-06, RG-M04-05 | Contrôle 14 : BP du bénéficiaire en retard. Le paramètre `blocage_bp_en_retard` vaut aucun (alerte), partiel (BP bloqué, BD signalé ; valeur par défaut) ou total. Le demandeur peut demander une dérogation au DAF, avec un motif ; le DAF est notifié. Le DAF ou son adjoint l'accorde ou la refuse depuis la fiche, avec un motif. Tout est tracé dans `bons_caisse.derogation_bp` et l'historique. Un bandeau signale le BP en retard aux valideurs. |
+| RG-M03-17 | Seuil DP de repli : 1 500 000 GNF dans `Parametre::seuilDP()`. **La valeur réelle en production est à vérifier**, car la migration d'origine insère 5 000 000. |
+
+### 41.3 Données
+
+Migration `2026_10_17_000001_lot_a_controle_interne` :
+- colonnes `bons_caisse.doublon_probable` et `derogation_bp` (JSON) ;
+- paramètres `doublon_delai_jours` et `blocage_bp_en_retard` (groupe « Bons de caisse »).
+
+Elle a été vérifiée sur une copie de la base (aller, retour, aller), puis appliquée en dev.
+
+### 41.4 Vérifications
+
+- **`tests/Feature/LotA/ControleInterneTest.php`** (6 tests) :
+  1. adjoints ;
+  2. caissier de site et bénéficiaire ;
+  3. gestionnaire de caisse ;
+  4. BP pour un tiers ;
+  5. doublon probable ;
+  6. BP en retard et dérogation.
+- **Tests adaptés** : pièce déjà soumise bloquante, annulation d'un bon soumis.
+- **Total** : **315 tests PHP** et **71 tests JavaScript** passent.
+- **Parcours dans Edge**, sur une copie de la base de dev avec les comptes réels : 20 vérifications, aucune erreur JavaScript.
+  1. doublon confirmé et bandeaux sur la fiche ;
+  2. annulation d'un bon soumis sans visa ;
+  3. BP bloqué, dérogation demandée ;
+  4. dérogation accordée par Mohamed DIAKITE ;
+  5. BP soumis ;
+  6. visa Finance donné par le Chef comptable Mamadou Alpha BAH ;
+  7. caissier bénéficiaire refusé ;
+  8. téléphone.
+
+### 41.5 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_17_000001
+php artisan optimize:clear
+```
+
+Ensuite :
+- vérifier `seuil_validation_dp` (1 500 000 attendu) ;
+- désigner les gestionnaires et suppléants des caisses ;
+- régler `blocage_bp_en_retard` si le défaut « partiel » ne convient pas.
