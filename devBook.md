@@ -1,9 +1,9 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 19 Octobre 2026 (v52 — lot E3 : gestionnaire des référentiels, barèmes ODM datés, types d'OR)
+> Dernière mise à jour : 19 Octobre 2026 (v53 — lot E4 : caisses et sites, site analytique)
 >
-> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §52) indiquent ce qui a changé.
+> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §53) indiquent ce qui a changé.
 
 ---
 
@@ -14,7 +14,7 @@
 - **Spécification en vigueur** : `docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (Thierno DIALLO, Addvalis, 14/10/2026). Elle remplace la v2.3 du 09/10, qui remplaçait elle-même la SFD v1.3 (M03) et la v2.2. Ces fichiers ne sont pas commités (documents de l'utilisateur).
 - **Suivi de conformité** : [docs/CONFORMITE.md](docs/CONFORMITE.md). Il donne toutes les règles de la spec v2.4, avec pour chacune l'état dans le code, ce qui manque, pourquoi, et le lot qui la traite. Ses cases et son journal sont tenus à chaque lot. Il s'appelait `CONFORMITE_V23.md` jusqu'au 16/10.
 - **Suivi du module M12 (ODM)** : [docs/ORDRE_DE_MISSIONS.md](docs/ORDRE_DE_MISSIONS.md).
-- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51, Q83 et Q84 au §52 ; Q73, Q76 à Q79 et Q81 à Q84 sont appliquées (§48 à §52).
+- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51, Q83 et Q84 au §52, Q85 et Q86 au §53 ; Q73, Q76 à Q79 et Q81 à Q86 sont appliquées (§48 à §53).
 
 ### 0.2 Branches
 
@@ -27,8 +27,8 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 | Module | État | Détail |
 |---|---|---|
 | M01 Comptes, rôles, sécurité | Partiel | Rôles multiples, incompatibilités, entité (lot E1), double authentification (lot E2), gestionnaire des référentiels (lot E3) faits ; reste le domaine @neemba.com, l'assistant trésorier, la double validation complète (lot G) |
-| M02 Référentiels et paramétrage | Partiel | Caisses, tiers, visiteurs, clients, motifs, types d'OR, barèmes ODM datés (lot E3) faits ; reste caisse ↔ sites (lot E4), la date d'effet des autres paramètres, les signataires habilités (lot G) |
-| M03 Saisie du bon | Fait (24/26) | Lots 3 à 5, A à D ; reste l'entité (lot G) et la décision sur les brouillons abandonnés |
+| M02 Référentiels et paramétrage | Partiel | Caisses, tiers, visiteurs, clients, motifs, types d'OR, barèmes ODM datés (lot E3), caisses servant plusieurs sites (lot E4) faits ; reste la date d'effet des autres paramètres, les signataires habilités (lot G) |
+| M03 Saisie du bon | Fait (27/28) | Lots 3 à 5, A à E, V, E1 à E4 (site analytique) ; reste la décision sur les brouillons abandonnés (lot G) |
 | M04 Circuit de validation | Partiel | Correctifs du lot R (visa Finance jamais sauté, alertes sur l'écran de visa), signataires (lot G) |
 | M05 Délégations | Partiel | Montants, information du caissier, absence du DP et de son adjoint (lot G) |
 | M06 Paiement | Partiel | OTP au bénéficiaire seulement (lot R), reçu signé (lot I) |
@@ -42,7 +42,7 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 | M15 Archivage, audit | Partiel | Journal protégé, PDF archivés, purge (lot G) |
 | M16 Imputation comptable | Fait | §38 |
 
-**Règles RG de la v2.4** : 165, dont 106 faites, 35 partielles et 24 à faire au 19/10, après les lots R, V, E1, E2 et E3 (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
+**Règles RG de la v2.4** : 165, dont 108 faites, 34 partielles et 23 à faire au 19/10, après les lots R, V et E1 à E4 (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
 - l'entité transverse ;
 - la double authentification ;
 - le gestionnaire des référentiels ;
@@ -52,9 +52,9 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 - un seul bon par participant ;
 - le modèle caisse ≠ site.
 
-**Prochain lot** : E4 (caisses servant plusieurs sites, site analytique du bon), puis O → F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V, E1, E2 et E3 sont faits (§48 à §52).
+**Prochain lot** : O (ODM : OR à régulariser, besoin carburant), puis F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V et le bloc E (E1 à E4) sont faits (§48 à §53).
 
-**Tests** : 397 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
+**Tests** : 402 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
 
 **Connexion en dev** : depuis le lot E2, la connexion demande un code à 6 chiffres envoyé par email. Avec `MAIL_MAILER=log`, il se lit dans `storage/logs/laravel.log` (« Code : NNNNNN »). L'administrateur active ou désactive la double authentification dans Paramétrage > Sécurité (§51.7).
 
@@ -5066,3 +5066,73 @@ php artisan migrate        # 2026_10_23_000001
 ```
 
 Puis attribuer le rôle « Gestionnaire des référentiels » à la personne désignée par Neemba (écran Utilisateurs, rôles complémentaires).
+
+---
+
+## 53. Version v53 — Lot E4 : caisses et sites, site analytique (19 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Dernier lot du bloc E de la spec v2.4 (RG-M02-11, RG-M03-27, RG-M03-11, §6.1, SC-33). Décisions : Q85, Q86.
+
+### 53.1 Une caisse sert un ou plusieurs sites (RG-M02-11, §6.1)
+
+- Table `caisse_site` (caisse, site). La colonne `caisses.site_id` est retirée ; la migration reprend chaque caisse avec son site, **sauf la caisse Orange Money**, qui n'a plus de site.
+- `Caisse::sites()` et `Site::caisses()` passent par la liaison.
+  - `Caisse::duSite($nom)` : caisses qui servent ce site.
+  - `sites_libelle` : « Conakry », « Boke, Sangaredi » ou « Aucun site ».
+  - `sertLeSite($nom)`.
+- Compatibilité : l'attribut `site_id` reste accepté à la création (fabriques de test, seeders, nouveau site) ; il ajoute ce site aux sites servis.
+- **Écran des caisses** :
+  - colonne « Sites servis » ;
+  - cases à cocher des sites dans la fiche, à la création et à la modification (au moins un pour une caisse espèces, aucun pour la caisse OM) ;
+  - changement d'effet immédiat (Q86) ; plafonds, seuils, avance et solde restent en double validation.
+- Les écrans qui affichaient « le site de la caisse » ne plantent plus sur une caisse sans site :
+  - tableau de bord (soldes par caisse) ;
+  - mouvements de caisse (le mouvement prend le premier site servi) ;
+  - caisses de rattachement de l'écran Utilisateurs ;
+  - alerte de solde (caissiers des sites servis) ;
+  - import des référentiels.
+
+### 53.2 Caisse payeuse et plafond de retrait
+
+- `BonCaisse::caissePayeuse()` ne dépend plus du site du bon. En espèces, c'est la caisse émettrice active ; à défaut, une caisse qui sert le site **du demandeur**, puis la caisse principale de Conakry. En OM : la caisse OM.
+- Le plafond de retrait contrôlé à la saisie est celui de cette caisse (ReglesSaisie, contrôles, paiement).
+- Replis par site (caissier sans caisse de rattachement) : `ControleCaissier::bonDuSite` dit si la caisse émettrice du bon sert le site du caissier ; un ancien bon sans caisse émettrice garde son site. Ce repli sert au paiement, à la visibilité du bon et à la liste des bons.
+- Rapport journalier : celui d'un site reprend les caisses qui servent ce site ; la caisse OM n'apparaît que dans « Tous les sites », jusqu'au rapport par caisse du lot F2 (Q85).
+
+### 53.3 Site analytique (RG-M03-27)
+
+- **Saisie** : à l'étape 1 de l'assistant, le champ « Site analytique » vaut par défaut le site du demandeur et se choisit dans la liste des sites actifs. Changer de titulaire sans avoir choisi de site reprend le site du nouveau titulaire. La caisse émettrice et la caisse qui paie ne changent pas.
+- Contrôle : site existant et actif, au brouillon comme à la soumission.
+- **CDG** : à son étape, sur l'écran de visa comme dans la fiche du bon, un sélecteur « Site analytique » s'ajoute à la correction du code analytique. Une correction est tracée au journal du bon : action `modification_site`, « Site analytique corrigé par le CDG : Boke → Sangaredi ».
+- Libellé « Site analytique » sur l'écran de visa et la fiche du bon. La colonne « Site analytique » de l'export comptable existe depuis le lot E1.
+
+### 53.4 Données
+
+Migration `2026_10_24_000001_lot_e4_caisses_sites`.
+- Vérifiée sur une copie de la base de dev, aller, retour, aller. Au retour, la caisse OM retrouve Conakry.
+- Puis appliquée en dev : sept caisses gardent leur site, la caisse OM n'en a plus.
+
+### 53.5 Vérifications
+
+- `tests/Feature/LotE4/CaissesSitesTest.php`, 5 tests (SC-33) :
+  - un site a deux caisses ; la caisse OM n'a pas de site ; écrans sans plantage ;
+  - une caisse sert deux sites et un caissier de chacun la paie ;
+  - sites servis au paramétrage (obligatoires en espèces, interdits en OM) ;
+  - site analytique sans effet sur la caisse ni sur le plafond ;
+  - correction par le CDG avec trace.
+- Tests adaptés : le site saisi n'est plus ignoré (lot C) ; la caisse d'un nouveau site se cherche par ses sites servis.
+- **Total** : 402 tests PHP et 74 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base : 16 vérifications, sans erreur JavaScript.
+  - Caisse OM « Aucun site » ; Boké qui sert aussi Sangarédi.
+  - Tableau de bord et mouvements de caisse affichés.
+  - Site analytique Boké choisi à la saisie, caisse de Conakry conservée.
+  - Correction par le CDG en Sangarédi, tracée.
+  - Téléphone.
+
+### 53.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_24_000001
+```
+
+Ensuite, vérifier les sites servis de chaque caisse à l'écran des caisses. Le tableau §6.1 de la spec donne un site par caisse, et aucun pour la caisse OM.

@@ -43,8 +43,8 @@
 | Module | Règles | ✅ | 🟡 | ❌ | Lot(s) |
 |---|---:|---:|---:|---:|---|
 | M01 Comptes, rôles, sécurité | 9 | 4 | 4 | 1 | G, P3 |
-| M02 Référentiels et paramétrage | 11 | 6 | 3 | 2 | E4, G |
-| M03 Saisie du bon | 28 | 26 | 2 | 0 | E4, G |
+| M02 Référentiels et paramétrage | 11 | 7 | 3 | 1 | G |
+| M03 Saisie du bon | 28 | 27 | 1 | 0 | G |
 | M04 Circuit de validation | 10 | 9 | 0 | 1 | G |
 | M05 Délégations | 4 | 1 | 2 | 1 | G |
 | M06 Paiement | 8 | 7 | 0 | 1 | I |
@@ -56,7 +56,7 @@
 | M13 Carburant | 15 | 3 | 8 | 4 | H |
 | M15 Archivage et audit | 3 | 0 | 3 | 0 | G |
 | M16 Imputation comptable | 6 | 6 | 0 | 0 | — |
-| **Total des règles RG** | **165** | **106** | **35** | **24** | |
+| **Total des règles RG** | **165** | **108** | **34** | **23** | |
 
 Les lots R, V et E1 sont terminés et commités le 16/10 : leurs règles sont à ✅.
 
@@ -129,7 +129,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 |---|:-:|---|:-:|:-:|
 | §6.1 Trois montants par caisse | 🟡 | Plafond de caisse jamais contrôlé | L | F1 |
 | §6.1 Les 8 caisses et leurs valeurs | 🟡 | Valeurs à vérifier en base ; Atelier inactive | N | — |
-| §6.1 Modèle caisse ≠ site ≠ client ; la caisse OM n'a pas de site **[v2.4]** | ❌ | Une caisse a un seul site (`caisses.site_id` obligatoire), la caisse OM est rattachée à Conakry | V4 | E4 |
+| §6.1 Modèle caisse ≠ site ≠ client ; la caisse OM n'a pas de site **[v2.4]** | ✅ | Lot E4 : table `caisse_site`, caisse OM sans site, site analytique distinct de la caisse | | |
 | §6.1 Encaissement client réservé à Conakry principale | 🟡 | Simple drapeau | L | F1 |
 | §6.2 Modes de paiement | ✅ | — | | |
 | §6.3 Liste des 10 services | ✅ | — | | |
@@ -162,7 +162,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M02-08 | Second validateur paramétrable (DAF ou Chef comptable) ; **barèmes ODM exclus [v2.4]** | 🟡 | Barèmes exclus (lot E3) ; seul l'administrateur valide, rôle non paramétrable | O | G |
 | RG-M02-09 | Signataires habilités par service et par niveau | ❌ | Aucune liste | L, N (PO-15) | G |
 | RG-M02-10 | Barèmes ODM tenus par le gestionnaire des référentiels, sans circuit, avec date d'effet et historique **[v2.4]** | ✅ | Lot E3 : table `baremes_odm`, onglet « Barèmes ODM », lecture à la date de soumission | | |
-| RG-M02-11 | Une caisse sert un ou plusieurs sites ; un site a une ou plusieurs caisses ; la caisse OM n'a pas de site ; la caisse ne porte ni client ni lieu de mission **[v2.4]** | ❌ | Liaison caisse ↔ site en 1:1 ; caisse payeuse déduite du site du bon | V4 | E4 |
+| RG-M02-11 | Une caisse sert un ou plusieurs sites ; un site a une ou plusieurs caisses ; la caisse OM n'a pas de site ; la caisse ne porte ni client ni lieu de mission **[v2.4]** | ✅ | Lot E4 : sites servis choisis à l'écran des caisses ; caisse payeuse tirée de la caisse émettrice | | |
 
 ---
 
@@ -201,7 +201,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M03-18 | Numéro par caisse et par année | ✅ | Lot C | | |
 | RG-M03-19 | Brouillon supprimé après 30 jours | 🟡 | Annulé et tracé au lieu d'être supprimé (Q71) | C | G |
 | RG-M03-20 à 26 | Doublon probable, BP en retard, bon d'ODM verrouillé, rejet et versions, pas d'auto-visa, journal, pièce déjà soumise | ✅ | Lots A, M12 | | |
-| RG-M03-27 | Site analytique, distinct de la caisse ; site du demandeur par défaut, modifiable à la saisie ; corrigé par le CDG avec trace **[v2.4]** | 🟡 | Le site existe, mais il est figé sur celui du demandeur et sert à trouver la caisse payeuse | V4 | E4 |
+| RG-M03-27 | Site analytique, distinct de la caisse ; site du demandeur par défaut, modifiable à la saisie ; corrigé par le CDG avec trace **[v2.4]** | ✅ | Lot E4 : choisi à l'étape 1, corrigé par le CDG (écran de visa et fiche), action « modification du site » au journal ; colonne de l'export comptable (lot E1) | | |
 | RG-M03-28 | Bon visiteur : BD exceptionnel, motif d'une liste fermée (PO-30) et commentaire ; Finance réservée au DAF ; marqué « refacturation inter-filiale » avec la filiale ; reporting **[v2.4]** | ✅ | Lot V (liste des motifs attendue du DAF, PO-30 ; rapport par filiale au lot I) | | |
 
 **User stories M03** : toutes couvertes.
@@ -495,13 +495,13 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 
 ### Lot E4 — Caisses, sites, site analytique (≈ 2 j)
 
-- [ ] Liaison `caisse_site` ; caisse OM sans site ; écran des caisses multi-sites (RG-M02-11)
-- [ ] Caisse payeuse indépendante du site du bon ; plafond de retrait lu sur la caisse ; corrections des plantages sur une caisse sans site
-- [ ] Site analytique (RG-M03-27) :
-  - [ ] modifiable à la saisie ;
-  - [ ] corrigé par le CDG avec trace ;
-  - [ ] colonnes site analytique et entité dans l'export comptable (RG-M16-03).
-- [ ] Tests SC-33
+- [x] Liaison `caisse_site` ; caisse OM sans site ; écran des caisses multi-sites (RG-M02-11)
+- [x] Caisse payeuse indépendante du site du bon ; plafond de retrait lu sur la caisse ; corrections des plantages sur une caisse sans site
+- [x] Site analytique (RG-M03-27) :
+  - [x] modifiable à la saisie ;
+  - [x] corrigé par le CDG avec trace ;
+  - [x] colonnes site analytique et entité dans l'export comptable (RG-M16-03).
+- [x] Tests SC-33
 
 ### Lot O — ODM : OR à régulariser, besoin carburant (≈ 2 j)
 
@@ -599,7 +599,7 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | SC-20 à SC-22, SC-24 à SC-29, SC-37 | ODM | ✅ | |
 | SC-23 | Génération des bons, un par participant | ✅ | (lot V) |
 | SC-30 à SC-32 | Carburant | ❌ | H |
-| SC-33 | Isolation des caisses et sites | 🟡 | E4, F1 |
+| SC-33 | Isolation des caisses et sites | 🟡 | Correspondances caisse ↔ sites faites (lot E4) ; isolation des caisses au lot F1 |
 | SC-34 | Imputation et export comptable | ✅ | (colonnes v2.4 : lot E1) |
 | SC-36 | Hors ligne | ❌ | P3 |
 | SC-38 **[v2.4]** | ODM technique « OR à régulariser » | ❌ | O |
@@ -657,3 +657,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 19/10/2026 | E2 | (ce commit) | Double authentification : connexion en deux temps (mot de passe, puis code par email ; durée, essais, renvoi après une minute ; compte désactivé refusé), code de visa par SMS pour approuver un bon ou un ODM urgent (lié au valideur et à la demande ; rejet sans code), paramètres de secours, codes stockés en empreinte. Urgence et motif sur l'ODM (Q76). 382 tests PHP, 74 JS ; parcours Edge (25 vérifications). 165 règles : 103 faites, 36 partielles, 26 à faire. devBook §51 |
 | 19/10/2026 | E2 | (ce commit) | Onglet « Sécurité » (demande de l'utilisateur, Q82) : l'administrateur active ou désactive le code de connexion et le code de visa, règle durées et essais ; effet immédiat, tracé, autres administrateurs prévenus ; état des canaux email et SMS, valideurs sans téléphone ; commande de secours `securite:double-authentification`. 389 tests PHP ; parcours Edge (16 vérifications). devBook §51.7 |
 | 19/10/2026 | E3 | (ce commit) | Rôle « gestionnaire des référentiels » : onglets et routes répartis (l'administrateur garde entités, sites, caisses, seuils, sécurité ; le gestionnaire tient services, codes analytiques, types de document, motifs, types d'OR, barèmes, clients). Barèmes ODM datés (`baremes_odm`, reprise des paramètres, lecture à la date de soumission, sans double validation, valeur à venir annulable). Types d'OR en référentiel (`types_or`, enum de l'ODM retiré, listes servies par le serveur). 397 tests PHP, 74 JS ; parcours Edge (19 vérifications). 165 règles : 106 faites, 35 partielles, 24 à faire. devBook §52 |
+| 19/10/2026 | E4 | (ce commit) | Caisses et sites : table `caisse_site` (reprise de `caisses.site_id`, retiré), caisse OM sans site, sites servis à l'écran des caisses (effet immédiat, Q86), écrans sans plantage pour une caisse sans site. Caisse payeuse tirée de la caisse émettrice (à défaut, site du demandeur), plafond de retrait de cette caisse ; replis par site via les sites servis. Site analytique modifiable à la saisie, corrigé par le CDG avec trace. 402 tests PHP, 74 JS ; parcours Edge (16 vérifications). 165 règles : 108 faites, 34 partielles, 23 à faire. devBook §53 |
