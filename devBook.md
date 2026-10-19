@@ -1,20 +1,20 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 16 Octobre 2026 (v47 — intégration de la spec v2.4 : plan validé)
+> Dernière mise à jour : 19 Octobre 2026 (v51 — lot E2 : double authentification)
 >
-> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §46) indiquent ce qui a changé.
+> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §51) indiquent ce qui a changé.
 
 ---
 
-## 0. Où en est le projet (16/10/2026)
+## 0. Où en est le projet (19/10/2026)
 
 ### 0.1 Référence
 
 - **Spécification en vigueur** : `docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (Thierno DIALLO, Addvalis, 14/10/2026). Elle remplace la v2.3 du 09/10, qui remplaçait elle-même la SFD v1.3 (M03) et la v2.2. Ces fichiers ne sont pas commités (documents de l'utilisateur).
 - **Suivi de conformité** : [docs/CONFORMITE.md](docs/CONFORMITE.md). Il donne toutes les règles de la spec v2.4, avec pour chacune l'état dans le code, ce qui manque, pourquoi, et le lot qui la traite. Ses cases et son journal sont tenus à chaque lot. Il s'appelait `CONFORMITE_V23.md` jusqu'au 16/10.
 - **Suivi du module M12 (ODM)** : [docs/ORDRE_DE_MISSIONS.md](docs/ORDRE_DE_MISSIONS.md).
-- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47.
+- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47 ; Q73, Q76, Q77, Q79 et Q81 sont appliquées (§48 à §51).
 
 ### 0.2 Branches
 
@@ -26,7 +26,7 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 
 | Module | État | Détail |
 |---|---|---|
-| M01 Comptes, rôles, sécurité | Partiel | Rôles multiples, incompatibilités faites ; reste le domaine @neemba.com, l'entité, l'assistant trésorier, la double validation complète (lot G) |
+| M01 Comptes, rôles, sécurité | Partiel | Rôles multiples, incompatibilités, entité (lot E1), double authentification (lot E2) faits ; reste le gestionnaire des référentiels (lot E3), le domaine @neemba.com, l'assistant trésorier, la double validation complète (lot G) |
 | M02 Référentiels et paramétrage | Partiel | Caisses, tiers, visiteurs, clients, motifs faits ; reste la date d'effet des paramètres, les signataires habilités (lot G) |
 | M03 Saisie du bon | Fait (24/26) | Lots 3 à 5, A à D ; reste l'entité (lot G) et la décision sur les brouillons abandonnés |
 | M04 Circuit de validation | Partiel | Correctifs du lot R (visa Finance jamais sauté, alertes sur l'écran de visa), signataires (lot G) |
@@ -42,7 +42,7 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 | M15 Archivage, audit | Partiel | Journal protégé, PDF archivés, purge (lot G) |
 | M16 Imputation comptable | Fait | §38 |
 
-**Règles RG de la v2.4** : 165, dont 88 faites, 45 partielles et 32 à faire (§47). La v2.4 ajoute ou modifie, entre autres :
+**Règles RG de la v2.4** : 165, dont 103 faites, 36 partielles et 26 à faire au 19/10, après les lots R, V, E1 et E2 (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
 - l'entité transverse ;
 - la double authentification ;
 - le gestionnaire des référentiels ;
@@ -52,9 +52,11 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 - un seul bon par participant ;
 - le modèle caisse ≠ site.
 
-**Prochain lot** : terminer R (codé, pas encore commité), puis V → E1 → E2 → E3 → E4 → O → F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47).
+**Prochain lot** : E3 (gestionnaire des référentiels, barèmes ODM datés, types d'OR), puis E4 → O → F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V, E1 et E2 sont faits (§48 à §51).
 
-**Tests** : 336 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
+**Tests** : 382 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
+
+**Connexion en dev** : depuis le lot E2, la connexion demande un code à 6 chiffres envoyé par email. Avec `MAIL_MAILER=log`, il se lit dans `storage/logs/laravel.log` (« Code : NNNNNN »). Le paramètre `double_authentification_active` permet de revenir à la connexion simple (§51).
 
 ---
 
@@ -4891,3 +4893,80 @@ Rien ne change à l'écran tant que seule Neemba Guinée est active. La mise en 
 - de l'activer en base ;
 - de créer ses caisses, référentiels et comptes ;
 - d'attribuer, depuis l'écran Utilisateurs, les rôles des personnes qui travaillent dans les deux entités. Cet écran est encore à faire : RG-M01-08 reste partiel sur ce seul point.
+
+---
+
+## 51. Version v51 — Lot E2 : double authentification (19 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Deuxième lot du bloc E de la spec v2.4 (RG-M01-07, §2.3, SC-40). Décisions appliquées : Q76 (urgence sur l'ODM) et Q77 (le code ne porte que sur l'approbation).
+
+### 51.1 Connexion en deux temps
+
+| Étape | Mise en œuvre |
+|---|---|
+| Mot de passe | `LoginRequest::verifierIdentifiants()` contrôle l'email et le mot de passe **sans ouvrir la session** (même limite d'essais qu'avant). Un compte désactivé est refusé (MSG-APP-084). |
+| Code | Un code à 6 chiffres part par email (Mailable `CodeConnexion`, vue `emails/code-connexion`). Le compte en attente est gardé en session sous la clé `2fa` ; l'écran `Auth/CodeConnexion` montre l'adresse masquée et la durée. |
+| Ouverture de la session | `CodeConnexionController::store` : `Auth::login` seulement après le bon code, puis retour à la page demandée. |
+| Erreurs | Code faux : MSG-APP-078 avec les essais restants ; au dernier essai, le code tombe. Code expiré ou épuisé : MSG-APP-079. Envoi impossible (SMTP) : MSG-APP-080. |
+| Renvoi | Bouton « Renvoyer un code » : une minute au moins entre deux envois (MSG-APP-085) ; le nouveau code remplace l'ancien (MSG-APP-077). |
+| Routes | `login.code` (GET, POST) et `login.code.renvoyer`, dans le groupe `guest`. |
+
+Comme la session ne s'ouvre qu'après le code, les tests qui utilisent `actingAs` ne changent pas. Seul `AuthenticationTest` est réécrit.
+
+### 51.2 Visa d'une demande urgente
+
+- Pour **approuver** un bon ou un ODM « urgent » ou « très urgent », le valideur demande un code par SMS (bouton « Recevoir le code par SMS »), puis le saisit. Le bouton d'approbation reste désactivé tant que le code n'a pas 6 chiffres. Le rejet et la demande de complément ne demandent pas de code (Q77).
+- Composant partagé `CodeVisa` : écran de visa (`Validations/Show`), boîte « Approuver » de la fiche du bon (`BonsCaisse/Show`), bloc de visa de la fiche ODM (`Odm/Show`).
+- Envoi : routes `validations.code-visa` et `odm.code-visa`, ouvertes au seul valideur de l'étape en cours (403 sinon). Le SMS part au téléphone du compte (`NimbaSmsService`) et nomme le bon ou l'ODM. Sans téléphone : MSG-APP-082. Réponse : MSG-APP-083, numéro masqué.
+- Contrôle : `ValidationController::approuver` et `OrdreMissionController::viser`. Le code est lié au valideur **et** au bon ou à l'ODM : il ne sert pas pour une autre demande.
+- Sans fournisseur SMS, en local, en test et en recette (`e2e`), le code est écrit dans le journal (« Code de visa (SMS non envoyé…) : NNNNNN »). En production, l'envoi est refusé (MSG-APP-080).
+- Distinct de l'OTP de paiement au bénéficiaire (`otp_validations`, RG-M06-02), qui ne change pas.
+
+### 51.3 Urgence sur l'ODM (Q76)
+
+- Colonnes `ordres_mission.niveau_urgence` (« normale » par défaut) et `motif_urgence` ; mêmes niveaux que le bon (`BonCaisse::NIVEAUX_URGENCE`) et même liste de motifs (`motifs_urgence`).
+- Formulaire de l'ODM : champ « Urgence » après le véhicule ; « Motif de l'urgence » apparaît pour un ODM urgent ou très urgent.
+- `ReglesOdm` : un ODM urgent sans motif de la liste ne se soumet pas (MSG-M03-08). Un ODM repassé en « normale » perd son motif.
+- Fiche de l'ODM : urgence et motif affichés.
+
+### 51.4 Données et paramètres
+
+Migration `2026_10_22_000001_lot_e2_double_authentification` :
+- table `codes_otp` : compte, objet (`connexion`, `visa_bon`, `visa_odm`), cible, canal (email, SMS), **empreinte** du code (HMAC avec la clé de l'application ; jamais le code en clair), essais, expiration, consommation ;
+- colonnes d'urgence de l'ODM ;
+- paramètres du groupe « Sécurité », modifiables avec la double validation habituelle :
+
+| Paramètre | Défaut | Rôle |
+|---|---|---|
+| `double_authentification_active` | oui | Paramètre de secours : sur « non », connexion par mot de passe seul (panne SMTP) |
+| `otp_connexion_duree` | 10 min | Durée du code de connexion |
+| `otp_connexion_tentatives` | 5 | Essais par code (connexion et visa) |
+| `otp_visa_urgent_actif` | oui | Paramètre de secours : sur « non », visa urgent sans code (panne SMS) |
+| `otp_visa_duree` | 5 min | Durée du code de visa |
+
+Service : `App\Services\Securite\DoubleAuthentification` (émission, envoi, vérification, masquage). Modèle `CodeOtp`.
+
+### 51.5 Vérifications
+
+- `tests/Feature/Auth/AuthenticationTest.php`, réécrit (10 tests) : code exigé, code faux puis épuisé, code expiré, renvoi après une minute, écran du code sans mot de passe, compte désactivé, paramètre de secours.
+- `tests/Feature/LotE2/CodeVisaUrgentTest.php` (8 tests, SMS simulé) : visa d'un bon urgent (SC-40), code lié au bon, bon normal et rejet sans code, demande de code réservée au valideur, compte sans téléphone, paramètre de secours, ODM urgent (motif exigé, puis visa avec le code), ODM repassé en « normale ».
+- **Total** : 382 tests PHP et 74 tests JavaScript passent.
+- Migration : aller, retour, aller sur une copie de la base, puis appliquée en dev.
+- Parcours dans Edge sur une copie de la base de dev, avec les comptes réels : 25 vérifications, sans erreur JavaScript.
+  - Connexion de Souadou BARRY : écran du code, pas de session avant le code, code faux, renvoi trop tôt, code juste.
+  - Bon urgent visé par le chef de service (écran de visa) puis par le CDG (fiche du bon), chacun avec son code SMS lu dans le journal.
+  - ODM urgent : motif exigé ; visa du chef d'atelier avec le code.
+  - Écran du code sur téléphone.
+
+  Défaut relevé par le parcours : le message « Patientez une minute » du renvoi ne s'affichait pas (erreur portée par la page, pas par le formulaire, et masquée par l'erreur précédente). C'est corrigé.
+
+### 51.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_22_000001
+```
+
+À vérifier avant la mise en production :
+- **SMTP** (PO-23) : sans serveur d'email, personne ne peut se connecter. En cas de panne, passer `double_authentification_active` à « non » (double validation).
+- **SMS** : le jeton Nimba doit être en place ; sinon, les visas urgents sont bloqués en production. En cas de panne, passer `otp_visa_urgent_actif` à « non ».
+- **Téléphones** : chaque valideur doit avoir un numéro sur son compte.

@@ -38,11 +38,11 @@
 
 ---
 
-## 2. Synthèse au 16/10/2026
+## 2. Synthèse au 19/10/2026
 
 | Module | Règles | ✅ | 🟡 | ❌ | Lot(s) |
 |---|---:|---:|---:|---:|---|
-| M01 Comptes, rôles, sécurité | 9 | 2 | 4 | 3 | E2, E3, G, P3 |
+| M01 Comptes, rôles, sécurité | 9 | 3 | 4 | 2 | E3, G, P3 |
 | M02 Référentiels et paramétrage | 11 | 5 | 3 | 3 | E3, E4, G |
 | M03 Saisie du bon | 28 | 25 | 3 | 0 | E3, E4, G |
 | M04 Circuit de validation | 10 | 9 | 0 | 1 | G |
@@ -56,7 +56,7 @@
 | M13 Carburant | 15 | 3 | 8 | 4 | H |
 | M15 Archivage et audit | 3 | 0 | 3 | 0 | G |
 | M16 Imputation comptable | 6 | 6 | 0 | 0 | — |
-| **Total des règles RG** | **165** | **102** | **36** | **27** | |
+| **Total des règles RG** | **165** | **103** | **36** | **26** | |
 
 Les lots R, V et E1 sont terminés et commités le 16/10 : leurs règles sont à ✅.
 
@@ -95,7 +95,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | §2.3 Saisie hors ligne (PWA) | ❌ | Ni manifeste ni service worker | P3 | P3 |
 | §2.3 Import contrôlé de la reprise, validé par le Chef comptable | 🟡 | Manquent : soldes d'ouverture, BP papier, ODM en cours, délégations, validation par le Chef comptable | P3, N (PO-16) | P3 |
 | §2.3 Performance (< 3 s, < 25 s, < 60 s, 50 utilisateurs) | ❌ | Aucune mesure | P3 | P3 |
-| §2.3 Hébergement cloud Neemba, tests de sécurité, double authentification **[v2.4]** | 🟡 | Hébergement selon la spec technique et PO-31 ; double authentification : voir RG-M01-07 | N, L | E2, P3 |
+| §2.3 Hébergement cloud Neemba, tests de sécurité, double authentification **[v2.4]** | 🟡 | Double authentification faite (lot E2, RG-M01-07) ; hébergement selon la spec technique et PO-31 ; tests de sécurité | N | P3 |
 | §10.1 Messages au texte exact | 🟡 | Voir les messages de chaque module | O, L | R, V, O, F1, H |
 | §10.1 Chaque action tracée au journal d'audit | 🟡 | Délégations, mouvements et rapports de caisse incomplets ; journal non protégé (RG-M15-02) | O | G |
 
@@ -176,7 +176,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M01-04 | Incompatibilités | ✅ | — | | |
 | RG-M01-05 | Second validateur avant l'effet d'un changement sensible | 🟡 | Effet immédiat pour les codes analytiques, l'activation d'un compte, la caisse de rattachement, les sites, les services et les motifs | O | G |
 | RG-M01-06 | Interface adaptative ; hors ligne en P3 | 🟡 | Hors ligne | P3 | P3 |
-| RG-M01-07 | Double authentification : OTP par email à la connexion (durée et essais paramétrables) ; OTP par SMS au valideur pour viser une demande urgente (BD, BP, ODM) **[v2.4]** | ❌ | — | L | E2 |
+| RG-M01-07 | Double authentification : OTP par email à la connexion (durée et essais paramétrables) ; OTP par SMS au valideur pour viser une demande urgente (BD, BP, ODM) **[v2.4]** | ✅ | Lot E2 : connexion en deux temps, code de visa SMS pour les bons et ODM urgents, paramètres de secours. SMTP et SMS à confirmer (PO-23) | | |
 | RG-M01-08 | Droits par entité × rôle ; numérotation, référentiels, gabarit du bon, rapports par entité ; vue consolidée **[v2.4]** | 🟡 | Lot E1 : tout est fait côté serveur et à l'écran, sauf l'attribution d'un rôle dans une autre entité depuis l'écran Utilisateurs (utile à la mise en service de Mining) | L | Mise en service de Mining |
 | RG-M01-09 | Rôle « gestionnaire des référentiels », distinct de l'administrateur **[v2.4]** | ❌ | L'administrateur tient les référentiels | L | E3 |
 
@@ -288,7 +288,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | Avance carburant, fiche de régularisation, retenue (RH) | 🟡 | ❌ | ❌ | Avec M13 | H, I |
 | OR à régulariser : relance J+3, échéance, retard **[v2.4]** | ❌ | ❌ | ❌ | | O, I |
 | Bon au profit d'un visiteur du groupe (DAF) **[v2.4]** | ✅ | ❌ | ❌ | Email | I |
-| OTP de connexion (email) et de visa urgent (SMS) **[v2.4]** | ❌ | ❌ | ❌ | | E2 |
+| OTP de connexion (email) et de visa urgent (SMS) **[v2.4]** | — | ✅ | ✅ | Fait (lot E2) ; SMTP et SMS de Neemba à brancher (PO-23) | |
 
 SMTP et fournisseur SMS sont à confirmer par l'IT de Neemba (PO-23, cloud Neemba retenu le 08/10).
 
@@ -469,13 +469,13 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 
 ### Lot E2 — Double authentification (≈ 1,5 j)
 
-- [ ] Table `codes_otp` (connexion, visa de bon, visa d'ODM)
-- [ ] Connexion en deux temps :
-  - [ ] code par email ;
-  - [ ] durée et nombre d'essais paramétrables ;
-  - [ ] paramètre de secours `double_authentification_active`, sous double validation.
-- [ ] Visa d'une demande urgente ou très urgente : code par SMS au valideur (bons et ODM) ; niveau d'urgence ajouté à l'ODM (Q76)
-- [ ] Tests SC-40 ; test de connexion réécrit
+- [x] Table `codes_otp` (connexion, visa de bon, visa d'ODM)
+- [x] Connexion en deux temps :
+  - [x] code par email ;
+  - [x] durée et nombre d'essais paramétrables ;
+  - [x] paramètre de secours `double_authentification_active`, sous double validation.
+- [x] Visa d'une demande urgente ou très urgente : code par SMS au valideur (bons et ODM) ; niveau d'urgence ajouté à l'ODM (Q76)
+- [x] Tests SC-40 ; test de connexion réécrit
 
 ### Lot E3 — Gestionnaire des référentiels, barèmes datés, types d'OR (≈ 2 j)
 
@@ -604,7 +604,7 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | SC-36 | Hors ligne | ❌ | P3 |
 | SC-38 **[v2.4]** | ODM technique « OR à régulariser » | ❌ | O |
 | SC-39 **[v2.4]** | Bon exceptionnel au profit d'un visiteur | ✅ | (lot V ; rapport par filiale au lot I) |
-| SC-40 **[v2.4]** | Double authentification, visa urgent par SMS | ❌ | E2 |
+| SC-40 **[v2.4]** | Double authentification, visa urgent par SMS | ✅ | (lot E2) |
 | SC-41 **[v2.4]** | Isolation par entité et vue consolidée | ✅ | (lot E1) |
 
 ---
@@ -620,8 +620,8 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | Q73 | Commentaire de rejet obligatoire ? | Toujours, 10 caractères minimum (codé au lot R) | R |
 | Q74 | Relance BP : destinataires, BP non échus ? | Chef de service ; tous les BP en attente | I |
 | Q75 | Assistant trésorier : rôle à part ? | Oui, avec les droits du caissier | G |
-| Q76 **[v2.4]** | Urgence sur l'ODM, pour l'OTP de visa ? | Oui : mêmes niveaux et motifs que le bon | E2 |
-| Q77 **[v2.4]** | L'OTP de visa porte-t-il sur le rejet ? | Non : seulement sur l'approbation | E2 |
+| Q76 **[v2.4]** | Urgence sur l'ODM, pour l'OTP de visa ? | Oui : mêmes niveaux et motifs que le bon (appliqué, lot E2) | E2 |
+| Q77 **[v2.4]** | L'OTP de visa porte-t-il sur le rejet ? | Non : seulement sur l'approbation (appliqué, lot E2) | E2 |
 | Q78 **[v2.4]** | Qui tient les sites et les caisses ? | L'administrateur, avec double validation ; le gestionnaire des référentiels tient le reste | E3 |
 | Q79 **[v2.4]** | Bon visiteur sans DAF ni DAF adjoint disponible | Le bon attend ; la Finance n'est jamais sautée (appliqué, lot V) | V |
 | Q80 **[v2.4]** | OR saisi après coup | Reporté sur les bons de l'ODM, avec trace | O |
@@ -652,3 +652,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 16/10/2026 | R | (ce commit) | Correctifs de l'audit terminés : visa Finance jamais sauté, complément de BP soumis à la Finance, OTP au bénéficiaire seulement, « Bon à payer », alertes sur l'écran de visa, code analytique du CDG contrôlé, Comptabilité dans la vue des ODM, SLA 4/24/8/24 h en heures ouvrées avec escalade DP → DAF, rejet toujours motivé, messages MSG-M03-01, 05, 10, 11, 15 au texte exact. 358 tests PHP, 74 JS ; parcours Edge (11 vérifications). 165 règles : 93 faites, 40 partielles, 32 à faire. devBook §48 |
 | 16/10/2026 | V | (ce commit) | Visiteurs du groupe en BD seulement : motif d'une liste fermée (vide, PO-30) et commentaire, « refacturation inter-filiale » avec la filiale, Finance réservée au DAF, DAF notifié, bandeau à chaque étape, colonnes de l'export. Bon d'ODM groupé retiré. Bon complémentaire de la clôture verrouillé, créé avec sa facture et soumis. Helium. 361 tests PHP, 74 JS ; parcours Edge (15 vérifications). 165 règles : 99 faites, 38 partielles, 28 à faire. devBook §49 |
 | 16/10/2026 | E1 | (ce commit) | Entité transverse : table `entites` (Neemba Guinée active, Neemba Mining inactive), `entite_id` sur comptes, caisses, bons, ODM, référentiels, paramètres ; droits par entité × rôle ; portée globale sur l'entité courante ; vue consolidée (paramètre) ; sélecteur d'entité ; valideurs de l'entité du bon ou de l'ODM ; numérotation des ODM par entité ; gabarit PDF ; entité affichée à la saisie ; colonnes entité et site analytique dans les exports. 368 tests PHP, 74 JS ; parcours Edge (15 vérifications). 165 règles : 102 faites, 36 partielles, 27 à faire. devBook §50 |
+| 19/10/2026 | E2 | (ce commit) | Double authentification : connexion en deux temps (mot de passe, puis code par email ; durée, essais, renvoi après une minute ; compte désactivé refusé), code de visa par SMS pour approuver un bon ou un ODM urgent (lié au valideur et à la demande ; rejet sans code), paramètres de secours, codes stockés en empreinte. Urgence et motif sur l'ODM (Q76). 382 tests PHP, 74 JS ; parcours Edge (25 vérifications). 165 règles : 103 faites, 36 partielles, 26 à faire. devBook §51 |
