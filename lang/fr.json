@@ -162,5 +162,10 @@
     "MSG-APP-096": "Origine des fonds non admise pour cette caisse.",
     "MSG-APP-097": "Choisissez une autre caisse active dont le solde couvre le transfert.",
     "MSG-APP-098": "Saisissez le montant reçu et joignez la pièce de réception (bordereau, copie de mise à disposition ou reçu).",
-    "MSG-APP-099": "Aucun réapprovisionnement au-delà de l'habilitation du Directeur Pays (:max GNF)."
+    "MSG-APP-099": "Aucun réapprovisionnement au-delà de l'habilitation du Directeur Pays (:max GNF).",
+    "MSG-APP-100": "Seule la trésorerie établit la réconciliation, et seulement pour une caisse Orange Money.",
+    "MSG-APP-101": "La semaine choisie n'a pas encore commencé.",
+    "MSG-APP-102": "La réconciliation de cette semaine est déjà validée.",
+    "MSG-APP-103": "Relevé illisible : l'en-tête doit comporter une colonne « Date » et une colonne « Montant » (ou « Débit » et « Crédit »).",
+    "MSG-APP-104": "Le relevé n'a pas de colonne « Solde » : saisissez le solde de fin du relevé."
 }

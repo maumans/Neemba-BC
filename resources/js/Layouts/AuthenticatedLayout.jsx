@@ -13,6 +13,7 @@ import {
     ClipboardCheck,
     HandCoins,
     RefreshCcw,
+    Scale,
     LayoutDashboard,
     FileText,
     CheckSquare,
@@ -119,6 +120,13 @@ const navigationItems = [
         href: "reapprovisionnements.index",
         icon: RefreshCcw,
         roles: ["caissier", "gerant_caisse", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "membre_codir", "administrateur"],
+    },
+    {
+        /* Spec v2.4, RG-M08-13 : réconciliation hebdomadaire de la caisse Orange Money */
+        label: "Réconciliation OM",
+        href: "reconciliations-om.index",
+        icon: Scale,
+        roles: ["tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
     },
     {
         /* Spec v2.4, RG-M08-10 : encaissements clients de la caisse de Conakry principale */

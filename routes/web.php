@@ -302,6 +302,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/caisses/reapprovisionnements/{demande}/pieces/{piece}', [\App\Http\Controllers\ReapprovisionnementController::class, 'piece'])->name('reapprovisionnements.piece');
     });
 
+    /* --- Spec v2.4, RG-M08-13 : réconciliation hebdomadaire de la caisse Orange Money (trésorière, Chef comptable, DAF) --- */
+    Route::middleware('role:tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
+        Route::get('/caisses/reconciliations-om', [\App\Http\Controllers\ReconciliationOmController::class, 'index'])->name('reconciliations-om.index');
+        Route::post('/caisses/reconciliations-om', [\App\Http\Controllers\ReconciliationOmController::class, 'store'])->name('reconciliations-om.store');
+        Route::get('/caisses/reconciliations-om/{reconciliation}', [\App\Http\Controllers\ReconciliationOmController::class, 'show'])->name('reconciliations-om.show');
+        Route::post('/caisses/reconciliations-om/{reconciliation}/signer', [\App\Http\Controllers\ReconciliationOmController::class, 'signer'])->name('reconciliations-om.signer');
+        Route::get('/caisses/reconciliations-om/{reconciliation}/releve', [\App\Http\Controllers\ReconciliationOmController::class, 'releve'])->name('reconciliations-om.releve');
+    });
+
     /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */
     Route::middleware('role:tresorerie,daf,daf_adjoint,chef_comptable,directeur_pays,caissier,administrateur')->group(function () {
         Route::get('/tresorerie/taux-du-jour', [TauxChangeController::class, 'index'])->name('tresorerie.taux.index');

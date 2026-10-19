@@ -44,5 +44,8 @@ Schedule::command('archives:alerter-expiration')->dailyAt('08:30');
 /* Spec v2.4, RG-M08-03 : rappel quotidien des caisses sous leur seuil (l'alerte part au franchissement) */
 Schedule::command('caisse:verifier-seuils')->dailyAt('08:00');
 
+/* Spec v2.4, RG-M08-13 : chaque lundi, rappel de la réconciliation Orange Money de la semaine écoulée */
+Schedule::command('caisse:rappeler-reconciliation-om')->weeklyOn(1, '09:00');
+
 /* RG-BC-26 : annulation des brouillons non modifiés depuis 30 jours, avec notification in-app */
 Schedule::command('bons:annuler-brouillons-abandonnes')->dailyAt('02:00');
