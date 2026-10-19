@@ -1,9 +1,9 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 19 Octobre 2026 (v54 — lot O : OR à régulariser, besoin carburant de l'ODM)
+> Dernière mise à jour : 19 Octobre 2026 (v55 — lot F0 : PV d'arrêté de caisse)
 >
-> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §54) indiquent ce qui a changé.
+> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §55) indiquent ce qui a changé.
 
 ---
 
@@ -14,7 +14,7 @@
 - **Spécification en vigueur** : `docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (Thierno DIALLO, Addvalis, 14/10/2026). Elle remplace la v2.3 du 09/10, qui remplaçait elle-même la SFD v1.3 (M03) et la v2.2. Ces fichiers ne sont pas commités (documents de l'utilisateur).
 - **Suivi de conformité** : [docs/CONFORMITE.md](docs/CONFORMITE.md). Il donne toutes les règles de la spec v2.4, avec pour chacune l'état dans le code, ce qui manque, pourquoi, et le lot qui la traite. Ses cases et son journal sont tenus à chaque lot. Il s'appelait `CONFORMITE_V23.md` jusqu'au 16/10.
 - **Suivi du module M12 (ODM)** : [docs/ORDRE_DE_MISSIONS.md](docs/ORDRE_DE_MISSIONS.md).
-- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51, Q83 et Q84 au §52, Q85 et Q86 au §53, Q87 au §54 ; Q73 et Q76 à Q87 sont appliquées (§48 à §54).
+- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51, Q83 et Q84 au §52, Q85 et Q86 au §53, Q87 au §54, Q88 à Q90 au §55 ; Q73, Q76 à Q88 et Q90 sont appliquées (§48 à §55), Q89 le sera au lot F1.
 
 ### 0.2 Branches
 
@@ -34,7 +34,7 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 | M06 Paiement | Partiel | OTP au bénéficiaire seulement (lot R), reçu signé (lot I) |
 | M07 Bons provisoires | Fait (5/8), 3 partiels | Lot E ; emails et statut « En retard » (lot I) |
 | M08 Caisses, réapprovisionnement | À faire (2/13) | Lot F1 |
-| M09, M10 Clôture, rapport, inventaire | À faire | Lot F2 |
+| M09, M10 Clôture, rapport, inventaire | Partiel | PV d'arrêté par caisse et ajustement d'inventaire faits (lot F0) ; clôture, rapport par caisse, inventaires obligatoires : lot F2 |
 | M11 Notifications | Partiel | Dans l'application : oui ; emails : lot I |
 | M12 Ordres de mission | Fait (36/37) | §26 à §40 ; vue de la Comptabilité (lot R) |
 | M13 Carburant | À faire | Lot H |
@@ -42,7 +42,7 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 | M15 Archivage, audit | Partiel | Journal protégé, PDF archivés, purge (lot G) |
 | M16 Imputation comptable | Fait | §38 |
 
-**Règles RG de la v2.4** : 165, dont 112 faites, 33 partielles et 20 à faire au 19/10, après les lots R, V, E1 à E4 et O (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
+**Règles RG de la v2.4** : 165, dont 114 faites, 32 partielles et 19 à faire au 19/10, après les lots R, V, E1 à E4, O et F0 (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
 - l'entité transverse ;
 - la double authentification ;
 - le gestionnaire des référentiels ;
@@ -52,9 +52,9 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 - un seul bon par participant ;
 - le modèle caisse ≠ site.
 
-**Prochain lot** : F1 (caisses, réapprovisionnement, encaissement client, M08), puis F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V, le bloc E (E1 à E4) et O sont faits (§48 à §54).
+**Prochain lot** : F1 (caisses, réapprovisionnement avec le PV d'arrêté du jour, encaissement client, rôle « Membre du CODIR », M08), puis F2 → G → I → H → P3 (plan validé le 16/10, §47 ; F0 sorti de F2 le 19/10, Q88). R, V, le bloc E (E1 à E4), O et F0 sont faits (§48 à §55).
 
-**Tests** : 408 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 75 tests JavaScript (`npm test`).
+**Tests** : 412 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 75 tests JavaScript (`npm test`).
 
 **Connexion en dev** : depuis le lot E2, la connexion demande un code à 6 chiffres envoyé par email. Avec `MAIL_MAILER=log`, il se lit dans `storage/logs/laravel.log` (« Code : NNNNNN »). L'administrateur active ou désactive la double authentification dans Paramétrage > Sécurité (§51.7).
 
@@ -5216,3 +5216,68 @@ php artisan migrate        # 2026_10_25_000001
 ```
 
 La commande `odm:relancer-or` est planifiée (`routes/console.php`) ; le planificateur doit tourner (`schedule:run`).
+
+---
+
+## 55. Version v55 — Lot F0 : PV d'arrêté de caisse (19 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Spec v2.4 : RG-M10-02, RG-M10-03, Annexe 2, RG-M08-05 (préalable du réapprovisionnement).
+
+Décisions de l'utilisateur du 19/10 :
+- Q88 : le billetage et le PV d'arrêté par caisse passent avant F1, parce que la demande de réapprovisionnement s'appuie dessus ;
+- Q89 : rôle « Membre du CODIR » pour F1.
+
+### 55.1 PV d'arrêté (RG-M10-02, Annexe 2)
+
+- Table `pv_arretes`, modèle `PvArrete`, service `App\Services\Caisse\ArreteCaisse`, contrôleur `PvArreteController`, menu « PV d'arrêté ».
+- **Établissement** par le gérant de la caisse, la trésorerie ou le Chef comptable (Q90). Le gérant est le gestionnaire, le suppléant ou un caissier rattaché à la caisse. Un PV contient :
+  - date et heure ;
+  - caisse et implantation (sites servis) ;
+  - motif : inventaire de fin de mois, avant un réapprovisionnement, contrôle inopiné ou arrêté de caisse ;
+  - billetage par coupure, de 20 000 à 50 GNF (pour la caisse Orange Money : solde lu sur la plateforme) ;
+  - solde physique ;
+  - solde comptable de la caisse au moment de l'arrêté ;
+  - écart, affiché au fil de la saisie ;
+  - observations.
+- Numéro `PV-<code caisse>-<AAAAMMJJ>-<rang>`. Un PV ne se modifie pas : un nouveau comptage donne un nouveau PV.
+- **Signatures** : gérant de la caisse, trésorerie, Chef comptable. Chacune est donnée une fois, par trois personnes différentes : un compte qui a deux de ces rôles n'en signe qu'une.
+- **Consultation** : le gérant voit les PV de sa caisse ; DAF, DAF adjoint, Chef comptable, trésorerie, DP, DP adjoint et administrateur voient toutes les caisses. Un demandeur n'y a pas accès.
+- **Impression** : PDF « Procès-verbal d'arrêté de caisse » (Annexe 2), avec l'en-tête de l'entité, le billetage, les soldes, l'écart en rouge et les trois signatures.
+
+### 55.2 Écart → ajustement d'inventaire (RG-M10-03)
+
+- À la troisième signature, un écart non nul crée un mouvement de caisse `ajustement_inventaire` « En attente » : montant de l'écart, sens entrée (excédent) ou sortie (manquant), lien au PV. Le DAF est prévenu.
+- Seuls le DAF et le DAF adjoint le valident, avec un motif de 10 caractères au moins. La boîte « Valider » des mouvements de caisse demande ce motif. Un manquant débite la caisse, un excédent la crédite.
+- La colonne `mouvements_caisse.type` passe de l'enum à une chaîne : les types du M08 suivent au lot F1.
+
+### 55.3 Données
+
+Migration `2026_10_26_000001_lot_f0_pv_arrete_caisse`. Vérifiée sur une copie de la base de dev (aller, retour, aller), puis appliquée en dev.
+
+### 55.4 Vérifications
+
+- `tests/Feature/LotF0/PvArreteTest.php`, 4 tests :
+  - établissement par le gérant, refus sur une autre caisse, visibilité, PDF ;
+  - un compte seulement rattaché à la caisse n'est pas gérant ;
+  - trois signatures, un même compte ne signe pas deux fois ;
+  - ajustement validé par le DAF seul, avec motif, et débit de la caisse ;
+  - aucun ajustement sans écart ;
+  - caisse Orange Money.
+- **Total** : 412 tests PHP et 75 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base, avec les comptes réels : 14 vérifications, sans erreur JavaScript.
+  - Youssouf TOURE (caissier, aussi trésorerie) établit le PV de Conakry avec un écart de −10 000 et signe comme gérant, sans pouvoir signer aussi pour la trésorerie.
+  - Mariamagbè CAMARA (trésorerie) et Mamadou Alpha BAH (Chef comptable) signent. Le Chef comptable est rattaché à la caisse sans être gérant.
+  - PDF.
+  - Mohamed DIAKITE (DAF) valide l'ajustement avec un motif : le solde de la caisse baisse de 10 000.
+  - Accès refusé à un demandeur ; téléphone.
+- Défauts relevés en cours de lot, corrigés :
+  - tout compte rattaché à la caisse aurait pu signer comme gérant : dans la base, chaque compte est rattaché à la caisse de Conakry ;
+  - le billetage s'affichait de 50 à 20 000 : le JSON stocké en base trie les clés.
+
+### 55.5 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_26_000001
+```
+
+Renseigner le gestionnaire (et le suppléant) de chaque caisse à l'écran des caisses. Sinon, seul un caissier rattaché à la caisse en est le gérant.

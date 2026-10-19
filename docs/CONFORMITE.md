@@ -51,12 +51,12 @@
 | M07 Bons provisoires | 8 | 5 | 3 | 0 | I |
 | M08 Caisses et réapprovisionnement | 13 | 2 | 3 | 8 | F1 |
 | M09 Clôture et rapport journalier | 5 | 0 | 4 | 1 | F2 |
-| M10 Inventaire et contrôle | 3 | 0 | 1 | 2 | F2 |
+| M10 Inventaire et contrôle | 3 | 2 | 0 | 1 | F2 |
 | M12 Ordres de mission | 42 | 41 | 1 | 0 | H |
 | M13 Carburant | 15 | 3 | 8 | 4 | H |
 | M15 Archivage et audit | 3 | 0 | 3 | 0 | G |
 | M16 Imputation comptable | 6 | 6 | 0 | 0 | — |
-| **Total des règles RG** | **165** | **112** | **33** | **20** | |
+| **Total des règles RG** | **165** | **114** | **32** | **19** | |
 
 Les lots R, V et E1 sont terminés et commités le 16/10 : leurs règles sont à ✅.
 
@@ -271,8 +271,8 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | Règle | Contenu | État | Ce qui manque | Cause | Lot |
 |---|---|:-:|---|:-:|:-:|
 | RG-M10-01 | Inventaires et contrôles inopinés | ❌ | | L | F2 |
-| RG-M10-02 | PV d'arrêté Annexe 2 | 🟡 | Billetage par site ; pas de PV par caisse ni de signatures | L | F2 |
-| RG-M10-03 | Écart → ajustement en attente du DAF | ❌ | | L | F2 |
+| RG-M10-02 | PV d'arrêté Annexe 2 | ✅ | Lot F0 : PV par caisse, billetage de 20 000 à 50 (solde lu pour la caisse OM), écart, trois signatures, PDF | | |
+| RG-M10-03 | Écart → ajustement en attente du DAF | ✅ | Lot F0 : ajustement d'inventaire créé à la troisième signature, validé par le DAF ou son adjoint avec motif | | |
 
 ### 8.7 M11 Notifications, relances et escalades
 
@@ -415,7 +415,7 @@ User stories US-01 à 07 et messages MSG-M13-01 à 05 : à faire (H).
 
 Ordre validé le 16/10 : on corrige d'abord l'existant contredit par la v2.4, puis on fait le bloc E de la spec, puis la suite du plan v2.3.
 
-**R → V → E1 → E2 → E3 → E4 → O → F1 → F2 → G → I → H → P3** (environ 33 jours, échéance de la spec au 16/12/2026).
+**R → V → E1 → E2 → E3 → E4 → O → F0 → F1 → F2 → G → I → H → P3** (environ 33 jours, échéance de la spec au 16/12/2026). F0 (billetage et PV d'arrêté par caisse) est sorti de F2 le 19/10 : la demande de réapprovisionnement de F1 s'appuie dessus (Q88).
 
 Chaque lot comprend :
 - tests automatiques PHP et JS ;
@@ -515,7 +515,16 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 - [x] Immatriculation et itinéraire sur l'ODM, la fiche et le PDF (RG-M12-42)
 - [x] Tests SC-38
 
+### Lot F0 — Billetage et PV d'arrêté par caisse (M10, sorti de F2) (≈ 1 j)
+
+- [x] PV d'arrêté par caisse (Annexe 2) : date, heure, implantation, billetage de 20 000 à 50, solde physique, solde comptable, écart
+- [x] Trois signatures (gérant de caisse, trésorerie, Chef comptable), par trois personnes différentes ; impression PDF
+- [x] Écart → ajustement d'inventaire « En attente », validé par le DAF avec motif (RG-M10-03)
+- [x] Tests ; parcours avec les comptes réels
+
 ### Lot F1 — Caisses, réapprovisionnement, encaissement client (M08) (≈ 4 j)
+
+- [ ] Rôle « Membre du CODIR » : en l'absence du DP et du DP adjoint, deux membres approuvent ensemble (Q89)
 
 - [ ] Types de mouvement :
   - [ ] retrait libre retiré ;
@@ -541,7 +550,7 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
   - [ ] bloc contrôle, ligne « Écart » en rouge ;
   - [ ] onglet « Détail ».
 - [ ] Génération à 23 h 45 ; envoi avant 8 h aux destinataires de chaque caisse
-- [ ] PV d'arrêté Annexe 2 par caisse, avec trois signatures
+- [x] PV d'arrêté Annexe 2 par caisse, avec trois signatures (lot F0)
 - [ ] Inventaires obligatoires, contrôles inopinés paramétrables ; écart → ajustement en attente du DAF
 
 ### Lot G — Gouvernance (reste après le bloc E) (≈ 3 j)
@@ -659,3 +668,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 19/10/2026 | E3 | (ce commit) | Rôle « gestionnaire des référentiels » : onglets et routes répartis (l'administrateur garde entités, sites, caisses, seuils, sécurité ; le gestionnaire tient services, codes analytiques, types de document, motifs, types d'OR, barèmes, clients). Barèmes ODM datés (`baremes_odm`, reprise des paramètres, lecture à la date de soumission, sans double validation, valeur à venir annulable). Types d'OR en référentiel (`types_or`, enum de l'ODM retiré, listes servies par le serveur). 397 tests PHP, 74 JS ; parcours Edge (19 vérifications). 165 règles : 106 faites, 35 partielles, 24 à faire. devBook §52 |
 | 19/10/2026 | E4 | (ce commit) | Caisses et sites : table `caisse_site` (reprise de `caisses.site_id`, retiré), caisse OM sans site, sites servis à l'écran des caisses (effet immédiat, Q86), écrans sans plantage pour une caisse sans site. Caisse payeuse tirée de la caisse émettrice (à défaut, site du demandeur), plafond de retrait de cette caisse ; replis par site via les sites servis. Site analytique modifiable à la saisie, corrigé par le CDG avec trace. 402 tests PHP, 74 JS ; parcours Edge (16 vérifications). 165 règles : 108 faites, 34 partielles, 23 à faire. devBook §53 |
 | 19/10/2026 | O | (ce commit) | « OR à régulariser » : case au formulaire, soumission sans OR, échéance à la validation (5 jours ouvrés), OR rattaché après coup sur la fiche par le demandeur ou le chef d'atelier, tracé et reporté sur les bons (Q80), relances J+3 et à l'échéance, alerte de retard au chef d'atelier et au DAF (`odm:relancer-or`), blocage optionnel du prochain ODM, suivi au tableau de bord et à l'export. Immatriculation et itinéraire sur l'ODM. Défaut corrigé : l'urgence de l'ODM choisie au formulaire n'était pas enregistrée (lot E2). 408 tests PHP, 75 JS ; parcours Edge (14 vérifications). 165 règles : 112 faites, 33 partielles, 20 à faire. devBook §54 |
+| 19/10/2026 | F0 | (ce commit) | Décision : billetage et PV d'abord (Q88), rôle « Membre du CODIR » pour F1 (Q89). PV d'arrêté par caisse (Annexe 2) : billetage de 20 000 à 50 ou solde lu (OM), solde comptable, écart, trois signatures par trois personnes, PDF ; écart → ajustement d'inventaire validé par le DAF avec motif (boîte de validation avec motif). Le gérant est le caissier rattaché, le gestionnaire ou le suppléant — pas tout compte rattaché à la caisse. 412 tests PHP (+4 F0), 75 JS ; parcours Edge (14 vérifications). 165 règles : 114 faites, 32 partielles, 19 à faire. devBook §55 |
