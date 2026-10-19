@@ -228,8 +228,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/delegations/{delegation}/terminer', [DelegationController::class, 'terminer'])->name('delegations.terminer');
     });
 
-    /* --- Mouvements de Caisse (caissier, DAF, DP) --- */
-    Route::middleware('role:caissier,daf,directeur_pays,administrateur')->group(function () {
+    /* --- Mouvements de Caisse. Spec v2.4, RG-M08-12 : le caissier voit sa caisse, les rôles transverses toutes --- */
+    Route::middleware('role:caissier,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
         Route::get('/mouvements-caisse', [MouvementCaisseController::class, 'index'])->name('mouvements-caisse.index');
         Route::get('/mouvements-caisse/create', [MouvementCaisseController::class, 'create'])->name('mouvements-caisse.create');
         Route::post('/mouvements-caisse', [MouvementCaisseController::class, 'store'])->name('mouvements-caisse.store');
@@ -283,6 +283,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/caisses/pv-arrete/{pvArrete}', [\App\Http\Controllers\PvArreteController::class, 'show'])->name('pv-arrete.show');
         Route::post('/caisses/pv-arrete/{pvArrete}/signer', [\App\Http\Controllers\PvArreteController::class, 'signer'])->name('pv-arrete.signer');
         Route::get('/caisses/pv-arrete/{pvArrete}/pdf', [\App\Http\Controllers\PvArreteController::class, 'pdf'])->name('pv-arrete.pdf');
+    });
+
+    /* --- Spec v2.4, RG-M08-10 : encaissements clients (Conakry principale), reçu PDF --- */
+    Route::middleware('role:caissier,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
+        Route::get('/caisses/encaissements-clients', [\App\Http\Controllers\EncaissementClientController::class, 'index'])->name('encaissements-clients.index');
+        Route::post('/caisses/encaissements-clients', [\App\Http\Controllers\EncaissementClientController::class, 'store'])->name('encaissements-clients.store');
+        Route::get('/caisses/encaissements-clients/{encaissementClient}/recu', [\App\Http\Controllers\EncaissementClientController::class, 'recu'])->name('encaissements-clients.recu');
     });
 
     /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */

@@ -410,102 +410,18 @@ class NotificationService
     }
 
     /**
-     * Alerte de seuil d'une caisse (ANO-10, RG-C4-02) : la caisse est passée sous son seuil d'alerte.
-     * Destinataires : DAF, Directeur Pays (notification) et caissiers du site de la caisse (notification + SMS).
+     * Alerte de seuil d'une caisse. Spec v2.4, RG-M08-03 : voir App\Services\Caisse\AlerteSeuil (gérant de la caisse,
+     * trésorerie, Chef comptable ; une fois au franchissement, puis rappel quotidien).
      */
     public static function notifierAlerteSolde(\App\Models\Caisse $caisse, ?User $declencheur = null): void
     {
-        /* Spec v2.4, RG-M02-11 : caissiers des sites que sert la caisse */
-        $caisse->loadMissing('sites');
-        $nomsSites = $caisse->sites->pluck('nom')->all();
-
-        $destinataires = User::actifs()
-            ->where(function ($q) use ($nomsSites) {
-                $q->whereIn('role', ['daf', 'directeur_pays'])
-                    ->orWhere(function ($q2) use ($nomsSites) {
-                        $q2->where('role', 'caissier')
-                            ->whereIn('site', $nomsSites);
-                    });
-            })
-            ->get();
-
-        $seuilFormat = Format::montant($caisse->seuilAlerteEffectif());
-
-        foreach ($destinataires as $destinataire) {
-            if ($declencheur && $destinataire->id === $declencheur->id) continue;
-
-            $notification = \App\Models\Notification::create([
-                'destinataire_id' => $destinataire->id,
-                'bon_caisse_id' => null,
-                'expediteur_id' => $declencheur?->id,
-                'type' => 'alerte_solde',
-                'titre' => '⚠ Alerte : solde de caisse bas',
-                'message' => "Le solde de la {$caisse->libelle} est passé sous le seuil d'alerte. "
-                    . "Solde actuel : {$caisse->solde_format}. "
-                    . "Seuil : {$seuilFormat}. "
-                    . "Un réapprovisionnement est recommandé.",
-                'metadata' => [
-                    'caisse_id' => $caisse->id,
-                    'caisse' => $caisse->libelle,
-                    'site' => implode(', ', $nomsSites) ?: null,
-                    'solde' => (float) $caisse->solde,
-                    'seuil' => $caisse->seuilAlerteEffectif(),
-                ],
-            ]);
-
-            try {
-                broadcast(new \App\Events\NouvelleNotification($notification));
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::warning('Broadcast alerte solde échoué : ' . $e->getMessage());
-            }
-
-            /* SMS aux caissiers du site pour action rapide */
-            if ($destinataire->role === 'caissier' && $destinataire->telephone) {
-                try {
-                    $smsService = new NimbaSmsService();
-                    $smsService->envoyerAlerteSeuil(
-                        $destinataire->telephone,
-                        $caisse->libelle,
-                        $caisse->solde_format,
-                        $seuilFormat
-                    );
-                } catch (\Throwable $e) {
-                    \Illuminate\Support\Facades\Log::warning("SMS alerte seuil échoué pour {$destinataire->telephone} : " . $e->getMessage());
-                }
-            }
-        }
+        \App\Services\Caisse\AlerteSeuil::alerter($caisse, false, $declencheur);
     }
 
-    /**
-     * Vérification proactive des seuils de toutes les caisses actives
-     * (commande caisse:verifier-seuils). Au plus une alerte par jour et par caisse.
-     *
-     * @return array Résumé ['libellé de la caisse' => 'message']
-     */
+    /** Rappel quotidien des caisses sous leur seuil (commande caisse:verifier-seuils) */
     public static function verifierSeuilsCaisse(): array
     {
-        $resultats = [];
-
-        foreach (\App\Models\Caisse::actives()->with('sites')->orderBy('id')->get() as $caisse) {
-            if (!$caisse->sousSeuil()) {
-                continue;
-            }
-
-            /* Dédoublonnage : au plus une alerte par jour et par caisse */
-            $cacheKey = "alerte_seuil_caisse_{$caisse->id}_" . now()->format('Y-m-d');
-            if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
-                $resultats[$caisse->libelle] = 'Alerte déjà envoyée aujourd\'hui — ignorée';
-                continue;
-            }
-
-            self::notifierAlerteSolde($caisse);
-            \Illuminate\Support\Facades\Cache::put($cacheKey, true, now()->endOfDay());
-
-            $resultats[$caisse->libelle] = "Solde : {$caisse->solde_format} — Seuil : "
-                . Format::montant($caisse->seuilAlerteEffectif()) . ' — Alertes envoyées';
-        }
-
-        return $resultats;
+        return \App\Services\Caisse\AlerteSeuil::rappels();
     }
 
     /* ----------------------------------------------------------------

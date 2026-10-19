@@ -1,7 +1,8 @@
 /**
  * Page Création d'un Mouvement de Caisse - NEEMBA
  *
- * Formulaire pour créer un approvisionnement, retrait ou ajustement de caisse.
+ * Formulaire pour créer un approvisionnement de caisse. Spec v2.4, RG-M08-02 : plus de retrait libre ni d'ajustement
+ * manuel ; l'ajustement d'inventaire vient du PV d'arrêté (lot F0).
  * On choisit la caisse concernée (espèces d'un site, Orange Money, Atelier) ;
  * un caissier ne voit que les caisses de son site.
  */
@@ -39,8 +40,6 @@ import { useRef } from 'react';
 
 const TYPES = [
     { value: 'approvisionnement', label: 'Approvisionnement', description: 'Alimenter la caisse', icone: ArrowUpCircle, couleur: 'text-green-600 border-green-200 bg-green-50' },
-    { value: 'retrait', label: 'Retrait', description: 'Retirer des fonds', icone: ArrowDownCircle, couleur: 'text-red-600 border-red-200 bg-red-50' },
-    { value: 'ajustement', label: 'Ajustement', description: 'Corriger le solde', icone: Settings2, couleur: 'text-blue-600 border-blue-200 bg-blue-50' },
 ];
 
 export default function Create({ caisses = [] }) {

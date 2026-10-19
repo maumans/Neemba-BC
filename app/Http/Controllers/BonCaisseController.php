@@ -802,11 +802,7 @@ class BonCaisseController extends Controller
         });
 
         if ($paye) {
-            /* Alerte si la caisse passe sous son seuil après paiement */
-            if ($caisse && $caisse->sousSeuil()) {
-                NotificationService::notifierAlerteSolde($caisse, $caissier);
-            }
-
+            /* Spec v2.4, RG-M08-03 : l'alerte de seuil part du registre de la caisse (AlerteSeuil) */
             NotificationService::notifierPaiement($bonCaisse->fresh(['demandeur']), $caissier);
 
             return redirect()

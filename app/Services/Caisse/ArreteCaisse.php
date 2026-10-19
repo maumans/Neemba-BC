@@ -26,26 +26,16 @@ use Illuminate\Support\Facades\DB;
 final class ArreteCaisse
 {
     /** Rôles qui voient toutes les caisses (RG-M08-12) */
-    public const ROLES_TRANSVERSES = ['daf', 'daf_adjoint', 'chef_comptable', 'tresorerie', 'directeur_pays', 'dp_adjoint', 'administrateur'];
+    public const ROLES_TRANSVERSES = AccesCaisse::ROLES_TRANSVERSES;
 
-    /**
-     * Gérant de la caisse : gestionnaire ou suppléant, ou caissier rattaché à cette caisse. Le rattachement seul ne suffit
-     * pas : chaque demandeur a une caisse de rattachement, celle qui émet ses bons (lot C).
-     */
     public static function estGerant(User $utilisateur, Caisse $caisse): bool
     {
-        return in_array($utilisateur->id, array_filter([$caisse->gestionnaire_id, $caisse->suppleant_id]), true)
-            || ((int) $utilisateur->caisse_id === (int) $caisse->id && $utilisateur->aLeRole('caissier'));
+        return AccesCaisse::estGerant($utilisateur, $caisse);
     }
 
-    /** Caisses que l'utilisateur voit : toutes pour les rôles transverses, sinon celles qu'il gère */
     public static function caissesVisibles(User $utilisateur): Collection
     {
-        $caisses = Caisse::actives()->with('sites')->orderBy('libelle')->get();
-
-        return $utilisateur->aLeRole(self::ROLES_TRANSVERSES)
-            ? $caisses
-            : $caisses->filter(fn (Caisse $c) => self::estGerant($utilisateur, $c))->values();
+        return AccesCaisse::caissesVisibles($utilisateur);
     }
 
     public static function peutEtablir(User $utilisateur, Caisse $caisse): bool

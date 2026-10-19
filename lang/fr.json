@@ -146,5 +146,9 @@
     "MSG-APP-086": "L'OR :numero est déjà rattaché à cet ordre de mission.",
     "MSG-APP-087": "Seuls le demandeur de l'ordre de mission et son chef d'atelier rattachent un OR après coup.",
     "MSG-APP-088": "Seuls le gérant de la caisse, la trésorerie et le Chef comptable établissent un PV d'arrêté.",
-    "MSG-APP-089": "Vous ne pouvez pas donner cette signature : chaque signature est donnée une fois, par trois personnes différentes."
+    "MSG-APP-089": "Vous ne pouvez pas donner cette signature : chaque signature est donnée une fois, par trois personnes différentes.",
+    "MSG-M08-01": "Caisse :caisse : solde :solde GNF, sous le seuil de réapprovisionnement (:seuil GNF).",
+    "MSG-M08-05": "Les encaissements clients ne sont autorisés que sur la caisse de Conakry principale.",
+    "MSG-M08-06": "Cet encaissement porterait le solde à :x GNF, au-dessus du plafond de caisse (:plafond GNF). Remise en banque nécessaire.",
+    "MSG-APP-090": "Seuls le gérant de la caisse et la trésorerie enregistrent un encaissement client."
 }

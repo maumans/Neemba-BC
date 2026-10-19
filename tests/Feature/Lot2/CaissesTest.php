@@ -160,10 +160,10 @@ class CaissesTest extends TestCase
             ])->assertForbidden();
     }
 
-    /** ANO-10 */
+    /** ANO-10 ; spec v2.4, RG-M08-03 : alerte à la trésorerie et au Chef comptable (plus au DAF) */
     public function test_une_caisse_sous_son_seuil_declenche_une_alerte(): void
     {
-        $daf = User::factory()->role('daf')->create();
+        $daf = tap(User::factory()->create(), fn (User $u) => $u->ajouterRoles(['tresorerie']));
         $this->especes->crediter(1200000, 'approvisionnement');
         $bon = BonCaisse::factory()->approuve()->create(['montant' => 500000]);
         $this->otpVerifie($bon);

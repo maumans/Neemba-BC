@@ -228,12 +228,12 @@ class DashboardController extends Controller
 
         /* ====== Soldes par caisse (ANO-09) : caissier, DAF, DP, admin ====== */
         $soldesCaisses = [];
-        if ($utilisateur->aLeRole(['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
+        if ($utilisateur->aLeRole(['caissier', ...\App\Services\Caisse\AccesCaisse::ROLES_TRANSVERSES])) {
             $caissesQuery = \App\Models\Caisse::actives()->with('sites')->orderBy('id');
 
-            /* Un caissier ne voit que les caisses de son propre site */
-            if (!$utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur'])) {
-                $caissesQuery->duSite((string) $utilisateur->site);
+            /* Spec v2.4, RG-M08-12 : un caissier ne voit que sa caisse ; les rôles transverses toutes */
+            if (!\App\Services\Caisse\AccesCaisse::estTransverse($utilisateur)) {
+                $caissesQuery->whereIn('id', \App\Services\Caisse\AccesCaisse::caissesVisibles($utilisateur)->pluck('id'));
             }
 
             $soldesCaisses = $caissesQuery->get()->map(fn (\App\Models\Caisse $caisse) => [

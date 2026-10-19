@@ -11,6 +11,7 @@ import { Toaster } from "@/Components/ui/sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     ClipboardCheck,
+    HandCoins,
     LayoutDashboard,
     FileText,
     CheckSquare,
@@ -109,7 +110,14 @@ const navigationItems = [
         label: "Mouvements Caisse",
         href: "mouvements-caisse.index",
         icon: Wallet,
-        roles: ["caissier", "daf", "directeur_pays", "administrateur"],
+        roles: ["caissier", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
+    },
+    {
+        /* Spec v2.4, RG-M08-10 : encaissements clients de la caisse de Conakry principale */
+        label: "Encaissements clients",
+        href: "encaissements-clients.index",
+        icon: HandCoins,
+        roles: ["caissier", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
     },
     {
         /* Spec v2.4, RG-M10-02 : PV d'arrêté de caisse (Annexe 2) */

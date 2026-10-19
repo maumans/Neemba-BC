@@ -33,8 +33,11 @@ class MouvementCaisseController extends Controller
         /* Filtrage par site */
         if ($request->filled('site')) {
             $query->where('site', $request->site);
+        } elseif (!\App\Services\Caisse\AccesCaisse::estTransverse($utilisateur) && $utilisateur->aLeRole('caissier')) {
+            /* Spec v2.4, RG-M08-12 : le caissier voit les mouvements de sa caisse */
+            $query->whereIn('caisse_id', \App\Services\Caisse\AccesCaisse::caissesVisibles($utilisateur)->pluck('id'));
         } elseif ($utilisateur->peutPayer() && $utilisateur->site) {
-            // Si caissier réel ou délégué caissier avec un site affecté
+            // Délégué d'un caissier, avec un site affecté
             $query->where('site', $utilisateur->site);
         }
 
@@ -113,7 +116,8 @@ class MouvementCaisseController extends Controller
         $utilisateur = Auth::user();
 
         $validated = $request->validate([
-            'type'               => ['required', 'in:approvisionnement,retrait,ajustement'],
+            /* Spec v2.4, RG-M08-02 : plus de retrait libre ni d'ajustement manuel (l'ajustement vient du PV d'arrêté, lot F0) */
+            'type'               => ['required', 'in:approvisionnement'],
             'caisse_id'          => ['required', 'integer', 'exists:caisses,id'],
             'montant'            => ['required', 'numeric', 'min:1'],
             'motif'              => ['required', 'string', 'min:5', 'max:1000'],
@@ -192,11 +196,6 @@ class MouvementCaisseController extends Controller
 
         \App\Services\NotificationService::notifierMouvementCaisseValidee($mouvement, $utilisateur);
 
-        /* Alerte si la caisse passe sous son seuil après un retrait */
-        if ($sortie && $caisse->fresh()->sousSeuil()) {
-            \App\Services\NotificationService::notifierAlerteSolde($caisse->fresh(), $utilisateur);
-        }
-
         return back()->with('success', "Mouvement {$mouvement->reference} validé. Solde de la {$caisse->libelle} mis à jour.");
     }
 
@@ -232,9 +231,14 @@ class MouvementCaisseController extends Controller
      */
     private function caissesAccessibles(\App\Models\User $utilisateur)
     {
+        /* Spec v2.4, RG-M08-12 : un caissier n'opère que sa caisse ; les rôles transverses toutes */
+        if (!\App\Services\Caisse\AccesCaisse::estTransverse($utilisateur) && $utilisateur->aLeRole('caissier')) {
+            return \App\Services\Caisse\AccesCaisse::caissesVisibles($utilisateur);
+        }
+
         $requete = Caisse::actives()->with('sites')->orderBy('id');
 
-        if (!$utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur'])) {
+        if (!\App\Services\Caisse\AccesCaisse::estTransverse($utilisateur)) {
             $site = $utilisateur->site;
             if (!$site) {
                 $delegation = \App\Models\Delegation::actives()

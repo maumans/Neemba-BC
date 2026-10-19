@@ -57,6 +57,9 @@ class Caisse extends Model
         'actif' => 'boolean',
         'encaissements_clients' => 'boolean',
         'destinataires_rapport' => 'array',
+        /* Spec v2.4, RG-M08-03 : alerte de seuil envoyée, dernier rappel */
+        'alerte_seuil_le' => 'datetime',
+        'alerte_seuil_rappel_le' => 'date',
     ];
 
     /** Site à ajouter aux sites servis après l'enregistrement (attribut de compatibilité `site_id`) */
@@ -263,6 +266,9 @@ class Caisse extends Model
 
             static::whereKey($this->id)->update(['solde' => $soldeApres, 'updated_at' => now()]);
             $this->setRawAttributes(array_merge($this->getAttributes(), ['solde' => $soldeApres]), true);
+
+            /* Spec v2.4, RG-M08-03 : alerte au franchissement du seuil vers le bas, quel que soit le mouvement */
+            DB::afterCommit(fn () => \App\Services\Caisse\AlerteSeuil::apresEcriture($this->fresh(), $soldeAvant, $soldeApres));
 
             return $this->ecritures()->create([
                 'date_ecriture' => $contexte['date_ecriture'] ?? now(),
