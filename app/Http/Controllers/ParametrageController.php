@@ -44,7 +44,9 @@ class ParametrageController extends Controller
             'entites' => \App\Models\Entite::orderBy('id')->get(),
             'motifsRejet' => \App\Models\MotifRejet::orderBy('ordre')->orderBy('libelle')->get(),
             'typesDocument' => TypeDocument::orderBy('nom')->get(),
-            'parametres' => Parametre::orderBy('groupe')->orderBy('libelle')->get(),
+            /* Les réglages de la double authentification ont leur onglet « Sécurité » (effet immédiat) */
+            'parametres' => Parametre::whereNotIn('cle', \App\Services\Securite\ReglagesSecurite::cles())->orderBy('groupe')->orderBy('libelle')->get(),
+            'securite' => \App\Services\Securite\ReglagesSecurite::etat(),
             'choixParametres' => Parametre::CHOIX,
             /* Gestionnaire, suppléant et destinataires du rapport d'une caisse (référentiel Neemba, point 14) */
             'utilisateursActifs' => User::where('actif', true)->orderBy('name')->orderBy('prenom')->get(['id', 'name', 'prenom'])
@@ -445,6 +447,10 @@ class ParametrageController extends Controller
             'valeur' => ['required', 'string', 'max:2000'],
         ]);
 
+        if (in_array($parametre->cle, \App\Services\Securite\ReglagesSecurite::cles(), true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['valeur' => 'Ce réglage se modifie dans l\'onglet « Sécurité ».']);
+        }
+
         /* Valeur contrôlée selon le type (choix, dates, grille JSON…) avant la double validation */
         if ($erreur = $parametre->erreurValeur($request->valeur)) {
             throw \Illuminate\Validation\ValidationException::withMessages(['valeur' => $erreur]);
@@ -464,6 +470,21 @@ class ParametrageController extends Controller
         }
 
         return back()->with('success', "Aucune modification détectée.");
+    }
+
+    /**
+     * PUT /parametrage/securite — spec v2.4, RG-M01-07 : l'administrateur active ou désactive la double authentification
+     * (code de connexion, code de visa urgent) et en règle la durée et les essais. Effet immédiat, tracé, administrateurs
+     * prévenus.
+     */
+    public function updateSecurite(Request $request)
+    {
+        $valeurs = $request->validate(\App\Services\Securite\ReglagesSecurite::regles());
+        $modifies = \App\Services\Securite\ReglagesSecurite::appliquer($valeurs, \Illuminate\Support\Facades\Auth::user());
+
+        return back()->with('success', $modifies
+            ? 'Réglages de sécurité appliqués : ' . implode(', ', $modifies) . '.'
+            : 'Aucune modification détectée.');
     }
 
     /* ─── API JSON (pour les selects searchable) ────────── */

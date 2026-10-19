@@ -9,7 +9,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, ToggleLeft, ToggleRight, Settings2, MapPin, Building2, Hash, FileText, SlidersHorizontal, Save, Check, Wallet, Briefcase, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, ToggleLeft, ToggleRight, Settings2, MapPin, Building2, Hash, FileText, SlidersHorizontal, Save, Check, Wallet, Briefcase, AlertTriangle, ShieldCheck } from 'lucide-react';
+import ReglagesSecurite from '@/Components/ReglagesSecurite';
 import { formaterNombre, formaterMontant } from '@/utils/nombreEnLettres';
 import { Switch } from '@/Components/ui/switch';
 import { Button } from '@/Components/ui/button';
@@ -329,7 +330,7 @@ const LIBELLES_GROUPES_PARAMETRES = {
     comptabilite: 'Comptabilité (M16)',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], motifsVisiteur = [], entites = [], parametres = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], motifsVisiteur = [], entites = [], parametres = [], securite = null, choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
     /* ─── ENTITÉS (spec v2.4, RG-M01-02) ─── */
     const [entiteDialog, setEntiteDialog] = useState({ open: false, item: null });
     const entiteForm = useForm({ nom: '', raison_sociale: '', adresse: '', logo: '' });
@@ -635,6 +636,9 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                 <TabsTrigger value="parametres" className="gap-1 px-2 text-xs sm:text-sm">
                                     <SlidersHorizontal className="h-3.5 w-3.5" /> Seuils
                                 </TabsTrigger>
+                                <TabsTrigger value="securite" className="gap-1 px-2 text-xs sm:text-sm">
+                                    <ShieldCheck className="h-3.5 w-3.5" /> Sécurité
+                                </TabsTrigger>
                             </TabsList>
 
                             {/* Sites */}
@@ -859,6 +863,11 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                         </p>
                                     )}
                                 </div>
+                            </TabsContent>
+
+                            {/* Double authentification (spec v2.4, RG-M01-07) : effet immédiat, tracé */}
+                            <TabsContent value="securite" className="mt-4">
+                                {securite && <ReglagesSecurite securite={securite} />}
                             </TabsContent>
                         </Tabs>
                     </CardContent>

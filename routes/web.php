@@ -343,6 +343,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         /* Paramètres système */
         Route::put('/parametrage/parametres/{parametre}', [ParametrageController::class, 'updateParametre'])->name('parametrage.parametres.update');
+        /* Spec v2.4, RG-M01-07 : double authentification, réglée directement par l'administrateur */
+        Route::put('/parametrage/securite', [ParametrageController::class, 'updateSecurite'])->name('parametrage.securite.update');
     });
 
     /* API JSON — listes actives pour les selects searchable */
