@@ -4976,9 +4976,10 @@ php artisan migrate        # 2026_10_22_000001
 Demande de l'utilisateur, le 19/10 : l'administrateur doit pouvoir activer et désactiver la double authentification et ses réglages. Décision Q82.
 
 - **Onglet « Sécurité »** du paramétrage (composant `ReglagesSecurite`), réservé à l'administrateur :
-  - deux interrupteurs : « Code de connexion par email » et « Code SMS pour viser une demande urgente » ;
+  - deux interrupteurs : « Code de connexion par email » et « Code SMS pour viser une demande urgente ». Chacun s'applique dès qu'on le bascule ; son état affiché est celui enregistré ;
   - durée du code de connexion (1 à 60 min), essais par code (1 à 10), durée du code de visa (1 à 30 min) ;
-  - une confirmation est demandée avant de couper un interrupteur ;
+  - une confirmation est demandée avant de couper un interrupteur (« Désactiver maintenant ») ; le rallumer est immédiat ;
+  - les durées et essais s'enregistrent avec le bouton « Enregistrer les durées et essais » ; une durée est grisée quand son code est coupé ;
   - état des canaux : serveur d'email configuré ou non (en mode `log`, les codes sont écrits dans le journal), fournisseur SMS configuré ou non ;
   - valideurs actifs (bons et ODM) sans numéro de téléphone, qui ne peuvent pas recevoir le code de visa ;
   - les dix derniers changements (date, réglage, avant → après, auteur).
@@ -4993,3 +4994,4 @@ Demande de l'utilisateur, le 19/10 : l'administrateur doit pouvoir activer et d�
   - 389 tests PHP et 74 tests JavaScript passent ;
   - parcours dans Edge sur une copie de la base, 16 vérifications, sans erreur JavaScript : désactivation avec confirmation, trace, autre administrateur prévenu, connexion sans code, réactivation à 15 min, téléphone.
 - Sur la base de dev, deux valideurs n'ont pas de téléphone : Mamadou Alpha BAH et Saliou BOIRO.
+- **Correctif du 19/10 (retour de l'utilisateur, « la désactivation ne marche pas »)** : dans la première version, l'interrupteur ne changeait que l'écran, et le badge affichait « Désactivé » avant tout enregistrement. Il fallait encore cliquer sur « Enregistrer les réglages », plus bas, et rien n'était enregistré sinon. L'interrupteur s'applique désormais tout de suite. Le parcours a aussi relevé un plantage du bouton des durées (`form.transform(...)` chaîné) ; il est corrigé. Parcours dans Edge rejoué : 20 vérifications, sans erreur JavaScript.
