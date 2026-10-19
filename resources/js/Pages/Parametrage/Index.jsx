@@ -375,7 +375,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     const caisseForm = useForm({
         code: '', libelle: '', site_ids: [], type: 'especes', mode: 'standard',
         montant_avance: '', plafond_retrait: '', seuil_alerte: '', plafond_caisse: '', solde: '',
-        gestionnaire_id: '', suppleant_id: '', encaissements_clients: false, reapprovisionnement: '',
+        gestionnaire_id: '', suppleant_id: '', encaissements_clients: false, reapprovisionnement: '', reappro_par_transfert: false,
         code_numerotation: '', numero_depart: '', chiffres_numero: '',
     });
     const nomUtilisateur = (id) => utilisateursActifs.find((u) => u.id === id)?.libelle ?? '';
@@ -404,6 +404,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
             seuil_alerte: item.seuil_alerte ?? '', plafond_caisse: item.plafond_caisse ?? '', solde: item.solde ?? '',
             gestionnaire_id: item.gestionnaire_id ?? '', suppleant_id: item.suppleant_id ?? '',
             encaissements_clients: Boolean(item.encaissements_clients), reapprovisionnement: item.reapprovisionnement ?? '',
+            reappro_par_transfert: Boolean(item.reappro_par_transfert),
             code_numerotation: item.code_numerotation ?? '', numero_depart: item.numero_depart ?? '', chiffres_numero: item.chiffres_numero ?? '',
         });
         setCaisseDialog({ open: true, item });
@@ -1141,6 +1142,10 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <label className="flex items-center gap-2 text-sm">
                         <input type="checkbox" className="rounded border-gray-300" checked={caisseForm.data.encaissements_clients} onChange={(e) => caisseForm.setData('encaissements_clients', e.target.checked)} />
                         Reçoit des encaissements clients
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" className="rounded border-gray-300" checked={caisseForm.data.reappro_par_transfert} onChange={(e) => caisseForm.setData('reappro_par_transfert', e.target.checked)} />
+                        Réapprovisionnée par transfert depuis une autre caisse
                     </label>
                     {caisseDialog.item?.destinataires_rapport?.length > 0 && (
                         <p className="text-xs text-gray-500">

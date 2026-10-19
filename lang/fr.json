@@ -148,7 +148,19 @@
     "MSG-APP-088": "Seuls le gérant de la caisse, la trésorerie et le Chef comptable établissent un PV d'arrêté.",
     "MSG-APP-089": "Vous ne pouvez pas donner cette signature : chaque signature est donnée une fois, par trois personnes différentes.",
     "MSG-M08-01": "Caisse :caisse : solde :solde GNF, sous le seuil de réapprovisionnement (:seuil GNF).",
+    "MSG-M08-02": "Le montant demandé porterait le solde à :x GNF, au-dessus du plafond de caisse (:plafond GNF).",
+    "MSG-M08-03": "Joignez le rapprochement comptable signé, saisissez le billetage et validez le PV d'arrêté avant de demander un réapprovisionnement.",
+    "MSG-M08-04": "Écart de réception sur le transfert :numero : émis :x GNF, reçu :y GNF.",
     "MSG-M08-05": "Les encaissements clients ne sont autorisés que sur la caisse de Conakry principale.",
     "MSG-M08-06": "Cet encaissement porterait le solde à :x GNF, au-dessus du plafond de caisse (:plafond GNF). Remise en banque nécessaire.",
-    "MSG-APP-090": "Seuls le gérant de la caisse et la trésorerie enregistrent un encaissement client."
+    "MSG-APP-090": "Seuls le gérant de la caisse et la trésorerie enregistrent un encaissement client.",
+    "MSG-APP-091": "Seul le gérant de la caisse demande son réapprovisionnement.",
+    "MSG-APP-092": "Une demande de réapprovisionnement est déjà en cours pour cette caisse.",
+    "MSG-APP-093": "Indiquez le motif (10 caractères au moins).",
+    "MSG-APP-094": "Vous ne pouvez pas faire cette action sur cette demande de réapprovisionnement.",
+    "MSG-APP-095": "Le montant validé ne peut pas dépasser le montant demandé.",
+    "MSG-APP-096": "Origine des fonds non admise pour cette caisse.",
+    "MSG-APP-097": "Choisissez une autre caisse active dont le solde couvre le transfert.",
+    "MSG-APP-098": "Saisissez le montant reçu et joignez la pièce de réception (bordereau, copie de mise à disposition ou reçu).",
+    "MSG-APP-099": "Aucun réapprovisionnement au-delà de l'habilitation du Directeur Pays (:max GNF)."
 }

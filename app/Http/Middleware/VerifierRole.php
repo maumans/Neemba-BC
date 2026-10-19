@@ -42,6 +42,11 @@ class VerifierRole
             }
         }
 
+        /* Spec v2.4, RG-M08-12 : le gestionnaire ou le suppléant d'une caisse en est le gérant, même sans rôle caissier */
+        if (in_array('gerant_caisse', $roles, true) && \App\Services\Caisse\AccesCaisse::gereUneCaisse($utilisateur)) {
+            $rolesPossedes[] = 'gerant_caisse';
+        }
+
         if (empty(array_intersect($rolesPossedes, $roles))) {
             abort(403, 'Vous n\'avez pas les droits nécessaires pour accéder à cette ressource.');
         }

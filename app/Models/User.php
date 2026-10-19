@@ -72,6 +72,9 @@ class User extends Authenticatable
         /* Spec v2.4, RG-M01-09 : tient les référentiels métier (barèmes ODM, clients, types d'OR, codes analytiques,
          * services, motifs), sans accès aux comptes ni aux droits */
         'gestionnaire_referentiels' => 'Gestionnaire des référentiels',
+        /* Spec v2.4, RG-M08-07 (Q89) : deux membres du CODIR approuvent ensemble un réapprovisionnement en l'absence
+         * du DP et de son adjoint */
+        'membre_codir' => 'Membre du CODIR',
     ];
 
     public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh', 'logistique', 'comptable'];

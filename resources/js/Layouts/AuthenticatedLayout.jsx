@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     ClipboardCheck,
     HandCoins,
+    RefreshCcw,
     LayoutDashboard,
     FileText,
     CheckSquare,
@@ -113,6 +114,13 @@ const navigationItems = [
         roles: ["caissier", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
     },
     {
+        /* Spec v2.4, RG-M08-04 à 09 : demandes de réapprovisionnement des caisses */
+        label: "Réapprovisionnements",
+        href: "reapprovisionnements.index",
+        icon: RefreshCcw,
+        roles: ["caissier", "gerant_caisse", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "membre_codir", "administrateur"],
+    },
+    {
         /* Spec v2.4, RG-M08-10 : encaissements clients de la caisse de Conakry principale */
         label: "Encaissements clients",
         href: "encaissements-clients.index",
@@ -124,7 +132,7 @@ const navigationItems = [
         label: "PV d'arrêté",
         href: "pv-arrete.index",
         icon: ClipboardCheck,
-        roles: ["caissier", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
+        roles: ["caissier", "gerant_caisse", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
     },
     {
         /* M16 : imputation comptable des bons payés et export des écritures */

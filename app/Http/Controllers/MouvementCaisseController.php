@@ -14,8 +14,8 @@ use Inertia\Inertia;
 /**
  * Contrôleur des Mouvements de Caisse
  * 
- * Gère les approvisionnements, retraits et ajustements de la caisse par site.
- * Accessible par les caissiers (créer), DAF/DP (valider).
+ * Liste des mouvements par caisse et validation des mouvements en attente (DAF / DP ; ajustement d'inventaire : DAF).
+ * Spec v2.4, RG-M08-02 : aucun mouvement saisi à la main ; l'approvisionnement vient de la demande de réapprovisionnement.
  */
 class MouvementCaisseController extends Controller
 {
@@ -54,7 +54,8 @@ class MouvementCaisseController extends Controller
         $mouvements = $query->paginate(15)->withQueryString();
 
         /* Droits d'action basés sur le rôle effectif */
-        $peutCreer = $utilisateur->peutPayer() || $utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur']);
+        /* Spec v2.4, RG-M08-05 : le gérant d'une caisse demande son réapprovisionnement (lot F1b) */
+        $peutCreer = $this->caissesAccessibles($utilisateur)->contains(fn (Caisse $c) => \App\Services\Caisse\AccesCaisse::estGerant($utilisateur, $c));
         $peutValider = $utilisateur->aLeRole(['daf', 'daf_adjoint', 'directeur_pays']);
         /* Spec v2.4, RG-M10-03 : sens de l'ajustement d'inventaire ; seul le DAF le valide */
         $mouvements->through(fn (MouvementCaisse $m) => $m->setAttribute('sortie', $m->type === 'retrait'
@@ -84,77 +85,6 @@ class MouvementCaisseController extends Controller
             'peutCreer' => $peutCreer,
             'peutValider' => $peutValider,
         ]);
-    }
-
-    /**
-     * Formulaire de création d'un mouvement
-     */
-    public function create()
-    {
-        /** @var \App\Models\User $utilisateur */
-        $utilisateur = Auth::user();
-
-        /* Un caissier ne peut créer un mouvement que sur les caisses de son propre site */
-        return Inertia::render('MouvementsCaisse/Create', [
-            'caisses' => $this->caissesAccessibles($utilisateur)->map(fn (Caisse $caisse) => [
-                'id'      => $caisse->id,
-                'libelle' => $caisse->libelle,
-                'site'    => $caisse->sites_libelle,
-                'type'    => $caisse->type,
-                'solde'   => (float) $caisse->solde,
-            ])->values(),
-            'types' => MouvementCaisse::TYPES,
-        ]);
-    }
-
-    /**
-     * Enregistrer un nouveau mouvement de caisse
-     */
-    public function store(Request $request)
-    {
-        /** @var \App\Models\User $utilisateur */
-        $utilisateur = Auth::user();
-
-        $validated = $request->validate([
-            /* Spec v2.4, RG-M08-02 : plus de retrait libre ni d'ajustement manuel (l'ajustement vient du PV d'arrêté, lot F0) */
-            'type'               => ['required', 'in:approvisionnement'],
-            'caisse_id'          => ['required', 'integer', 'exists:caisses,id'],
-            'montant'            => ['required', 'numeric', 'min:1'],
-            'motif'              => ['required', 'string', 'min:5', 'max:1000'],
-            'piece_justificative'=> ['nullable', 'file', 'mimes:pdf,jpg,jpeg,png', 'max:10240'],
-        ]);
-
-        /* Restriction : un caissier ne peut créer un mouvement que sur les caisses de son propre site */
-        $caisse = $this->caissesAccessibles($utilisateur)->firstWhere('id', (int) $validated['caisse_id']);
-        if (!$caisse) {
-            abort(403, 'Vous ne pouvez créer des mouvements que sur les caisses de votre site.');
-        }
-
-        $cheminPiece = null;
-        if ($request->hasFile('piece_justificative')) {
-            $cheminPiece = $request->file('piece_justificative')->store('mouvements_caisse', 'public');
-        }
-
-        $mouvement = MouvementCaisse::create([
-            'reference'           => MouvementCaisse::genererReference(),
-            'type'                => $validated['type'],
-            'caisse_id'           => $caisse->id,
-            'type_caisse'         => $caisse->type === 'orange_money' ? 'om' : 'especes',
-            'montant'             => $validated['montant'],
-            'motif'               => $validated['motif'],
-            /* Spec v2.4, RG-M02-11 : premier site servi (aucun pour la caisse OM) */
-            'site'                => $caisse->sites->first()?->nom ?? '',
-            'statut'              => 'en_attente',
-            'effectue_par'        => $utilisateur->id,
-            'date_mouvement'      => now(),
-            'piece_justificative' => $cheminPiece,
-        ]);
-
-        \App\Services\NotificationService::notifierMouvementCaisseCreee($mouvement, Auth::user());
-
-        return redirect()
-            ->route('mouvements-caisse.index')
-            ->with('success', "Mouvement {$mouvement->reference} créé et en attente de validation.");
     }
 
     /**

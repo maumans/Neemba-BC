@@ -132,11 +132,7 @@ class CaissesM08Test extends TestCase
         $this->actingAs($this->tresoriere)->get(route('mouvements-caisse.index'))->assertInertia(fn (Assert $page) => $page
             ->where('soldesCaisses', fn ($caisses) => count($caisses) === 2));
 
-        $this->actingAs($this->caissierBoke)->post(route('mouvements-caisse.store'), [
-            'type' => 'retrait', 'caisse_id' => $this->boke->id, 'montant' => 10000, 'motif' => 'Retrait libre',
-        ])->assertSessionHasErrors('type');
-        $this->actingAs($this->caissierBoke)->post(route('mouvements-caisse.store'), [
-            'type' => 'approvisionnement', 'caisse_id' => $this->conakry->id, 'montant' => 10000, 'motif' => 'Pas sa caisse',
-        ])->assertForbidden();
+        /* Lot F1b : plus aucun mouvement saisi à la main (l'approvisionnement passe par la demande de réapprovisionnement) */
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('mouvements-caisse.store'));
     }
 }

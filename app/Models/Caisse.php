@@ -46,6 +46,8 @@ class Caisse extends Model
         /* Matrice de paramétrage par caisse (référentiel Neemba, point 14) */
         'plafond_caisse', 'gestionnaire_id', 'suppleant_id', 'encaissements_clients',
         'reapprovisionnement', 'destinataires_rapport',
+        /* Spec v2.4, RG-M08-08 : réapprovisionnement possible par transfert depuis une autre caisse (caisse Atelier) */
+        'reappro_par_transfert',
     ];
 
     protected $casts = [
@@ -56,6 +58,7 @@ class Caisse extends Model
         'plafond_caisse' => 'decimal:2',
         'actif' => 'boolean',
         'encaissements_clients' => 'boolean',
+        'reappro_par_transfert' => 'boolean',
         'destinataires_rapport' => 'array',
         /* Spec v2.4, RG-M08-03 : alerte de seuil envoyée, dernier rappel */
         'alerte_seuil_le' => 'datetime',

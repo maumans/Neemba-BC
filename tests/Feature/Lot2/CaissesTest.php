@@ -130,15 +130,15 @@ class CaissesTest extends TestCase
      * Mouvements de caisse et alertes
      * ------------------------------------------------------------------ */
 
+    /** Spec v2.4, RG-M08-02 : plus de saisie à la main (lot F1b) ; un approvisionnement déjà en attente reste validable */
     public function test_un_approvisionnement_valide_credite_la_caisse(): void
     {
         $caissier = User::factory()->role('caissier')->create();
-        $this->actingAs($caissier)->post(route('mouvements-caisse.store'), [
-            'type' => 'approvisionnement', 'caisse_id' => $this->om->id, 'montant' => 2000000, 'motif' => 'Recharge du compte OM',
-        ])->assertRedirect(route('mouvements-caisse.index'));
-
-        $mouvement = MouvementCaisse::sole();
-        $this->assertSame('om', $mouvement->type_caisse);
+        $mouvement = MouvementCaisse::create([
+            'reference' => MouvementCaisse::genererReference(), 'type' => 'approvisionnement', 'caisse_id' => $this->om->id, 'type_caisse' => 'om',
+            'montant' => 2000000, 'motif' => 'Recharge du compte OM', 'site' => '', 'statut' => 'en_attente', 'effectue_par' => $caissier->id,
+            'date_mouvement' => now(),
+        ]);
         $this->assertEquals(0, (float) $this->om->fresh()->solde);   // rien avant validation
 
         $this->actingAs(User::factory()->role('daf')->create())
@@ -154,10 +154,10 @@ class CaissesTest extends TestCase
         $boke = Site::factory()->create(['nom' => 'Boke']);
         $caisseBoke = Caisse::factory()->create(['site_id' => $boke->id]);
 
+        /* Spec v2.4 (lot F1b) : la demande de réapprovisionnement remplace le mouvement saisi à la main */
         $this->actingAs(User::factory()->role('caissier')->create(['site' => 'Conakry']))
-            ->post(route('mouvements-caisse.store'), [
-                'type' => 'approvisionnement', 'caisse_id' => $caisseBoke->id, 'montant' => 1000, 'motif' => 'Essai interdit',
-            ])->assertForbidden();
+            ->post(route('reapprovisionnements.store'), ['caisse_id' => $caisseBoke->id, 'montant' => 1000])
+            ->assertSessionHasErrors(['general' => __('MSG-APP-091')]);
     }
 
     /** ANO-10 ; spec v2.4, RG-M08-03 : alerte à la trésorerie et au Chef comptable (plus au DAF) */
@@ -263,7 +263,8 @@ class CaissesTest extends TestCase
         $this->actingAs($caissier)->get(route('rapports.index'))->assertOk();
         $this->actingAs($caissier)->get(route('rapports.index', ['site' => 'Conakry']))->assertOk();
         $this->actingAs($caissier)->get(route('rapports.create'))->assertOk();
-        $this->actingAs($caissier)->get(route('mouvements-caisse.create'))
+        /* Lot F1b : le caissier de Conakry demande le réapprovisionnement des caisses du site */
+        $this->actingAs($caissier)->get(route('reapprovisionnements.create'))
             ->assertInertia(fn (Assert $page) => $page->has('caisses', 2));
         $this->actingAs($caissier)->get(route('mouvements-caisse.index'))->assertOk();
         /* Un caissier voit les bons approuvés de son site (un DAF ne voit que ceux de son niveau : règle v15, Q4) */

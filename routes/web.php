@@ -231,8 +231,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     /* --- Mouvements de Caisse. Spec v2.4, RG-M08-12 : le caissier voit sa caisse, les rôles transverses toutes --- */
     Route::middleware('role:caissier,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
         Route::get('/mouvements-caisse', [MouvementCaisseController::class, 'index'])->name('mouvements-caisse.index');
-        Route::get('/mouvements-caisse/create', [MouvementCaisseController::class, 'create'])->name('mouvements-caisse.create');
-        Route::post('/mouvements-caisse', [MouvementCaisseController::class, 'store'])->name('mouvements-caisse.store');
+        /* Spec v2.4, RG-M08-02 : plus de mouvement saisi à la main ; l'approvisionnement passe par la demande de
+         * réapprovisionnement (lot F1b) */
         Route::post('/mouvements-caisse/{mouvement}/valider', [MouvementCaisseController::class, 'valider'])
             ->middleware('role:daf,directeur_pays')
             ->name('mouvements-caisse.valider');
@@ -276,7 +276,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     /* --- Spec v2.4, RG-M10-02, Annexe 2 : PV d'arrêté de caisse (gérant, trésorerie, Chef comptable ; consultation transverse) --- */
-    Route::middleware('role:caissier,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
+    Route::middleware('role:caissier,gerant_caisse,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
         Route::get('/caisses/pv-arrete', [\App\Http\Controllers\PvArreteController::class, 'index'])->name('pv-arrete.index');
         Route::get('/caisses/pv-arrete/nouveau', [\App\Http\Controllers\PvArreteController::class, 'create'])->name('pv-arrete.create');
         Route::post('/caisses/pv-arrete', [\App\Http\Controllers\PvArreteController::class, 'store'])->name('pv-arrete.store');
@@ -290,6 +290,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/caisses/encaissements-clients', [\App\Http\Controllers\EncaissementClientController::class, 'index'])->name('encaissements-clients.index');
         Route::post('/caisses/encaissements-clients', [\App\Http\Controllers\EncaissementClientController::class, 'store'])->name('encaissements-clients.store');
         Route::get('/caisses/encaissements-clients/{encaissementClient}/recu', [\App\Http\Controllers\EncaissementClientController::class, 'recu'])->name('encaissements-clients.recu');
+    });
+
+    /* --- Spec v2.4, RG-M08-04 à 09 : réapprovisionnement des caisses (gérant → trésorerie → Finance → DP ou CODIR) --- */
+    Route::middleware('role:caissier,gerant_caisse,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,membre_codir,administrateur')->group(function () {
+        Route::get('/caisses/reapprovisionnements', [\App\Http\Controllers\ReapprovisionnementController::class, 'index'])->name('reapprovisionnements.index');
+        Route::get('/caisses/reapprovisionnements/nouveau', [\App\Http\Controllers\ReapprovisionnementController::class, 'create'])->name('reapprovisionnements.create');
+        Route::post('/caisses/reapprovisionnements', [\App\Http\Controllers\ReapprovisionnementController::class, 'store'])->name('reapprovisionnements.store');
+        Route::get('/caisses/reapprovisionnements/{demande}', [\App\Http\Controllers\ReapprovisionnementController::class, 'show'])->name('reapprovisionnements.show');
+        Route::post('/caisses/reapprovisionnements/{demande}/agir', [\App\Http\Controllers\ReapprovisionnementController::class, 'agir'])->name('reapprovisionnements.agir');
+        Route::get('/caisses/reapprovisionnements/{demande}/pieces/{piece}', [\App\Http\Controllers\ReapprovisionnementController::class, 'piece'])->name('reapprovisionnements.piece');
     });
 
     /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */

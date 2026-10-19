@@ -25,6 +25,7 @@ class EcritureCaisse extends Model
         /* Spec v2.4 : M10 (lot F0) et M08 (lot F1) */
         'ajustement_inventaire' => "Ajustement d'inventaire (PV d'arrêté)",
         'encaissement_client' => 'Encaissement client',
+        'transfert_emis' => 'Transfert vers une autre caisse (réapprovisionnement)',
     ];
 
     protected $fillable = [

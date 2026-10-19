@@ -176,10 +176,10 @@ export default function Index({
                     </Select>
                 </div>
                 {peutCreer && (
-                    <Link href={route('mouvements-caisse.create')}>
+                    <Link href={route('reapprovisionnements.create')}>
                         <Button>
                             <Plus className="h-4 w-4 mr-2" />
-                            Nouveau mouvement
+                            Demander un réapprovisionnement
                         </Button>
                     </Link>
                 )}

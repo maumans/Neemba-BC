@@ -40,6 +40,8 @@ class HandleInertiaRequests extends Middleware
                     'roles_effectifs' => array_values(array_unique(array_merge(
                         $request->user()->listeRoles(),
                         $request->user()->rolesValidationEffectifs(),
+                        /* Gestionnaire ou suppléant d'une caisse (menu des caisses) */
+                        \App\Services\Caisse\AccesCaisse::gereUneCaisse($request->user()) ? ['gerant_caisse'] : [],
                     ))),
                     'peut_initier_bon' => $request->user()->peutInitierBon(),
                 ]) : null,

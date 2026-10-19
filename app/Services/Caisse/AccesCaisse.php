@@ -37,6 +37,15 @@ final class AccesCaisse
             : ($utilisateur->site && $caisse->sertLeSite($utilisateur->site));
     }
 
+    /**
+     * Gestionnaire ou suppléant d'une caisse active, sans être caissier (ex. : caisse Atelier). Donne le pseudo-rôle
+     * « gerant_caisse » aux routes et au menu des caisses (PV d'arrêté, réapprovisionnement).
+     */
+    public static function gereUneCaisse(User $utilisateur): bool
+    {
+        return Caisse::actives()->where(fn ($q) => $q->where('gestionnaire_id', $utilisateur->id)->orWhere('suppleant_id', $utilisateur->id))->exists();
+    }
+
     /** Caisses actives que l'utilisateur voit : toutes pour un rôle transverse, sinon celles qu'il gère */
     public static function caissesVisibles(User $utilisateur): Collection
     {
