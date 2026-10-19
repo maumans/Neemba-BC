@@ -29,11 +29,25 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
-        $request->authenticate();
+        $utilisateur = $request->verifierIdentifiants();
 
-        $request->session()->regenerate();
+        /* Paramètre de secours (panne du serveur d'email) : connexion sans code */
+        if (!\App\Services\Securite\DoubleAuthentification::connexionActive()) {
+            Auth::login($utilisateur, $request->boolean('remember'));
+            $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+            return redirect()->intended(route('dashboard', absolute: false));
+        }
+
+        /* Spec v2.4, RG-M01-07 : la session ne s'ouvre qu'après le code reçu par email */
+        \App\Services\Securite\DoubleAuthentification::envoyerCodeConnexion($utilisateur);
+        $request->session()->put(CodeConnexionController::CLE, [
+            'utilisateur' => $utilisateur->id,
+            'souvenir' => $request->boolean('remember'),
+            'envoye_le' => now()->timestamp,
+        ]);
+
+        return redirect()->route('login.code');
     }
 
     /**

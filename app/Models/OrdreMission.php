@@ -90,7 +90,7 @@ class OrdreMission extends Model
         'type', 'technique',
         'entite', 'site', 'service', 'code_analytique', 'demandeur_id', 'initiateur_id',
         'but', 'destinations', 'vehicule',
-        'date_depart', 'date_retour_prevue', 'date_retour_reelle', 'motif_depart_passe',
+        'date_depart', 'date_retour_prevue', 'date_retour_reelle', 'motif_depart_passe', 'niveau_urgence', 'motif_urgence',
         'a_refacturer', 'montant_neemba', 'montant_a_refacturer',
         'hebergement_exterieur', 'reference_billet',
         'mission_id', 'segment_precedent_id', 'rang',

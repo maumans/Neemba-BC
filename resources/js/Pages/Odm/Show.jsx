@@ -8,6 +8,7 @@ import axios from 'axios';
 import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarPlus, CheckCircle2, FileText, Info as IconeInfo, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
 import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
+import CodeVisa from '@/Components/CodeVisa';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { Textarea } from '@/Components/ui/textarea';
@@ -91,7 +92,7 @@ function Validations({ etapes }) {
 
 /** Visa ou rejet de l'étape en cours (RG-M12-11, RG-M12-12) */
 function ActionsVisa({ odm, visa }) {
-    const visaForm = useForm({ commentaire: '' });
+    const visaForm = useForm({ commentaire: '', code_visa: '' });
     const rejetForm = useForm({ motif: '' });
     const [rejet, setRejet] = useState(false);
 
@@ -107,8 +108,13 @@ function ActionsVisa({ odm, visa }) {
                 <RecapitulatifRepartition recapitulatif={odm.calcul?.recapitulatif} titre="Répartition à viser (Neemba / clients)" className="border-blue-100" />
                 <Textarea rows={2} value={visaForm.data.commentaire} onChange={(e) => visaForm.setData('commentaire', e.target.value)}
                     placeholder="Commentaire (facultatif)" aria-label="Commentaire du visa" />
+                {visa.code_exige && (
+                    <CodeVisa url={route('odm.code-visa', odm.id)} valeur={visaForm.data.code_visa}
+                        onChange={(v) => visaForm.setData('code_visa', v)} erreur={visaForm.errors.code_visa} />
+                )}
                 <div className="flex flex-wrap gap-2">
-                    <Button size="sm" onClick={() => visaForm.post(route('odm.viser', odm.id), { preserveScroll: true })} disabled={visaForm.processing}>
+                    <Button size="sm" onClick={() => visaForm.post(route('odm.viser', odm.id), { preserveScroll: true })}
+                        disabled={visaForm.processing || (visa.code_exige && visaForm.data.code_visa.length !== 6)}>
                         <CheckCircle2 className="mr-1 h-4 w-4" /> Viser
                     </Button>
                     <Button size="sm" variant="outline" className="text-red-700" onClick={() => setRejet(true)}>
@@ -785,6 +791,9 @@ export default function Show({
                                 <Info libelle="But">{odm.but}</Info>
                                 <Info libelle="Code analytique">{odm.code_analytique && `${odm.code_analytique}${odm.code_analytique_libelle ? ' — ' + odm.code_analytique_libelle : ''}`}</Info>
                                 <Info libelle="Véhicule">{odm.vehicule}</Info>
+                                {odm.niveau_urgence && odm.niveau_urgence !== 'normale' && (
+                                    <Info libelle="Urgence">{odm.niveau_urgence_label}{odm.motif_urgence ? ` — ${odm.motif_urgence}` : ''}</Info>
+                                )}
                                 <Info libelle="Mission technique">{odm.technique ? 'Oui' : 'Non'}</Info>
                                 <Info libelle="OR liés">{odm.ordres_reparation.map((or) => `${or.numero} (${or.type === 'garantie' ? 'Garantie' : 'Vente'}${or.client ? `, ${or.client.raison_sociale}` : ''})`).join(', ')}</Info>
                                 {odm.motif_depart_passe && <Info libelle="Motif (départ dans le passé)">{odm.motif_depart_passe}</Info>}

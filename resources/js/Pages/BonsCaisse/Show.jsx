@@ -88,6 +88,7 @@ import BadgeStatut from '@/Components/BadgeStatut';
 import BandeauPiecesDejaUtilisees from '@/Components/BandeauPiecesDejaUtilisees';
 import AlertesDuBon from '@/Components/AlertesDuBon';
 import CarteJustificationBp from '@/Components/CarteJustificationBp';
+import CodeVisa from '@/Components/CodeVisa';
 import { msg, msgErreur } from '@/utils/messages';
 
 /** Dates au format SFD §1.4 (JJ/MM/AAAA, JJ/MM/AAAA HH:MM, fuseau Africa/Conakry) */
@@ -253,6 +254,7 @@ export default function Show({
     aDesPiecesRegularisation = false,
     justification = null,
     bpRegularise = null,
+    codeVisaExige = false,
     motifsRejet = {},
     modesCaissier = {},
     modesAvecReference = [],
@@ -319,6 +321,7 @@ export default function Show({
     /* Formulaires de validation */
     const approuverForm = useForm({
         commentaire: '',
+        code_visa: '',
         ...(estCDG ? { code_analytique: bonCaisse.code_analytique || '', ventilations: bonCaisse.ventilations || [] } : {}),
     });
     const rejeterForm = useForm({ motif_rejet: '', commentaire: '' });
@@ -1941,9 +1944,15 @@ export default function Show({
                                                             className="mt-1 min-h-[60px] text-sm"
                                                         />
                                                     </div>
+                                                    {/* Spec v2.4, RG-M01-07 : bon urgent, visa avec le code reçu par SMS */}
+                                                    {codeVisaExige && (
+                                                        <CodeVisa url={route('validations.code-visa', bonCaisse.id)} valeur={approuverForm.data.code_visa}
+                                                            onChange={(v) => approuverForm.setData('code_visa', v)} erreur={approuverForm.errors.code_visa} />
+                                                    )}
                                                     <DialogFooter className="mt-4">
                                                         <Button type="button" variant="outline" onClick={() => setShowApprouverDialog(false)}>Annuler</Button>
-                                                        <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white" disabled={approuverForm.processing}>
+                                                        <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white"
+                                                            disabled={approuverForm.processing || (codeVisaExige && approuverForm.data.code_visa.length !== 6)}>
                                                             Confirmer l'approbation
                                                         </Button>
                                                     </DialogFooter>

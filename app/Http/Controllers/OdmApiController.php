@@ -149,6 +149,9 @@ class OdmApiController extends Controller
             'destinations' => ['sometimes', 'array', 'max:20'],
             'destinations.*' => ['nullable', 'string', 'max:120'],
             'vehicule' => ['sometimes', 'nullable', 'string', 'max:60'],
+            /* Spec v2.4, Q76 : urgence de l'ODM */
+            'niveau_urgence' => ['sometimes', Rule::in(array_keys(\App\Models\BonCaisse::NIVEAUX_URGENCE))],
+            'motif_urgence' => ['sometimes', 'nullable', 'string', 'max:255'],
             'date_depart' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'date_retour_prevue' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'motif_depart_passe' => ['sometimes', 'nullable', 'string', 'max:500'],

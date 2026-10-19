@@ -131,5 +131,14 @@
     "MSG-M03-10": "Fichier refusé : formats acceptés PDF, JPG, PNG ; 10 Mo maximum.",
     "MSG-M03-11": "Ce bon nécessitera le visa du Directeur Pays (dépense > :seuil GNF).",
     "MSG-M03-15": "Bon :numero soumis. Prochaine étape : :valideur, délai :delai.",
-    "MSG-M03-17": "Bon exceptionnel pour un collaborateur d'une autre filiale : choisissez le motif et ajoutez un commentaire."
+    "MSG-M03-17": "Bon exceptionnel pour un collaborateur d'une autre filiale : choisissez le motif et ajoutez un commentaire.",
+    "MSG-APP-077": "Un nouveau code de connexion a été envoyé à :email. Il est valable :minutes minutes.",
+    "MSG-APP-078": "Code incorrect. Il vous reste :restants essai(s).",
+    "MSG-APP-079": "Code expiré ou nombre d’essais dépassé : demandez un nouveau code.",
+    "MSG-APP-080": "Envoi du code impossible. Réessayez dans un instant ou contactez l’administrateur.",
+    "MSG-APP-081": "Demande urgente : demandez le code de visa par SMS, puis saisissez-le.",
+    "MSG-APP-082": "Aucun numéro de téléphone sur votre compte : le code de visa ne peut pas être envoyé. Contactez l’administrateur.",
+    "MSG-APP-083": "Code de visa envoyé par SMS au :telephone. Il est valable :minutes minutes.",
+    "MSG-APP-084": "Ce compte est désactivé. Contactez l’administrateur.",
+    "MSG-APP-085": "Patientez une minute avant de demander un nouveau code."
 }

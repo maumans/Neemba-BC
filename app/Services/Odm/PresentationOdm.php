@@ -61,6 +61,8 @@ final class PresentationOdm
             'date_depart' => $odm->date_depart?->toDateString() ?? '',
             'date_retour_prevue' => $odm->date_retour_prevue?->toDateString() ?? '',
             'motif_depart_passe' => $odm->motif_depart_passe ?? '',
+            'niveau_urgence' => $odm->niveau_urgence ?? 'normale',
+            'motif_urgence' => $odm->motif_urgence ?? '',
             'hebergement_exterieur' => $odm->hebergement_exterieur,
             'reference_billet' => $odm->reference_billet ?? '',
             'participants' => $odm->participantsActifs()->get()->map(fn (ParticipantOdm $p) => [
@@ -196,6 +198,7 @@ final class PresentationOdm
             'code_analytique_libelle' => CodeAnalytique::where('code', $odm->code_analytique)->value('libelle'),
             'demandeur' => $odm->demandeur?->nom_complet,
             'initiateur' => $odm->initiateur_id !== $odm->demandeur_id ? $odm->initiateur?->nom_complet : null,
+            'niveau_urgence_label' => \App\Models\BonCaisse::NIVEAUX_URGENCE[$odm->niveau_urgence ?? 'normale'] ?? null,
             'date_depart_format' => Format::date($odm->date_depart),
             'date_retour_prevue_format' => Format::date($odm->date_retour_prevue),
             'date_retour_reelle_format' => $odm->date_retour_reelle ? Format::date($odm->date_retour_reelle) : null,
@@ -484,6 +487,8 @@ final class PresentationOdm
             'hebergementsExterieurs' => OrdreMission::HEBERGEMENTS_EXTERIEURS,
             'typesOr' => OrdreReparationOdm::TYPES,
             'maxParticipants' => (int) Parametre::valeur('odm_participants_max', 10),
+            'niveauxUrgence' => \App\Models\BonCaisse::NIVEAUX_URGENCE,
+            'motifsUrgence' => \App\Models\MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),
             'dateDuJour' => today()->toDateString(),
         ];
     }

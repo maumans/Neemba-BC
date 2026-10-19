@@ -19,6 +19,12 @@ Route::middleware('guest')->group(function () {
 
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
 
+    /* Spec v2.4, RG-M01-07 : code de connexion reçu par email */
+    Route::get('login/code', [\App\Http\Controllers\Auth\CodeConnexionController::class, 'create'])->name('login.code');
+    Route::post('login/code', [\App\Http\Controllers\Auth\CodeConnexionController::class, 'store']);
+    Route::post('login/code/renvoyer', [\App\Http\Controllers\Auth\CodeConnexionController::class, 'renvoyer'])
+        ->middleware('throttle:6,1')->name('login.code.renvoyer');
+
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
         ->name('password.request');
 

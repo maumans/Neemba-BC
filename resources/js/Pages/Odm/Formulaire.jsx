@@ -60,6 +60,8 @@ function etatInitial(odm, defauts) {
         clients: [],
         destinations: [],
         vehicule: '',
+        niveau_urgence: 'normale',
+        motif_urgence: '',
         date_depart: '',
         date_retour_prevue: '',
         motif_depart_passe: '',
@@ -78,7 +80,7 @@ function aDuContenu(form) {
 
 export default function Formulaire({
     odm = null, defauts = null, services = [], codesAnalytiques = [], types = {},
-    hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour,
+    hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour, niveauxUrgence = {}, motifsUrgence = [],
 }) {
     const [form, setForm] = useState(() => etatInitial(odm, defauts));
     const [odmId, setOdmId] = useState(odm?.id ?? null);
@@ -336,6 +338,20 @@ export default function Formulaire({
                                 <Champ champ="vehicule" libelle="Véhicule" erreur={erreurDe('vehicule')} aide="Facultatif ; exigé pour une avance carburant">
                                     <Input id="champ-vehicule" value={form.vehicule ?? ''} onChange={(e) => changer('vehicule', e.target.value)} maxLength={60} placeholder="Immatriculation" />
                                 </Champ>
+                                {/* Spec v2.4, RG-M01-07, Q76 : un ODM urgent se vise avec un code reçu par SMS */}
+                                <Champ champ="niveau_urgence" libelle="Urgence" erreur={erreurDe('niveau_urgence')}>
+                                    <select id="champ-niveau_urgence" className={SELECT} value={form.niveau_urgence ?? 'normale'} onChange={(e) => changer('niveau_urgence', e.target.value)}>
+                                        {Object.entries(niveauxUrgence).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                                    </select>
+                                </Champ>
+                                {(form.niveau_urgence ?? 'normale') !== 'normale' && (
+                                    <Champ champ="motif_urgence" libelle="Motif de l'urgence" obligatoire erreur={erreurDe('motif_urgence')}>
+                                        <select id="champ-motif_urgence" className={SELECT} value={form.motif_urgence ?? ''} onChange={(e) => changer('motif_urgence', e.target.value)}>
+                                            <option value="">Choisir…</option>
+                                            {motifsUrgence.map((m) => <option key={m} value={m}>{m}</option>)}
+                                        </select>
+                                    </Champ>
+                                )}
                             </CardContent>
                         </Card>
 

@@ -517,6 +517,8 @@ class BonCaisseController extends Controller
             'modesPaiement' => BonCaisse::MODES_PAIEMENT,
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
             'peutValiderCeBon' => $peutValiderCeBon,
+            /* Spec v2.4, RG-M01-07 : code SMS exigé pour viser un bon urgent */
+            'codeVisaExige' => $peutValiderCeBon && \App\Services\Securite\DoubleAuthentification::exigeCodeVisa($bonCaisse->niveau_urgence),
             'validationEnCours' => $validationEnCours,
             'seuilDP' => Parametre::seuilDP(),
             'niveauxUrgence' => BonCaisse::NIVEAUX_URGENCE,

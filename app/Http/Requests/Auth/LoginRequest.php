@@ -53,6 +53,31 @@ class LoginRequest extends FormRequest
     }
 
     /**
+     * Spec v2.4, RG-M01-07 : vérifie l'email et le mot de passe sans ouvrir la session (le code de connexion suit).
+     * Un compte désactivé est refusé.
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    public function verifierIdentifiants(): \App\Models\User
+    {
+        $this->ensureIsNotRateLimited();
+
+        $fournisseur = Auth::getProvider();
+        $utilisateur = $fournisseur->retrieveByCredentials($this->only('email'));
+        if (!$utilisateur || !$fournisseur->validateCredentials($utilisateur, $this->only('password'))) {
+            RateLimiter::hit($this->throttleKey());
+
+            throw ValidationException::withMessages(['email' => trans('auth.failed')]);
+        }
+        RateLimiter::clear($this->throttleKey());
+        if (!$utilisateur->actif) {
+            throw ValidationException::withMessages(['email' => __('MSG-APP-084')]);
+        }
+
+        return $utilisateur;
+    }
+
+    /**
      * Ensure the login request is not rate limited.
      *
      * @throws \Illuminate\Validation\ValidationException

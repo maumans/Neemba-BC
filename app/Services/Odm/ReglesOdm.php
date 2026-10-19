@@ -55,6 +55,11 @@ final class ReglesOdm
                 $ajouter('CODE_ANALYTIQUE_HORS_SERVICE', 'MSG-APP-026', ['service' => $service->nom], 'RG-M12-05', 'code_analytique');
             }
         }
+        /* Spec v2.4, Q76 : un ODM urgent porte un motif de la liste des motifs d'urgence (MSG-M03-08) */
+        if (($odm->niveau_urgence ?? 'normale') !== 'normale'
+            && !\App\Models\MotifUrgence::where('actif', true)->where('libelle', $odm->motif_urgence)->exists()) {
+            $ajouter('MOTIF_URGENCE', 'MSG-M03-08', [], 'RG-M03-14', 'motif_urgence');
+        }
         if (empty(array_filter($odm->destinations ?? [], 'filled'))) {
             $ajouter('DESTINATION_OBLIGATOIRE', 'MSG-APP-012', [], 'RG-M12-05', 'destinations');
         }

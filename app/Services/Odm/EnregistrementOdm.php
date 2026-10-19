@@ -27,6 +27,8 @@ final class EnregistrementOdm
     public const CHAMPS = [
         'type', 'technique', 'site', 'service', 'code_analytique', 'but', 'destinations', 'vehicule',
         'date_depart', 'date_retour_prevue', 'motif_depart_passe', 'hebergement_exterieur', 'reference_billet',
+        /* Spec v2.4, RG-M01-07, Q76 : urgence de l'ODM (code SMS au visa) */
+        'niveau_urgence', 'motif_urgence',
     ];
 
     public static function creer(User $demandeur, array $donnees = []): OrdreMission
@@ -72,6 +74,9 @@ final class EnregistrementOdm
             }
             if ($odm->type !== 'exterieur') {
                 $odm->hebergement_exterieur = null;
+            }
+            if (($odm->niveau_urgence ?? 'normale') === 'normale') {
+                $odm->motif_urgence = null;
             }
             $odm->save();
 
@@ -251,6 +256,7 @@ final class EnregistrementOdm
                 fn ($v) => $v !== '',
             ))),
             'date_depart', 'date_retour_prevue' => blank($valeur) ? null : $valeur,
+            'niveau_urgence' => blank($valeur) ? 'normale' : $valeur,
             default => is_string($valeur) ? (trim($valeur) === '' ? null : trim($valeur)) : $valeur,
         };
     }
