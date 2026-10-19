@@ -6,14 +6,16 @@ use App\Support\Format;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 /**
- * Caisse (SFD v1.3) : caisse espèces d'un site, caisse Orange Money (unique, à Conakry),
- * caisse Atelier en avance fixe.
+ * Caisse (SFD v1.3) : caisse espèces, caisse Orange Money (unique), caisse Atelier en avance fixe.
+ *
+ * Spec v2.4, RG-M02-11, §6.1 : la caisse est le point de décaissement, distinct du site. Elle sert un ou plusieurs sites
+ * (table `caisse_site`) ; un site peut avoir plusieurs caisses ; la caisse Orange Money n'a pas de site.
  *
  * Le solde ne se modifie jamais directement : chaque mouvement d'argent passe par
  * crediter() / debiter(), qui l'inscrit au registre (EcritureCaisse) avec le solde avant / après.
@@ -36,6 +38,7 @@ class Caisse extends Model
 
     protected $fillable = [
         'entite_id',
+        /* `site_id` : compatibilité (fabriques, import, nouveau site) — ajoute ce site aux sites servis */
         'code', 'libelle', 'site_id', 'type', 'mode', 'montant_avance',
         /* Lot C (RG-M03-18, RG-M08-11) : code de numérotation, reprise du carnet papier, nombre de chiffres */
         'code_numerotation', 'numero_depart', 'chiffres_numero',
@@ -56,6 +59,26 @@ class Caisse extends Model
         'destinataires_rapport' => 'array',
     ];
 
+    /** Site à ajouter aux sites servis après l'enregistrement (attribut de compatibilité `site_id`) */
+    private ?int $siteAAjouter = null;
+
+    protected static function booted(): void
+    {
+        static::saved(function (Caisse $caisse) {
+            if ($caisse->siteAAjouter) {
+                $caisse->sites()->syncWithoutDetaching([$caisse->siteAAjouter]);
+                $caisse->siteAAjouter = null;
+                $caisse->unsetRelation('sites');
+            }
+        });
+    }
+
+    /** `site_id` n'est plus une colonne : la valeur donnée devient un site servi (RG-M02-11) */
+    public function setSiteIdAttribute(mixed $valeur): void
+    {
+        $this->siteAAjouter = is_numeric($valeur) ? (int) $valeur : null;
+    }
+
     /** Champs réglés par double validation (ModificationEnAttente) */
     public const CHAMPS_SENSIBLES = ['montant_avance', 'plafond_retrait', 'seuil_alerte', 'plafond_caisse'];
 
@@ -73,9 +96,21 @@ class Caisse extends Model
      * RELATIONS ET SCOPES
      * ---------------------------------------------------------------- */
 
-    public function site(): BelongsTo
+    /** Spec v2.4, RG-M02-11 : sites servis (aucun pour la caisse Orange Money) */
+    public function sites(): BelongsToMany
     {
-        return $this->belongsTo(Site::class);
+        return $this->belongsToMany(Site::class, 'caisse_site')->orderBy('nom');
+    }
+
+    /** « Conakry », « Boke, Sangaredi » ou « Aucun site » */
+    public function getSitesLibelleAttribute(): string
+    {
+        return $this->sites->pluck('nom')->implode(', ') ?: 'Aucun site';
+    }
+
+    public function sertLeSite(?string $nomSite): bool
+    {
+        return $nomSite !== null && $this->sites->contains('nom', $nomSite);
     }
 
     public function ecritures(): HasMany
@@ -90,7 +125,7 @@ class Caisse extends Model
 
     public function scopeDuSite($query, string $nomSite)
     {
-        return $query->whereHas('site', fn ($q) => $q->where('nom', $nomSite));
+        return $query->whereHas('sites', fn ($q) => $q->where('nom', $nomSite));
     }
 
     /* ----------------------------------------------------------------
@@ -98,8 +133,9 @@ class Caisse extends Model
      * ---------------------------------------------------------------- */
 
     /**
-     * Caisse qui paie un bon selon son site et son mode de paiement (RG-BC-12) :
-     * espèces → caisse espèces active du site (à défaut : caisse principale de Conakry) ;
+     * Caisse qui paie un bon selon son mode de paiement (RG-BC-12) :
+     * espèces → caisse émettrice active, sinon une caisse espèces qui sert le site donné (celui du demandeur, spec v2.4
+     * RG-M02-11 : pas le site analytique du bon), à défaut la caisse principale de Conakry ;
      * Orange Money → caisse OM de Conakry ; chèque, virement, autre → aucune (paiement hors caisse).
      */
     public static function payeusePour(string $nomSite, ?string $modePaiement, ?self $emettrice = null): ?self
@@ -140,7 +176,7 @@ class Caisse extends Model
     public static function principaleConakry(): ?self
     {
         return static::actives()->where('type', 'especes')->where('mode', 'standard')
-            ->whereHas('site', fn ($q) => $q->where('code', '01')->orWhere('nom', 'Conakry'))
+            ->whereHas('sites', fn ($q) => $q->where('code', '01')->orWhere('nom', 'Conakry'))
             ->orderBy('id')
             ->first();
     }

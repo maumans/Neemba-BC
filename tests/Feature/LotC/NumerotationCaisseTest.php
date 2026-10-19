@@ -146,7 +146,7 @@ class NumerotationCaisseTest extends TestCase
     /** Bon complet (facture jointe) soumis par l'assistant */
     private function soumettre(User $demandeur): BonCaisse
     {
-        $id = $this->actingAs($demandeur)->postJson(route('api.bons.creer'), ['type_bon' => 'BD', 'code_analytique' => 'ADAZZZ', 'site' => 'Kankan'])
+        $id = $this->actingAs($demandeur)->postJson(route('api.bons.creer'), ['type_bon' => 'BD', 'code_analytique' => 'ADAZZZ'])
             ->assertCreated()->json('bon.id');
         $this->actingAs($demandeur)->patchJson(route('api.bons.enregistrer', $id), [
             'motif' => 'Achat de fournitures pour l\'atelier Aftermarket', 'categorie_depense' => 'fournitures', 'montant' => 150000 + $id, 'mode_paiement' => 'especes',

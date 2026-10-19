@@ -170,12 +170,17 @@ class EnregistrementBon
             }
         }
 
-        /* Lot C (RG-M03-11) : caisse émettrice = caisse de rattachement du titulaire ; site du profil, non modifiable */
+        /* Lot C (RG-M03-11) : caisse émettrice = caisse de rattachement du titulaire, non modifiable */
         $titulaire = $bon->demandeur_id ? User::find($bon->demandeur_id) : null;
         $emettrice = Caisse::deRattachement($titulaire);
         $bon->caisse_emettrice_id = $emettrice?->id;
         $bon->setRelation('caisseEmettrice', $emettrice);
-        $bon->site = $titulaire?->site ?: ($emettrice?->site?->nom ?? $bon->site);
+        $bon->setRelation('demandeur', $titulaire);
+        /* Spec v2.4, RG-M03-27 : site analytique, par défaut celui du titulaire, modifiable à la saisie (un changement de
+         * titulaire sans site choisi reprend le site du nouveau titulaire) */
+        if (blank($bon->site) || ($bon->isDirty('demandeur_id') && !array_key_exists('site', $saisie))) {
+            $bon->site = $titulaire?->site ?: ($emettrice?->sites->first()?->nom ?? $bon->site);
+        }
 
         /* RG-BC-12 : caisse payeuse prévue (le paiement inscrit la caisse réellement débitée) */
         $bon->caisse_id = $bon->site && $bon->mode_paiement ? $bon->caissePayeuse()?->id : null;

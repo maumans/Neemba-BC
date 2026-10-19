@@ -229,7 +229,7 @@ class DashboardController extends Controller
         /* ====== Soldes par caisse (ANO-09) : caissier, DAF, DP, admin ====== */
         $soldesCaisses = [];
         if ($utilisateur->aLeRole(['caissier', 'daf', 'directeur_pays', 'administrateur'])) {
-            $caissesQuery = \App\Models\Caisse::actives()->with('site')->orderBy('site_id')->orderBy('id');
+            $caissesQuery = \App\Models\Caisse::actives()->with('sites')->orderBy('id');
 
             /* Un caissier ne voit que les caisses de son propre site */
             if (!$utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur'])) {
@@ -240,7 +240,7 @@ class DashboardController extends Controller
                 'id'              => $caisse->id,
                 'code'            => $caisse->code,
                 'libelle'         => $caisse->libelle,
-                'site'            => $caisse->site->nom,
+                'site'            => $caisse->sites_libelle,
                 'type'            => $caisse->type,
                 'solde'           => (float) $caisse->solde,
                 'seuil_alerte'    => $caisse->seuilAlerteEffectif(),

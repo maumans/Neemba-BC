@@ -75,6 +75,8 @@ class ValidationController extends Controller
             'modesPaiement' => BonCaisse::MODES_PAIEMENT,
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
             'codesAnalytiques' => \App\Models\CodeAnalytique::where('actif', true)->get(),
+            /* Spec v2.4, RG-M03-27 : sites proposés au CDG pour corriger le site analytique */
+            'sitesActifs' => \App\Models\Site::actifs()->orderBy('nom')->pluck('nom'),
             'motifsRejet' => \App\Models\MotifRejet::options(),
             /* RG-M04-05 : le valideur voit le doublon probable et les BP en retard du bénéficiaire là où il vise */
             'alertes' => \App\Services\BonCaisse\AlertesBon::pourAffichage($bonCaisse),
@@ -124,6 +126,8 @@ class ValidationController extends Controller
                 \App\Services\BonCaisse\ReglesSaisie::regleCodeDuService(['service' => $bonCaisse->service]),
             ];
             $regles['code_analytique'] = ['nullable', 'string', 'max:255', ...$regleCode];
+            /* Spec v2.4, RG-M03-27 : le CDG peut corriger le site analytique, avec trace */
+            $regles['site'] = ['nullable', 'string', Rule::exists('sites', 'nom')->where('actif', true)];
             $regles['ventilations'] = ['nullable', 'array'];
             $regles['ventilations.*.code_analytique'] = ['required_with:ventilations', 'string', ...$regleCode];
             $regles['ventilations.*.montant'] = ['required_with:ventilations', 'numeric', 'min:0'];
@@ -134,6 +138,14 @@ class ValidationController extends Controller
 
         /* Si le CDG a modifié le code analytique ou les ventilations */
         if ($roleValidation === 'controle_gestion') {
+            if ($request->filled('site') && $validated['site'] !== $bonCaisse->site) {
+                $ancienSite = $bonCaisse->site ?: 'aucun';
+                $bonCaisse->modifierAvecJournal(
+                    ['site' => $validated['site']],
+                    \App\Models\HistoriqueAction::ACTION_MODIFICATION_SITE,
+                    "Site analytique corrigé par le CDG : {$ancienSite} → {$validated['site']}",
+                );
+            }
             if ($request->filled('code_analytique')) {
                 $ancienCode = $bonCaisse->code_analytique;
                 $bonCaisse->modifierAvecJournal(

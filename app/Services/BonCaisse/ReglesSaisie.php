@@ -184,7 +184,7 @@ class ReglesSaisie
         return [
             'type_bon' => ['nullable', Rule::in(['BD', 'BP'])],
             'code_analytique' => ['nullable', 'string', 'max:255'],
-            'site' => ['nullable', 'string', 'max:255'],
+            'site' => ['nullable', 'string', 'max:255', Rule::exists('sites', 'nom')->where('actif', true)],
             'service' => ['nullable', 'string', 'max:255'],
             'niveau_urgence' => ['nullable', Rule::in(array_keys(BonCaisse::NIVEAUX_URGENCE))],
             'motif_urgence' => ['nullable', 'string', 'max:255'],
@@ -415,7 +415,9 @@ class ReglesSaisie
             if ($valeur !== 'especes' || empty($d['site']) || empty($d['montant'])) {
                 return;
             }
-            $caisse = Caisse::payeusePour($d['site'], 'especes', !empty($d['caisse_emettrice_id']) ? Caisse::find($d['caisse_emettrice_id']) : null);
+            /* Spec v2.4, RG-M02-11 : plafond de retrait de la caisse qui paie (émettrice), pas du site analytique */
+            $siteDemandeur = !empty($d['demandeur_id']) ? \App\Models\User::whereKey($d['demandeur_id'])->value('site') : null;
+            $caisse = Caisse::payeusePour($siteDemandeur ?: $d['site'], 'especes', !empty($d['caisse_emettrice_id']) ? Caisse::find($d['caisse_emettrice_id']) : null);
             if ($caisse && $caisse->depassePlafondRetrait((float) $d['montant'])) {
                 $echec(ErreurMetier::texte('MSG-BC-012', [
                     'plafond' => (float) $caisse->plafond_retrait,

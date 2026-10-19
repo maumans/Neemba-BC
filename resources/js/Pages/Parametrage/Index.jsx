@@ -373,7 +373,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     /* ─── CAISSES (lot 2) ─── */
     const [caisseDialog, setCaisseDialog] = useState({ open: false, item: null });
     const caisseForm = useForm({
-        code: '', libelle: '', site_id: '', type: 'especes', mode: 'standard',
+        code: '', libelle: '', site_ids: [], type: 'especes', mode: 'standard',
         montant_avance: '', plafond_retrait: '', seuil_alerte: '', plafond_caisse: '', solde: '',
         gestionnaire_id: '', suppleant_id: '', encaissements_clients: false, reapprovisionnement: '',
         code_numerotation: '', numero_depart: '', chiffres_numero: '',
@@ -382,7 +382,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
 
     const caissesFormat = caisses.map((c) => ({
         ...c,
-        site_nom: c.site?.nom ?? '',
+        site_nom: c.sites_libelle ?? '',
         type_affiche: (typesCaisse[c.type] ?? c.type) + (c.mode === 'avance_fixe' ? ' · avance fixe' : ''),
         solde_affiche: formaterMontant(c.solde),
         plafond_affiche: c.plafond_retrait !== null ? formaterMontant(c.plafond_retrait) : 'Aucun',
@@ -399,7 +399,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     const openCaisseEdit = (item) => {
         caisseForm.clearErrors();
         caisseForm.setData({
-            code: item.code, libelle: item.libelle, site_id: item.site_id, type: item.type, mode: item.mode,
+            code: item.code, libelle: item.libelle, site_ids: (item.sites ?? []).map((site) => site.id), type: item.type, mode: item.mode,
             montant_avance: item.montant_avance ?? '', plafond_retrait: item.plafond_retrait ?? '',
             seuil_alerte: item.seuil_alerte ?? '', plafond_caisse: item.plafond_caisse ?? '', solde: item.solde ?? '',
             gestionnaire_id: item.gestionnaire_id ?? '', suppleant_id: item.suppleant_id ?? '',
@@ -767,7 +767,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                     columns={[
                                         { key: 'code', label: 'Code' },
                                         { key: 'libelle', label: 'Caisse' },
-                                        { key: 'site_nom', label: 'Site' },
+                                        { key: 'site_nom', label: 'Sites servis' },
                                         { key: 'type_affiche', label: 'Type' },
                                         { key: 'solde_affiche', label: 'Solde' },
                                         { key: 'plafond_affiche', label: 'Retrait espèces max' },
@@ -1036,19 +1036,11 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                 </div>
                 {caisseDialog.item ? (
                     <p className="text-xs text-gray-500">
-                        {caisseDialog.item.site?.nom} · {typesCaisse[caisseDialog.item.type] ?? caisseDialog.item.type}
+                        {typesCaisse[caisseDialog.item.type] ?? caisseDialog.item.type}
                         {caisseDialog.item.mode === 'avance_fixe' ? ' · avance fixe' : ''}
                     </p>
                 ) : (
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
-                            <Label>Site *</Label>
-                            <select className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={caisseForm.data.site_id} onChange={(e) => caisseForm.setData('site_id', e.target.value)} required>
-                                <option value="" disabled>Choisir…</option>
-                                {sites.map((site) => <option key={site.id} value={site.id}>{site.nom}</option>)}
-                            </select>
-                            {caisseForm.errors.site_id && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.site_id}</p>}
-                        </div>
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Label>Type *</Label>
                             <select className="flex h-10 w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm" value={caisseForm.data.type} onChange={(e) => caisseForm.setData('type', e.target.value)}>
@@ -1063,6 +1055,26 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                         </div>
                     </div>
                 )}
+                {/* Spec v2.4, RG-M02-11 : une caisse sert un ou plusieurs sites ; la caisse Orange Money n'en sert aucun */}
+                <fieldset>
+                    <legend className="text-sm font-medium">Sites servis{caisseForm.data.type === 'orange_money' ? '' : ' *'}</legend>
+                    {caisseForm.data.type === 'orange_money' ? (
+                        <p className="mt-1 text-xs text-gray-500">La caisse Orange Money ne sert aucun site.</p>
+                    ) : (
+                        <div className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-3">
+                            {sites.filter((site) => site.actif || caisseForm.data.site_ids.includes(site.id)).map((site) => (
+                                <label key={site.id} className="flex items-center gap-2 text-sm">
+                                    <input type="checkbox" checked={caisseForm.data.site_ids.includes(site.id)}
+                                        onChange={(e) => caisseForm.setData('site_ids', e.target.checked
+                                            ? [...caisseForm.data.site_ids, site.id]
+                                            : caisseForm.data.site_ids.filter((id) => id !== site.id))} />
+                                    {site.nom}{site.code ? ` (${site.code})` : ''}
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                    {caisseForm.errors.site_ids && <p className="text-sm text-red-500 mt-1">{caisseForm.errors.site_ids}</p>}
+                </fieldset>
                 <div className="pt-2 border-t space-y-3">
                     {caisseDialog.item && (
                         <p className="text-xs text-amber-700 bg-amber-50 rounded p-2">

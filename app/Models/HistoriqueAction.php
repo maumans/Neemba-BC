@@ -62,6 +62,8 @@ class HistoriqueAction extends Model
     const ACTION_AJOUT_PIECE_JOINTE = 'ajout_piece_jointe';
     const ACTION_RELANCE_REGULARISATION = 'relance_regularisation';
     const ACTION_MODIFICATION_CODE_ANALYTIQUE = 'modification_code_analytique';
+    /* Spec v2.4, RG-M03-27 : site analytique corrigé par le CDG */
+    const ACTION_MODIFICATION_SITE = 'modification_site';
     const ACTION_MODIFICATION_VENTILATION = 'modification_ventilation';
     const ACTION_MOUVEMENT_CAISSE = 'mouvement_caisse';
     const ACTION_DELEGATION = 'delegation';
@@ -94,6 +96,7 @@ class HistoriqueAction extends Model
         'ajout_piece_jointe' => 'Ajout de pièce jointe',
         'relance_regularisation' => 'Relance de régularisation',
         'modification_code_analytique' => 'Modification code analytique (CDG)',
+        'modification_site' => 'Modification du site analytique (CDG)',
         'modification_ventilation' => 'Modification ventilation analytique',
         'mouvement_caisse' => 'Mouvement de caisse',
         'delegation' => 'Délégation de pouvoirs',
@@ -121,6 +124,7 @@ class HistoriqueAction extends Model
         'ajout_piece_jointe' => 'Paperclip',
         'relance_regularisation' => 'Bell',
         'modification_code_analytique' => 'Pencil',
+        'modification_site' => 'MapPin',
         'modification_ventilation' => 'GitBranch',
         'mouvement_caisse' => 'Wallet',
         'delegation' => 'UserCheck',

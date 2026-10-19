@@ -98,7 +98,7 @@ final class VisibiliteBon
                 /* Lot C (RG-M02-03) : bons de sa caisse de rattachement (émettrice ou payeuse), à défaut de son site */
                 $saCaisse = $utilisateur->caisse_id
                     ? (ControleCaissier::caisseDuCaissier($bon, $utilisateur) || (int) $bon->caisse_id === (int) $utilisateur->caisse_id)
-                    : (!$utilisateur->site || $bon->site === $utilisateur->site);
+                    : (!$utilisateur->site || ControleCaissier::bonDuSite($bon, $utilisateur->site));
                 if (in_array($bon->statut, ['APPROUVE', 'PAYE', 'EN_ATTENTE_REGULARISATION', 'REGULARISE', 'ARCHIVE']) && $saCaisse) {
                     $autorise = true;
                 }

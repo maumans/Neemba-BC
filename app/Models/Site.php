@@ -48,9 +48,10 @@ class Site extends Model
      * RELATIONS
      * ---------------------------------------------------------------- */
 
-    public function caisses(): HasMany
+    /** Spec v2.4, RG-M02-11 : caisses qui servent ce site (un site peut en avoir plusieurs) */
+    public function caisses(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
     {
-        return $this->hasMany(Caisse::class);
+        return $this->belongsToMany(Caisse::class, 'caisse_site');
     }
 
     public function mouvementsCaisse(): HasMany

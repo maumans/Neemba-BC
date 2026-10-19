@@ -33,14 +33,29 @@ final class ControleCaissier
 
                 return "Ce bon relève de la {$libelle} : seul un caissier de cette caisse peut le payer (RG-M06-01).";
             }
-        } elseif ($caissier->site && $bon->site && $caissier->site !== $bon->site && !$caissier->aLeRole('administrateur')) {
-            return "Ce bon relève du site {$bon->site} : seul un caissier de ce site peut le payer (RG-M06-01).";
+        } elseif ($caissier->site && !self::bonDuSite($bon, $caissier->site) && !$caissier->aLeRole('administrateur')) {
+            return $bon->caisseEmettrice
+                ? "Ce bon relève de la {$bon->caisseEmettrice->libelle} : seul un caissier d'un site qu'elle sert peut le payer (RG-M06-01)."
+                : "Ce bon relève du site {$bon->site} : seul un caissier de ce site peut le payer (RG-M06-01).";
         }
         if ($caisse && ($caisse->gestionnaire_id || $caisse->suppleant_id) && !self::tientLaCaisse($caisse, $caissier)) {
             return "Vous n'êtes ni le gestionnaire ni le suppléant de la {$caisse->libelle} (RG-M08-12).";
         }
 
         return null;
+    }
+
+    /**
+     * Spec v2.4, RG-M02-11 : le bon relève-t-il d'un site ? Oui si sa caisse émettrice sert ce site ; un ancien bon sans
+     * caisse émettrice relève de son site. Le site analytique d'un bon récent n'entre pas en compte (RG-M03-27).
+     */
+    public static function bonDuSite(BonCaisse $bon, string $site): bool
+    {
+        if ($bon->caisse_emettrice_id) {
+            return (bool) $bon->caisseEmettrice?->sertLeSite($site);
+        }
+
+        return !$bon->site || $bon->site === $site;
     }
 
     /** Le bon relève-t-il de la caisse de rattachement du caissier ? (sans mode retenu : la caisse OM paie tout bon en OM) */

@@ -350,7 +350,8 @@ class BonCaisse extends Model
     /** Caisse qui paierait le bon dans ce mode (RG-BC-12 ; la caisse émettrice paie en espèces, lot C) */
     public function caissePayeuse(?string $mode = null): ?Caisse
     {
-        return Caisse::payeusePour((string) $this->site, $mode ?? $this->mode_paiement, $this->caisseEmettrice);
+        /* Spec v2.4, RG-M02-11, RG-M03-27 : la caisse dépend de la caisse émettrice (à défaut du site du demandeur), pas du site analytique */
+        return Caisse::payeusePour((string) ($this->demandeur?->site ?: $this->site), $mode ?? $this->mode_paiement, $this->caisseEmettrice);
     }
 
     /** Spec v2.3 : tiers validé (RG-M03-03) */

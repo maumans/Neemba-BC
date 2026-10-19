@@ -59,7 +59,7 @@ class MouvementCaisseController extends Controller
             'id'              => $caisse->id,
             'code'            => $caisse->code,
             'libelle'         => $caisse->libelle,
-            'site'            => $caisse->site->nom,
+            'site'            => $caisse->sites_libelle,
             'type'            => $caisse->type,
             'solde'           => (float) $caisse->solde,
             'plafond_retrait' => $caisse->plafond_retrait !== null ? (float) $caisse->plafond_retrait : null,
@@ -92,7 +92,7 @@ class MouvementCaisseController extends Controller
             'caisses' => $this->caissesAccessibles($utilisateur)->map(fn (Caisse $caisse) => [
                 'id'      => $caisse->id,
                 'libelle' => $caisse->libelle,
-                'site'    => $caisse->site->nom,
+                'site'    => $caisse->sites_libelle,
                 'type'    => $caisse->type,
                 'solde'   => (float) $caisse->solde,
             ])->values(),
@@ -134,7 +134,8 @@ class MouvementCaisseController extends Controller
             'type_caisse'         => $caisse->type === 'orange_money' ? 'om' : 'especes',
             'montant'             => $validated['montant'],
             'motif'               => $validated['motif'],
-            'site'                => $caisse->site->nom,
+            /* Spec v2.4, RG-M02-11 : premier site servi (aucun pour la caisse OM) */
+            'site'                => $caisse->sites->first()?->nom ?? '',
             'statut'              => 'en_attente',
             'effectue_par'        => $utilisateur->id,
             'date_mouvement'      => now(),
@@ -221,7 +222,7 @@ class MouvementCaisseController extends Controller
      */
     private function caissesAccessibles(\App\Models\User $utilisateur)
     {
-        $requete = Caisse::actives()->with('site')->orderBy('site_id')->orderBy('id');
+        $requete = Caisse::actives()->with('sites')->orderBy('id');
 
         if (!$utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur'])) {
             $site = $utilisateur->site;

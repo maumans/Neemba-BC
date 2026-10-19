@@ -256,6 +256,7 @@ export default function Show({
     bpRegularise = null,
     codeVisaExige = false,
     typesOrLibelles = {},
+    sitesActifs = [],
     motifsRejet = {},
     modesCaissier = {},
     modesAvecReference = [],
@@ -323,7 +324,7 @@ export default function Show({
     const approuverForm = useForm({
         commentaire: '',
         code_visa: '',
-        ...(estCDG ? { code_analytique: bonCaisse.code_analytique || '', ventilations: bonCaisse.ventilations || [] } : {}),
+        ...(estCDG ? { code_analytique: bonCaisse.code_analytique || '', site: bonCaisse.site || '', ventilations: bonCaisse.ventilations || [] } : {}),
     });
     const rejeterForm = useForm({ motif_rejet: '', commentaire: '' });
     const complementForm = useForm({ commentaire: '' });
@@ -733,7 +734,7 @@ export default function Show({
                                             <div className="flex items-start gap-3">
                                                 <MapPin className="h-5 w-5 text-gray-400 mt-0.5" />
                                                 <div>
-                                                    <p className="text-xs text-gray-500">Site</p>
+                                                    <p className="text-xs text-gray-500">Site analytique</p>
                                                     <p className="font-medium">{bonCaisse.site}</p>
                                                 </div>
                                             </div>
@@ -1933,6 +1934,19 @@ export default function Show({
                                                                 searchPlaceholder="Rechercher un code..."
                                                             />
                                                             <p className="text-[10px] text-purple-500 mt-1">Actuel : {bonCaisse.code_analytique || 'Non défini'}</p>
+                                                            {sitesActifs.length > 0 && (
+                                                                <div className="mt-2">
+                                                                    <p className="text-xs font-semibold text-purple-700 mb-1 flex items-center gap-1">
+                                                                        <MapPin className="h-3.5 w-3.5" /> Site analytique
+                                                                    </p>
+                                                                    <select aria-label="Site analytique" value={approuverForm.data.site ?? ''}
+                                                                        onChange={(e) => approuverForm.setData('site', e.target.value)}
+                                                                        className="h-9 w-full rounded-md border border-purple-200 bg-white px-2 text-sm">
+                                                                        {[...new Set([...(bonCaisse.site ? [bonCaisse.site] : []), ...sitesActifs])].map((nom) => <option key={nom} value={nom}>{nom}</option>)}
+                                                                    </select>
+                                                                    <p className="text-[10px] text-purple-500 mt-1">Actuel : {bonCaisse.site || 'Non défini'} ; une correction est tracée.</p>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
 

@@ -228,10 +228,14 @@ class SaisieBonTest extends TestCase
     }
 
     /** TC-BC-010 : Boké, plafond 1 000 000 */
-    /** Lot C (RG-M03-11) : le site vient du profil du demandeur, non modifiable ; le plafond est celui de sa caisse */
+    /**
+     * Lot C (RG-M03-11) : la caisse vient du profil du demandeur ; le plafond est celui de sa caisse. Spec v2.4 (RG-M03-27) :
+     * le site analytique se modifie, la caisse non.
+     */
     public function test_le_plafond_depend_de_la_caisse_du_site(): void
     {
-        $this->assertSame('Conakry', $this->brouillon(['site' => 'Boke'])->site);
+        $analytique = $this->brouillon(['site' => 'Boke']);
+        $this->assertSame(['Boke', 'CKY-ESP'], [$analytique->site, $analytique->caisseEmettrice->code]);
 
         $this->souadou->update(['site' => 'Boke']);
         $bon = $this->brouillon();

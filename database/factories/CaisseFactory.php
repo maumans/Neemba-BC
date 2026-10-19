@@ -33,6 +33,8 @@ class CaisseFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'code' => strtoupper(fake()->unique()->lexify('???')) . '-OM',
             'type' => 'orange_money',
+            /* Spec v2.4, RG-M02-11 : la caisse Orange Money n'a pas de site */
+            'site_id' => null,
         ]);
     }
 }

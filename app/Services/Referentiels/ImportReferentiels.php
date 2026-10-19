@@ -817,7 +817,7 @@ class ImportReferentiels
     /** Caisse du classeur : la seule du site pour ce type, sinon par libellé, sinon par mode (avance fixe ou standard) */
     private function caisse(Site $site, string $type, string $libelle, string $modeReapprovisionnement): ?Caisse
     {
-        $caisses = Caisse::where('site_id', $site->id)->where('type', $type)->get();
+        $caisses = Caisse::whereHas('sites', fn ($q) => $q->whereKey($site->id))->where('type', $type)->get();
         if ($caisses->count() === 1) {
             return $caisses->first();
         }

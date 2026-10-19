@@ -129,8 +129,8 @@ class UtilisateurController extends Controller
     /** Caisses proposées comme caisse de rattachement (RG-M02-03) */
     private static function caisses()
     {
-        return \App\Models\Caisse::actives()->with('site')->orderBy('libelle')->get()
-            ->map(fn (\App\Models\Caisse $c) => ['id' => $c->id, 'libelle' => $c->libelle, 'code' => $c->codeNumerotation(), 'site' => $c->site?->nom]);
+        return \App\Models\Caisse::actives()->with('sites')->orderBy('libelle')->get()
+            ->map(fn (\App\Models\Caisse $c) => ['id' => $c->id, 'libelle' => $c->libelle, 'code' => $c->codeNumerotation(), 'site' => $c->sites_libelle]);
     }
 
     /**

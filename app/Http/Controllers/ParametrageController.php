@@ -40,8 +40,8 @@ class ParametrageController extends Controller
         return Inertia::render('Parametrage/Index', [
             'onglets' => $onglets,
             'sites' => $admin ? Site::with('caisses')->orderBy('nom')->get() : [],
-            'caisses' => $admin ? Caisse::with(['site', 'gestionnaire:id,name,prenom', 'suppleant:id,name,prenom'])->orderBy('site_id')->orderBy('id')->get()
-                ->map(fn (Caisse $caisse) => $caisse->append(['solde_format', 'type_label'])) : [],
+            'caisses' => $admin ? Caisse::with(['sites:id,nom', 'gestionnaire:id,name,prenom', 'suppleant:id,name,prenom'])->orderBy('id')->get()
+                ->map(fn (Caisse $caisse) => $caisse->append(['solde_format', 'type_label', 'sites_libelle'])) : [],
             'typesCaisse' => Caisse::TYPES,
             'modesCaisse' => Caisse::MODES,
             'services' => $gestion ? Service::orderBy('nom')->get()->map(fn (Service $s) => $s->setAttribute(
@@ -148,7 +148,9 @@ class ParametrageController extends Controller
         $validated = $request->validate([
             'code'            => ['required', 'string', 'max:20', 'unique:caisses,code'],
             'libelle'         => ['required', 'string', 'max:255'],
-            'site_id'         => ['required', 'integer', 'exists:sites,id'],
+            /* Spec v2.4, RG-M02-11 : une caisse espèces sert un ou plusieurs sites ; la caisse OM n'en sert aucun */
+            'site_ids'        => ['array', 'required_unless:type,orange_money', 'prohibited_if:type,orange_money'],
+            'site_ids.*'      => ['integer', 'exists:sites,id'],
             'type'            => ['required', \Illuminate\Validation\Rule::in(array_keys(Caisse::TYPES))],
             'mode'            => ['required', \Illuminate\Validation\Rule::in(array_keys(Caisse::MODES))],
             'montant_avance'  => ['nullable', 'numeric', 'min:0', 'required_if:mode,avance_fixe'],
@@ -157,7 +159,8 @@ class ParametrageController extends Controller
             'plafond_caisse'  => ['nullable', 'numeric', 'min:0'],
         ] + self::reglesResponsablesCaisse() + self::reglesNumerotation());
 
-        Caisse::create($validated + ['solde' => 0, 'actif' => true]);
+        $caisse = Caisse::create(\Illuminate\Support\Arr::except($validated, ['site_ids']) + ['solde' => 0, 'actif' => true]);
+        $caisse->sites()->sync($validated['site_ids'] ?? []);
 
         return back()->with('success', 'Caisse créée (solde 0).');
     }
@@ -176,13 +179,22 @@ class ParametrageController extends Controller
             'seuil_alerte'    => ['nullable', 'numeric', 'min:0'],
             'plafond_caisse'  => ['nullable', 'numeric', 'min:0'],
             'solde'           => ['nullable', 'numeric'],
+            /* Spec v2.4, RG-M02-11 : sites servis, modifiés tout de suite (la caisse OM n'en sert aucun) */
+            'site_ids'        => ['sometimes', 'array', $caisse->type === 'orange_money' ? 'max:0' : 'min:1'],
+            'site_ids.*'      => ['integer', 'exists:sites,id'],
         ] + self::reglesResponsablesCaisse() + self::reglesNumerotation(), [
+            'site_ids.min' => 'Choisissez au moins un site servi par cette caisse.',
+            'site_ids.max' => "La caisse Orange Money ne sert aucun site.",
             'code_numerotation.unique' => 'Ce code de numérotation est déjà utilisé par une autre caisse de l\'entité.',
         ]);
         /* RG-M01-08 : les bons sont numérotés par caisse ; le code reste unique dans l'entité */
         if (filled($validated['code_numerotation'] ?? null)) {
             $request->validate(['code_numerotation' => [\Illuminate\Validation\Rule::unique('caisses', 'code_numerotation')->where('entite_id', $caisse->entite_id)->ignore($caisse->id)]],
                 ['code_numerotation.unique' => 'Ce code de numérotation est déjà utilisé par une autre caisse de l\'entité.']);
+        }
+
+        if (array_key_exists('site_ids', $validated)) {
+            $caisse->sites()->sync($validated['site_ids']);
         }
 
         $enAttente = 0;

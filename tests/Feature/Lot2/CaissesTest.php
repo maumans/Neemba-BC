@@ -208,7 +208,7 @@ class CaissesTest extends TestCase
             ->post(route('parametrage.sites.store'), ['code' => '77', 'nom' => 'Kindia', 'ville' => 'Kindia'])
             ->assertSessionHas('success');
 
-        $caisse = Caisse::whereHas('site', fn ($q) => $q->where('nom', 'Kindia'))->sole();
+        $caisse = Caisse::duSite('Kindia')->sole();
         $this->assertSame('Caisse principale Kindia', $caisse->libelle);
         $this->assertSame('KIN-ESP', $caisse->code);
         $this->assertEquals(0, (float) $caisse->solde);

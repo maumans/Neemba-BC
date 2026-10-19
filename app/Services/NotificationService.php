@@ -415,15 +415,16 @@ class NotificationService
      */
     public static function notifierAlerteSolde(\App\Models\Caisse $caisse, ?User $declencheur = null): void
     {
-        $caisse->loadMissing('site');
-        $nomSite = $caisse->site?->nom;
+        /* Spec v2.4, RG-M02-11 : caissiers des sites que sert la caisse */
+        $caisse->loadMissing('sites');
+        $nomsSites = $caisse->sites->pluck('nom')->all();
 
         $destinataires = User::actifs()
-            ->where(function ($q) use ($nomSite) {
+            ->where(function ($q) use ($nomsSites) {
                 $q->whereIn('role', ['daf', 'directeur_pays'])
-                    ->orWhere(function ($q2) use ($nomSite) {
+                    ->orWhere(function ($q2) use ($nomsSites) {
                         $q2->where('role', 'caissier')
-                            ->where('site', $nomSite);
+                            ->whereIn('site', $nomsSites);
                     });
             })
             ->get();
@@ -446,7 +447,7 @@ class NotificationService
                 'metadata' => [
                     'caisse_id' => $caisse->id,
                     'caisse' => $caisse->libelle,
-                    'site' => $nomSite,
+                    'site' => implode(', ', $nomsSites) ?: null,
                     'solde' => (float) $caisse->solde,
                     'seuil' => $caisse->seuilAlerteEffectif(),
                 ],
@@ -485,7 +486,7 @@ class NotificationService
     {
         $resultats = [];
 
-        foreach (\App\Models\Caisse::actives()->with('site')->orderBy('id')->get() as $caisse) {
+        foreach (\App\Models\Caisse::actives()->with('sites')->orderBy('id')->get() as $caisse) {
             if (!$caisse->sousSeuil()) {
                 continue;
             }

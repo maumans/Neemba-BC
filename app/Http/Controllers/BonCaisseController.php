@@ -191,7 +191,9 @@ class BonCaisseController extends Controller
                                 ->orWhere(fn ($q4) => $q4->whereNull('caisse_emettrice_id')->where('site', $utilisateur->site))
                                 ->when($om, fn ($q4) => $q4->orWhere('mode_paiement', 'orange_money')));
                         } elseif ($utilisateur->site) {
-                            $q2->where('site', $utilisateur->site);
+                            /* Spec v2.4, RG-M02-11 : bons émis par une caisse qui sert son site (anciens bons : site du bon) */
+                            $q2->where(fn ($q3) => $q3->whereHas('caisseEmettrice.sites', fn ($q4) => $q4->where('nom', $utilisateur->site))
+                                ->orWhere(fn ($q4) => $q4->whereNull('caisse_emettrice_id')->where('site', $utilisateur->site)));
                         }
                     });
                 }
@@ -561,6 +563,8 @@ class BonCaisseController extends Controller
                 : null,
             'soldeCaisseSite' => $soldeCaisseSite,
             'codesAnalytiques' => CodeAnalytique::actifs()->with('service')->orderBy('code')->get(),
+            /* Spec v2.4, RG-M03-27 : sites proposés au CDG pour corriger le site analytique */
+            'sitesActifs' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'peutPreRegulariser' => $estProprietaire && $bonCaisse->peutPreRegulariser(),
             /* Lot E (RG-M07-03, RG-M07-08) : justification du BP, reliquat à encaisser, BD de complément */
             'justification' => \App\Http\Controllers\JustificationBpController::resume($bonCaisse, $utilisateur),

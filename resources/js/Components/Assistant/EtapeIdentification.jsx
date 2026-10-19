@@ -112,9 +112,19 @@ export default function EtapeIdentification({
                     <Input id="champ-entite" value={entite || 'Neemba Guinée'} readOnly disabled />
                 </Champ>
 
-                {/* Spec v2.3, RG-M03-11 : site (et caisse émettrice) repris du profil du demandeur, non modifiables */}
-                <Champ champ="site" libelle="Site" obligatoire erreur={erreurs.site} aide="Repris du profil du demandeur, non modifiable.">
-                    <Input id="champ-site" value={donnees.site || 'Site non renseigné au profil'} readOnly disabled />
+                {/* Spec v2.4, RG-M03-27 : site analytique, par défaut celui du demandeur, modifiable ; distinct de la caisse qui paie */}
+                <Champ champ="site" libelle="Site analytique" obligatoire erreur={erreurs.site}
+                    aide="Site du demandeur par défaut ; modifiable. La caisse qui paie ne change pas.">
+                    <Select value={donnees.site || undefined} onValueChange={(nom) => changer('site', nom)}>
+                        <SelectTrigger id="champ-site">
+                            <SelectValue placeholder="Choisir le site" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {[...new Set([...(donnees.site ? [donnees.site] : []), ...sites])].map((nom) => (
+                                <SelectItem key={nom} value={nom}>{nom}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </Champ>
 
                 <Champ champ="service" libelle="Service" obligatoire erreur={erreurs.service}>
