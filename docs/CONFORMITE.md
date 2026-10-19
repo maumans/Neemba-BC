@@ -42,9 +42,9 @@
 
 | Module | Règles | ✅ | 🟡 | ❌ | Lot(s) |
 |---|---:|---:|---:|---:|---|
-| M01 Comptes, rôles, sécurité | 9 | 3 | 4 | 2 | E3, G, P3 |
-| M02 Référentiels et paramétrage | 11 | 5 | 3 | 3 | E3, E4, G |
-| M03 Saisie du bon | 28 | 25 | 3 | 0 | E3, E4, G |
+| M01 Comptes, rôles, sécurité | 9 | 4 | 4 | 1 | G, P3 |
+| M02 Référentiels et paramétrage | 11 | 6 | 3 | 2 | E4, G |
+| M03 Saisie du bon | 28 | 26 | 2 | 0 | E4, G |
 | M04 Circuit de validation | 10 | 9 | 0 | 1 | G |
 | M05 Délégations | 4 | 1 | 2 | 1 | G |
 | M06 Paiement | 8 | 7 | 0 | 1 | I |
@@ -56,7 +56,7 @@
 | M13 Carburant | 15 | 3 | 8 | 4 | H |
 | M15 Archivage et audit | 3 | 0 | 3 | 0 | G |
 | M16 Imputation comptable | 6 | 6 | 0 | 0 | — |
-| **Total des règles RG** | **165** | **103** | **36** | **26** | |
+| **Total des règles RG** | **165** | **106** | **35** | **24** | |
 
 Les lots R, V et E1 sont terminés et commités le 16/10 : leurs règles sont à ✅.
 
@@ -88,7 +88,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | Exigence | État | Ce qui manque | Cause | Lot |
 |---|:-:|---|:-:|:-:|
 | §1.4 / §10.1 Aucun seuil, plafond, taux, barème ni délai codé en dur | 🟡 | Constantes restantes : 10 Mo, 20 fichiers, 50 Mo, dpi, SLA très urgent ÷ 2, coupures, jour de relance, écarts carburant, table d'escalade, conservation 5 ans | O | G |
-| §1.4 Paramètres avec historique et date d'effet | ❌ | Barèmes ODM au lot E3 (RG-M02-10) ; les autres paramètres au lot G (RG-M02-01) | O | E3, G |
+| §1.4 Paramètres avec historique et date d'effet | 🟡 | Barèmes ODM datés avec historique (lot E3) ; les autres paramètres au lot G (RG-M02-01) | O | G |
 | §2.1 Entité transverse, Neemba Guinée seule active, Neemba Mining prévue **[v2.4]** | ✅ | Lot E1 (mise en service de Mining : proposition distincte) | | |
 | §2.2 ERP Helium (intégration hors périmètre) **[v2.4]** | ✅ | Libellés corrigés (lot V) | | |
 | §2.3 Mobile, tablette, poste fixe | ✅ | — | | |
@@ -138,8 +138,8 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | §6.5 Utilisateurs | 🟡 | Ni @neemba.com, ni champ suppléant (entité : lot E1) | O | G |
 | §6.5 Visiteurs : BD seulement, filiale reprise pour la refacturation **[v2.4]** | ✅ | Lot V | | |
 | §6.5 Tiers | ✅ | — | | |
-| §6.5 Clients, ajoutés par le gestionnaire des référentiels **[v2.4]** | 🟡 | Tenus par la Comptabilité, le CDG et l'administrateur ; fichier attendu (PO-26) | L, N | E3 |
-| §6.5 Types d'OR en référentiel (VENTE, GARANTIE, autres à venir) **[v2.4]** | ❌ | Constante VENTE / GARANTIE ; enum en base pour l'ODM | V4 | E3 |
+| §6.5 Clients, ajoutés par le gestionnaire des référentiels **[v2.4]** | ✅ | Lot E3 : gestionnaire des référentiels, avec la Comptabilité et le CDG (Q83) ; l'administrateur n'y a plus accès. Fichier attendu (PO-26) | | |
+| §6.5 Types d'OR en référentiel (VENTE, GARANTIE, autres à venir) **[v2.4]** | ✅ | Lot E3 : table `types_or`, onglet « Types d'OR » ; autres types attendus (PO-28) | | |
 | §6.6 Seuil DP > 1 500 000 hors frais OM | ✅ | Corrigé en base par la migration du lot R | | |
 | §6.6 Habilitation du DP : 500 000 000 | ❌ | Ni paramètre ni contrôle | L | F1 |
 | §6.6 Barèmes ODM en référentiel daté, sans circuit de validation **[v2.4]** | ❌ | Paramètres soumis à la double validation, sans date d'effet | V4 | E3 |
@@ -159,9 +159,9 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M02-05 | N° OM : 9 chiffres commençant par 6 | ✅ | — | | |
 | RG-M02-06 | Tiers proposé non sélectionnable avant validation | ✅ | Lot B | | |
 | RG-M02-07 | Doublon de tiers bloqué | ✅ | Lot B | | |
-| RG-M02-08 | Second validateur paramétrable (DAF ou Chef comptable) ; **barèmes ODM exclus [v2.4]** | 🟡 | Seul l'administrateur valide, rôle non paramétrable ; les barèmes passent encore par la double validation | O, V4 | E3, G |
+| RG-M02-08 | Second validateur paramétrable (DAF ou Chef comptable) ; **barèmes ODM exclus [v2.4]** | 🟡 | Barèmes exclus (lot E3) ; seul l'administrateur valide, rôle non paramétrable | O | G |
 | RG-M02-09 | Signataires habilités par service et par niveau | ❌ | Aucune liste | L, N (PO-15) | G |
-| RG-M02-10 | Barèmes ODM tenus par le gestionnaire des référentiels, sans circuit, avec date d'effet et historique **[v2.4]** | ❌ | — | L | E3 |
+| RG-M02-10 | Barèmes ODM tenus par le gestionnaire des référentiels, sans circuit, avec date d'effet et historique **[v2.4]** | ✅ | Lot E3 : table `baremes_odm`, onglet « Barèmes ODM », lecture à la date de soumission | | |
 | RG-M02-11 | Une caisse sert un ou plusieurs sites ; un site a une ou plusieurs caisses ; la caisse OM n'a pas de site ; la caisse ne porte ni client ni lieu de mission **[v2.4]** | ❌ | Liaison caisse ↔ site en 1:1 ; caisse payeuse déduite du site du bon | V4 | E4 |
 
 ---
@@ -178,7 +178,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M01-06 | Interface adaptative ; hors ligne en P3 | 🟡 | Hors ligne | P3 | P3 |
 | RG-M01-07 | Double authentification : OTP par email à la connexion (durée et essais paramétrables) ; OTP par SMS au valideur pour viser une demande urgente (BD, BP, ODM) **[v2.4]** | ✅ | Lot E2 : connexion en deux temps, code de visa SMS pour les bons et ODM urgents. L'administrateur l'active ou la désactive dans l'onglet « Sécurité », effet immédiat (Q82, écart à la spec « obligatoire » à valider). SMTP et SMS à confirmer (PO-23) | | |
 | RG-M01-08 | Droits par entité × rôle ; numérotation, référentiels, gabarit du bon, rapports par entité ; vue consolidée **[v2.4]** | 🟡 | Lot E1 : tout est fait côté serveur et à l'écran, sauf l'attribution d'un rôle dans une autre entité depuis l'écran Utilisateurs (utile à la mise en service de Mining) | L | Mise en service de Mining |
-| RG-M01-09 | Rôle « gestionnaire des référentiels », distinct de l'administrateur **[v2.4]** | ❌ | L'administrateur tient les référentiels | L | E3 |
+| RG-M01-09 | Rôle « gestionnaire des référentiels », distinct de l'administrateur **[v2.4]** | ✅ | Lot E3 : rôle complémentaire, onglets et routes répartis (Q78). À attribuer chez Neemba (CDG ou Comptabilité) | | |
 
 ---
 
@@ -193,7 +193,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | RG-M03-05 à 10 | Motif, montant, mode, plafond espèces, frais OM, n° OM | ✅ | | | |
 | RG-M03-11 | Entité et caisse pré-remplies et verrouillées ; site analytique selon RG-M03-27 **[v2.4]** | ✅ | Lots C et E1 | | |
 | RG-M03-12 | Service et code analytique filtré | ✅ | | | |
-| RG-M03-13 | OR : 8 chiffres en 110 ; type choisi dans le référentiel des types d'OR **[v2.4]** | 🟡 | Format fait (lot D) ; type en constante VENTE / GARANTIE | V4 | E3 |
+| RG-M03-13 | OR : 8 chiffres en 110 ; type choisi dans le référentiel des types d'OR **[v2.4]** | ✅ | Format (lot D) ; types du référentiel (lot E3) | | |
 | RG-M03-14 | Urgence, motif de la liste, SMS très urgent | ✅ | | | |
 | RG-M03-15 | BD : facture ou proforma ; exception du BD issu d'un ODM, confirmée le 14/10 **[v2.4]** | ✅ | | | |
 | RG-M03-16 | Formats, tailles, alerte sous 300 dpi | ✅ | Limites en dur (§3) | | G |
@@ -404,7 +404,7 @@ User stories US-01 à 07 et messages MSG-M13-01 à 05 : à faire (H).
 | PO-18 | Destinataires du rapport hors Conakry | Gestionnaire + Trésorerie | ❌ (F2) | Neemba |
 | PO-23 | Infrastructure **[v2.4 : cloud Neemba retenu le 08/10]** | — | — | IT Neemba |
 | PO-26 | Référentiel clients (export Helium ou fichier) | Import prêt | 🟡 | Neemba |
-| PO-28 **[v2.4]** | Liste complète des types d'OR | VENTE, GARANTIE | ❌ (E3) | Neemba |
+| PO-28 **[v2.4]** | Liste complète des types d'OR | VENTE, GARANTIE | Référentiel prêt (lot E3) ; liste attendue | Neemba |
 | PO-29 **[v2.4]** | Propositions du 14/10 (OR à régulariser, carburant, visiteurs, site analytique, gestionnaire des référentiels) | Valeurs de la spec, en paramètres | ❌ (V, E3, E4, O) | Neemba, avant S6 |
 | PO-30 **[v2.4]** | Motifs du bon visiteur | Liste vide, paramétrable (onglet « Motifs bon visiteur ») + commentaire | ✅ | DAF Neemba |
 | PO-31 **[v2.4]** | Date des environnements cloud | — | — | IT Neemba |
@@ -479,19 +479,19 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 
 ### Lot E3 — Gestionnaire des référentiels, barèmes datés, types d'OR (≈ 2 j)
 
-- [ ] Rôle `gestionnaire_referentiels` :
-  - [ ] routes et onglets répartis (sites et caisses restent à l'administrateur, Q78) ;
-  - [ ] l'administrateur ne tient plus les référentiels métier.
-- [ ] Barèmes ODM :
-  - [ ] table `baremes_odm` datée, avec historique ;
-  - [ ] reprise des paramètres ;
-  - [ ] lecture à la date de soumission ;
-  - [ ] hors double validation (RG-M02-10, RG-M02-08).
-- [ ] Types d'OR :
-  - [ ] table `types_or` (VENTE, GARANTIE) ;
-  - [ ] enum de l'ODM remplacé ;
-  - [ ] listes servies par le serveur ;
-  - [ ] valeurs en dur retirées (RG-M03-13, PO-28).
+- [x] Rôle `gestionnaire_referentiels` :
+  - [x] routes et onglets répartis (sites et caisses restent à l'administrateur, Q78) ;
+  - [x] l'administrateur ne tient plus les référentiels métier.
+- [x] Barèmes ODM :
+  - [x] table `baremes_odm` datée, avec historique ;
+  - [x] reprise des paramètres ;
+  - [x] lecture à la date de soumission ;
+  - [x] hors double validation (RG-M02-10, RG-M02-08).
+- [x] Types d'OR :
+  - [x] table `types_or` (VENTE, GARANTIE) ;
+  - [x] enum de l'ODM remplacé ;
+  - [x] listes servies par le serveur ;
+  - [x] valeurs en dur retirées (RG-M03-13, PO-28).
 
 ### Lot E4 — Caisses, sites, site analytique (≈ 2 j)
 
@@ -623,7 +623,8 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | Q76 **[v2.4]** | Urgence sur l'ODM, pour l'OTP de visa ? | Oui : mêmes niveaux et motifs que le bon (appliqué, lot E2) | E2 |
 | Q77 **[v2.4]** | L'OTP de visa porte-t-il sur le rejet ? | Non : seulement sur l'approbation (appliqué, lot E2) | E2 |
 | Q82 **[v2.4]** | Qui active ou désactive la double authentification, avec quel circuit ? | L'administrateur, effet immédiat sans second validateur, tracé, administrateurs prévenus ; commande de secours sur le serveur (appliqué, lot E2) | E2 |
-| Q78 **[v2.4]** | Qui tient les sites et les caisses ? | L'administrateur, avec double validation ; le gestionnaire des référentiels tient le reste | E3 |
+| Q78 **[v2.4]** | Qui tient les sites et les caisses ? | L'administrateur, avec double validation ; le gestionnaire des référentiels tient le reste (appliqué, lot E3) | E3 |
+| Q83 **[v2.4]** | Qui tient les clients ? | Le gestionnaire des référentiels, avec la Comptabilité, le Chef comptable et le CDG (import du fichier) ; plus l'administrateur (appliqué, lot E3) | E3 |
 | Q79 **[v2.4]** | Bon visiteur sans DAF ni DAF adjoint disponible | Le bon attend ; la Finance n'est jamais sautée (appliqué, lot V) | V |
 | Q80 **[v2.4]** | OR saisi après coup | Reporté sur les bons de l'ODM, avec trace | O |
 | Q81 **[v2.4]** | Qui a la vue consolidée ? | Paramètre ; par défaut DAF, DAF adjoint, DP, DP adjoint, administrateur (appliqué, lot E1) | E1 |
@@ -655,3 +656,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 16/10/2026 | E1 | (ce commit) | Entité transverse : table `entites` (Neemba Guinée active, Neemba Mining inactive), `entite_id` sur comptes, caisses, bons, ODM, référentiels, paramètres ; droits par entité × rôle ; portée globale sur l'entité courante ; vue consolidée (paramètre) ; sélecteur d'entité ; valideurs de l'entité du bon ou de l'ODM ; numérotation des ODM par entité ; gabarit PDF ; entité affichée à la saisie ; colonnes entité et site analytique dans les exports. 368 tests PHP, 74 JS ; parcours Edge (15 vérifications). 165 règles : 102 faites, 36 partielles, 27 à faire. devBook §50 |
 | 19/10/2026 | E2 | (ce commit) | Double authentification : connexion en deux temps (mot de passe, puis code par email ; durée, essais, renvoi après une minute ; compte désactivé refusé), code de visa par SMS pour approuver un bon ou un ODM urgent (lié au valideur et à la demande ; rejet sans code), paramètres de secours, codes stockés en empreinte. Urgence et motif sur l'ODM (Q76). 382 tests PHP, 74 JS ; parcours Edge (25 vérifications). 165 règles : 103 faites, 36 partielles, 26 à faire. devBook §51 |
 | 19/10/2026 | E2 | (ce commit) | Onglet « Sécurité » (demande de l'utilisateur, Q82) : l'administrateur active ou désactive le code de connexion et le code de visa, règle durées et essais ; effet immédiat, tracé, autres administrateurs prévenus ; état des canaux email et SMS, valideurs sans téléphone ; commande de secours `securite:double-authentification`. 389 tests PHP ; parcours Edge (16 vérifications). devBook §51.7 |
+| 19/10/2026 | E3 | (ce commit) | Rôle « gestionnaire des référentiels » : onglets et routes répartis (l'administrateur garde entités, sites, caisses, seuils, sécurité ; le gestionnaire tient services, codes analytiques, types de document, motifs, types d'OR, barèmes, clients). Barèmes ODM datés (`baremes_odm`, reprise des paramètres, lecture à la date de soumission, sans double validation, valeur à venir annulable). Types d'OR en référentiel (`types_or`, enum de l'ODM retiré, listes servies par le serveur). 397 tests PHP, 74 JS ; parcours Edge (19 vérifications). 165 règles : 106 faites, 35 partielles, 24 à faire. devBook §52 |

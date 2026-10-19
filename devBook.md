@@ -1,9 +1,9 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 19 Octobre 2026 (v51 — lot E2 : double authentification)
+> Dernière mise à jour : 19 Octobre 2026 (v52 — lot E3 : gestionnaire des référentiels, barèmes ODM datés, types d'OR)
 >
-> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §51) indiquent ce qui a changé.
+> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §52) indiquent ce qui a changé.
 
 ---
 
@@ -14,7 +14,7 @@
 - **Spécification en vigueur** : `docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (Thierno DIALLO, Addvalis, 14/10/2026). Elle remplace la v2.3 du 09/10, qui remplaçait elle-même la SFD v1.3 (M03) et la v2.2. Ces fichiers ne sont pas commités (documents de l'utilisateur).
 - **Suivi de conformité** : [docs/CONFORMITE.md](docs/CONFORMITE.md). Il donne toutes les règles de la spec v2.4, avec pour chacune l'état dans le code, ce qui manque, pourquoi, et le lot qui la traite. Ses cases et son journal sont tenus à chaque lot. Il s'appelait `CONFORMITE_V23.md` jusqu'au 16/10.
 - **Suivi du module M12 (ODM)** : [docs/ORDRE_DE_MISSIONS.md](docs/ORDRE_DE_MISSIONS.md).
-- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51 ; Q73, Q76, Q77, Q79, Q81 et Q82 sont appliquées (§48 à §51).
+- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51, Q83 et Q84 au §52 ; Q73, Q76 à Q79 et Q81 à Q84 sont appliquées (§48 à §52).
 
 ### 0.2 Branches
 
@@ -26,8 +26,8 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 
 | Module | État | Détail |
 |---|---|---|
-| M01 Comptes, rôles, sécurité | Partiel | Rôles multiples, incompatibilités, entité (lot E1), double authentification (lot E2) faits ; reste le gestionnaire des référentiels (lot E3), le domaine @neemba.com, l'assistant trésorier, la double validation complète (lot G) |
-| M02 Référentiels et paramétrage | Partiel | Caisses, tiers, visiteurs, clients, motifs faits ; reste la date d'effet des paramètres, les signataires habilités (lot G) |
+| M01 Comptes, rôles, sécurité | Partiel | Rôles multiples, incompatibilités, entité (lot E1), double authentification (lot E2), gestionnaire des référentiels (lot E3) faits ; reste le domaine @neemba.com, l'assistant trésorier, la double validation complète (lot G) |
+| M02 Référentiels et paramétrage | Partiel | Caisses, tiers, visiteurs, clients, motifs, types d'OR, barèmes ODM datés (lot E3) faits ; reste caisse ↔ sites (lot E4), la date d'effet des autres paramètres, les signataires habilités (lot G) |
 | M03 Saisie du bon | Fait (24/26) | Lots 3 à 5, A à D ; reste l'entité (lot G) et la décision sur les brouillons abandonnés |
 | M04 Circuit de validation | Partiel | Correctifs du lot R (visa Finance jamais sauté, alertes sur l'écran de visa), signataires (lot G) |
 | M05 Délégations | Partiel | Montants, information du caissier, absence du DP et de son adjoint (lot G) |
@@ -42,7 +42,7 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 | M15 Archivage, audit | Partiel | Journal protégé, PDF archivés, purge (lot G) |
 | M16 Imputation comptable | Fait | §38 |
 
-**Règles RG de la v2.4** : 165, dont 103 faites, 36 partielles et 26 à faire au 19/10, après les lots R, V, E1 et E2 (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
+**Règles RG de la v2.4** : 165, dont 106 faites, 35 partielles et 24 à faire au 19/10, après les lots R, V, E1, E2 et E3 (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
 - l'entité transverse ;
 - la double authentification ;
 - le gestionnaire des référentiels ;
@@ -52,9 +52,9 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 - un seul bon par participant ;
 - le modèle caisse ≠ site.
 
-**Prochain lot** : E3 (gestionnaire des référentiels, barèmes ODM datés, types d'OR), puis E4 → O → F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V, E1 et E2 sont faits (§48 à §51).
+**Prochain lot** : E4 (caisses servant plusieurs sites, site analytique du bon), puis O → F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V, E1, E2 et E3 sont faits (§48 à §52).
 
-**Tests** : 389 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
+**Tests** : 397 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
 
 **Connexion en dev** : depuis le lot E2, la connexion demande un code à 6 chiffres envoyé par email. Avec `MAIL_MAILER=log`, il se lit dans `storage/logs/laravel.log` (« Code : NNNNNN »). L'administrateur active ou désactive la double authentification dans Paramétrage > Sécurité (§51.7).
 
@@ -4995,3 +4995,74 @@ Demande de l'utilisateur, le 19/10 : l'administrateur doit pouvoir activer et d�
   - parcours dans Edge sur une copie de la base, 16 vérifications, sans erreur JavaScript : désactivation avec confirmation, trace, autre administrateur prévenu, connexion sans code, réactivation à 15 min, téléphone.
 - Sur la base de dev, deux valideurs n'ont pas de téléphone : Mamadou Alpha BAH et Saliou BOIRO.
 - **Correctif du 19/10 (retour de l'utilisateur, « la désactivation ne marche pas »)** : dans la première version, l'interrupteur ne changeait que l'écran, et le badge affichait « Désactivé » avant tout enregistrement. Il fallait encore cliquer sur « Enregistrer les réglages », plus bas, et rien n'était enregistré sinon. L'interrupteur s'applique désormais tout de suite. Le parcours a aussi relevé un plantage du bouton des durées (`form.transform(...)` chaîné) ; il est corrigé. Parcours dans Edge rejoué : 20 vérifications, sans erreur JavaScript.
+
+---
+
+## 52. Version v52 — Lot E3 : gestionnaire des référentiels, barèmes ODM datés, types d'OR (19 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Troisième lot du bloc E de la spec v2.4 (RG-M01-09, RG-M02-10, RG-M02-08, RG-M02-01, RG-M03-13, §6.5, §6.6). Décisions appliquées : Q78, Q83, Q84.
+
+### 52.1 Gestionnaire des référentiels (RG-M01-09)
+
+- Nouveau rôle complémentaire `gestionnaire_referentiels` (« Gestionnaire des référentiels »), attribué depuis l'écran Utilisateurs. Ce n'est pas un rôle principal : la colonne `users.role` ne le connaît pas.
+- **Paramétrage partagé en deux** (routes et onglets) ; un compte qui a les deux rôles voit tout :
+
+| Rôle | Onglets |
+|---|---|
+| Administrateur | Entités, Sites, Caisses, Seuils (paramètres techniques), Sécurité ; comptes et droits (écran Utilisateurs) |
+| Gestionnaire des référentiels | Services, Codes analytiques, Types de document, Motifs d'urgence, de rejet et du bon visiteur, Types d'OR, Barèmes ODM |
+
+- Le groupe de routes `/parametrage` est ouvert aux deux rôles ; chaque route d'écriture porte son propre `role:`. Le serveur n'envoie à l'écran que les données des onglets visibles (prop `onglets`).
+- **Clients** (Q83) : gestionnaire des référentiels, Comptabilité, Chef comptable et CDG ; l'administrateur perd l'accès (menu et routes).
+- Les changements de codes analytiques restent soumis à la double validation, approuvée par un administrateur, jusqu'au second validateur paramétrable du lot G.
+- **À faire chez Neemba** : désigner le gestionnaire (CDG ou Comptabilité selon la spec) et lui attribuer le rôle. Tant que personne ne l'a, les référentiels métier ne se modifient plus.
+
+### 52.2 Barèmes ODM datés (RG-M02-10, RG-M02-01, §6.6)
+
+- Table `baremes_odm` : entité (vide = commun), clé, valeur, date d'effet, saisi par, commentaire. Modèle `BaremeOdm` :
+  - `CLES` : indemnité journalière, libellés des deux lignes d'indemnité, hébergement par nuit, indemnités extérieures FCFA non-cadre et cadre ;
+  - `ligneEnVigueur($cle, $date, $entite)` : dernière valeur dont la date d'effet est passée ; la valeur de l'entité l'emporte sur la valeur commune ; sans entité, l'entité par défaut ;
+  - `enVigueur()`, `tous()`.
+- Reprise : les six paramètres du groupe « odm » deviennent des barèmes communs, datés du jour de leur création (08/10/2026 en dev). Les paramètres sont retirés ; une double validation en attente sur eux est close.
+- `CalculOdm::baremesEnVigueur($date, $entite)` lit le référentiel. La soumission fige les barèmes du jour pour l'entité de l'ODM (`parametres_figes`), comme avant ; un brouillon est recalculé avec ceux du jour.
+- **Onglet « Barèmes ODM »** (composant `Parametrage/BaremesOdm`) :
+  - valeurs en vigueur, date de début, prochaine valeur datée ;
+  - nouvelle valeur : barème, valeur (montant entier ou libellé), date d'effet (aujourd'hui ou plus tard), commentaire ;
+  - historique (date d'effet, valeur, auteur, date de saisie, commentaire) ; une valeur « à venir » peut être retirée, une valeur en vigueur non (Q84).
+- Aucune double validation (RG-M02-08 : barèmes exclus).
+
+### 52.3 Types d'OR en référentiel (§6.5, RG-M03-13, PO-28)
+
+- Table `types_or` (entité, code, libellé, actif, ordre), avec `vente` et `garantie` au départ. Modèle `TypeOr` : `options()` (types actifs), `codesActifs()`, `libelles()` (tous, pour l'affichage), `libelle()`, `decrire()`.
+- `odm_ordres_reparation.type` passe de l'enum `vente/garantie` à une chaîne. La constante `OrdreReparationOdm::TYPES` disparaît.
+- Les contrôles (assistant du bon, saisie de l'ODM) n'acceptent que les codes actifs. MSG-APP-062 : « Choisissez le type de l'OR :numero dans la liste des types d'OR. »
+- Les listes viennent du serveur :
+  - assistant du bon : prop `typesOr` ; le clic sur le type d'un OR passe au type suivant de la liste ;
+  - formulaire de l'ODM : prop `typesOr`.
+- Les libellés viennent aussi du serveur : fiche du bon (`typesOrLibelles`), fiche et PDF de l'ODM (`type_label`), tableau de bord des ODM, export Excel des bons (colonne « OR » avec le type de chaque OR).
+- Onglet « Types d'OR » : ajout (code en minuscules, figé ensuite), libellé modifiable, désactivation ; au moins un type reste actif. Un type désactivé n'est plus proposé ; les OR déjà saisis gardent son libellé.
+
+### 52.4 Données
+
+Migration `2026_10_23_000001_lot_e3_referentiels_metier` : tables `types_or` et `baremes_odm`, reprise des barèmes, colonne `type` des OR d'ODM. Vérifiée sur une copie de la base (aller, retour, aller), puis appliquée en dev.
+
+### 52.5 Vérifications
+
+- `tests/Feature/LotE3/ReferentielsMetierTest.php`, 7 tests : onglets et droits répartis (clients compris), reprise des barèmes, barème à venir appliqué aux ODM soumis après sa date (l'ODM déjà soumis garde l'ancien), date passée refusée, libellé, retrait d'une valeur à venir seulement, barème d'entité prioritaire, types d'OR (ajout, ODM, fiche, formulaire, désactivation), un type reste actif.
+- `SaisieBonTest` : un type ajouté est accepté à la saisie du bon, désactivé il est refusé.
+- Tests adaptés : écrans des référentiels passés au gestionnaire ; barèmes lus dans le référentiel ; six paramètres « odm » au lieu de douze.
+- **Total** : 397 tests PHP et 74 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base (rôle donné dans la copie à Maïmouna BARRY, CDG) : 19 vérifications, sans erreur JavaScript.
+  - Administrateur : onglets techniques seulement, pas de menu Clients.
+  - Gestionnaire : onglets métier, menu Clients.
+  - Barème à venir enregistré sans double validation, affiché, puis retiré ; libellé changé le jour même.
+  - Type « Interne » ajouté, proposé dans le formulaire de l'ODM et dans l'assistant du bon.
+  - Téléphone.
+
+### 52.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_23_000001
+```
+
+Puis attribuer le rôle « Gestionnaire des référentiels » à la personne désignée par Neemba (écran Utilisateurs, rôles complémentaires).
