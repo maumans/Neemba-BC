@@ -251,6 +251,13 @@ export function donneesOdm(form) {
         clients: (form.clients ?? []).map((c) => (typeof c === 'object' ? c.id : c)),
         destinations: form.destinations ?? [],
         vehicule: form.vehicule ?? '',
+        /* Spec v2.4, RG-M12-42 : besoin carburant */
+        immatriculation: form.immatriculation ?? '',
+        itineraire: form.itineraire ?? '',
+        /* Spec v2.4, Q76 : urgence de l'ODM (code SMS au visa) ; RG-M12-39 : OR à régulariser */
+        niveau_urgence: form.niveau_urgence || 'normale',
+        motif_urgence: form.niveau_urgence && form.niveau_urgence !== 'normale' ? (form.motif_urgence || null) : null,
+        or_a_regulariser: Boolean(form.technique) && !(form.ordres_reparation ?? []).length && Boolean(form.or_a_regulariser),
         date_depart: form.date_depart || null,
         date_retour_prevue: form.date_retour_prevue || null,
         motif_depart_passe: form.motif_depart_passe ?? '',

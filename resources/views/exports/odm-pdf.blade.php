@@ -205,7 +205,8 @@
             </tr>
             <tr>
                 <td class="lib">Véhicule</td>
-                <td class="val">{{ $odm['vehicule'] ?: '—' }}</td>
+                <td class="val">{{ $odm['vehicule'] ?: '—' }}@if ($odm['immatriculation'] ?? '') <span class="discret">— {{ $odm['immatriculation'] }}</span>@endif
+                    @if ($odm['itineraire'] ?? '')<br><span class="discret">Itinéraire : {{ $odm['itineraire'] }}</span>@endif</td>
                 <td class="lib">Code analytique</td>
                 <td class="val">{{ $odm['code_analytique'] }}@if ($odm['code_analytique_libelle']) <span class="discret">— {{ $odm['code_analytique_libelle'] }}</span>@endif</td>
             </tr>

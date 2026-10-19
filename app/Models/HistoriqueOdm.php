@@ -33,6 +33,8 @@ class HistoriqueOdm extends Model
         'annulation' => 'Annulation',
         'rappel' => 'Rappel',
         'incoherence' => 'Incohérence signalée au DAF',
+        /* Spec v2.4, RG-M12-39 */
+        'or_ajoute' => 'OR rattaché après coup',
     ];
 
     protected $fillable = ['ordre_mission_id', 'action', 'statut_avant', 'statut_apres', 'utilisateur_id', 'commentaire', 'metadonnees'];

@@ -87,6 +87,17 @@ describe('Ordres de mission — saisie (M12-2)', () => {
         expect(donneesOdm({ ...form, type: 'exterieur' }).participants[0].base_vie).toBe(false);
     });
 
+    it("envoie l'urgence, l'OR à régulariser et le besoin carburant (spec v2.4)", () => {
+        const base = { type: 'interieur', technique: true, participants: [], ordres_reparation: [] };
+        const donnees = donneesOdm({ ...base, niveau_urgence: 'urgente', motif_urgence: 'Panne machine', or_a_regulariser: true,
+            immatriculation: 'RC 1234 A', itineraire: 'Conakry – Kindia' });
+        expect([donnees.niveau_urgence, donnees.motif_urgence, donnees.or_a_regulariser]).toEqual(['urgente', 'Panne machine', true]);
+        expect([donnees.immatriculation, donnees.itineraire]).toEqual(['RC 1234 A', 'Conakry – Kindia']);
+        expect(donneesOdm({ ...base, motif_urgence: 'Panne machine' })).toMatchObject({ niveau_urgence: 'normale', motif_urgence: null });
+        expect(donneesOdm({ ...base, or_a_regulariser: true, ordres_reparation: [{ numero: '11022219', type: 'vente' }] }).or_a_regulariser).toBe(false);
+        expect(donneesOdm({ ...base, technique: false, or_a_regulariser: true }).or_a_regulariser).toBe(false);
+    });
+
     it('regroupe les erreurs de soumission par champ et donne la pastille du statut', () => {
         const erreurs = [
             { champ: 'participants', message: 'A' }, { champ: 'but', message: 'B' }, { champ: 'participants', message: 'C' }, { message: 'D' },

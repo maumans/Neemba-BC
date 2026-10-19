@@ -18,7 +18,13 @@ class OrdreReparationOdm extends Model
     /** Spec v2.2 (MSG-M03-07) : 8 chiffres commençant par 110 */
     public const FORMAT = '/^110\d{5}$/';
 
-    protected $fillable = ['ordre_mission_id', 'numero', 'type', 'client_id'];
+    /* Spec v2.4, RG-M12-39 : date et auteur d'un OR saisi après coup */
+    protected $fillable = ['ordre_mission_id', 'numero', 'type', 'client_id', 'saisi_apres_coup_le', 'saisi_par'];
+
+    protected function casts(): array
+    {
+        return ['saisi_apres_coup_le' => 'datetime'];
+    }
 
     public function client(): BelongsTo
     {

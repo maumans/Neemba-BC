@@ -29,10 +29,15 @@ final class EnregistrementOdm
         'date_depart', 'date_retour_prevue', 'motif_depart_passe', 'hebergement_exterieur', 'reference_billet',
         /* Spec v2.4, RG-M01-07, Q76 : urgence de l'ODM (code SMS au visa) */
         'niveau_urgence', 'motif_urgence',
+        /* Spec v2.4, RG-M12-39 : OR à régulariser ; RG-M12-42 : besoin carburant */
+        'or_a_regulariser', 'immatriculation', 'itineraire',
     ];
 
     public static function creer(User $demandeur, array $donnees = []): OrdreMission
     {
+        /* Spec v2.4, RG-M12-40 : blocage du prochain ODM si un OR à régulariser est en retard (paramètre, désactivé par défaut) */
+        RegulariserOr::verifierBlocage($demandeur);
+
         $odm = DB::transaction(function () use ($demandeur) {
             $odm = OrdreMission::create([
                 'type' => 'interieur',
@@ -78,6 +83,10 @@ final class EnregistrementOdm
             if (($odm->niveau_urgence ?? 'normale') === 'normale') {
                 $odm->motif_urgence = null;
             }
+            /* RG-M12-39 : l'indicateur ne vaut que pour une mission technique encore sans OR (voir après la mise à jour des OR) */
+            if (!$odm->technique) {
+                $odm->or_a_regulariser = false;
+            }
             $odm->save();
 
             if (array_key_exists('participants', $donnees)) {
@@ -88,6 +97,10 @@ final class EnregistrementOdm
             }
             if (array_key_exists('ordres_reparation', $donnees)) {
                 self::synchroniserOr($odm, (array) $donnees['ordres_reparation']);
+            }
+            /* Spec v2.4, RG-M12-39 : un OR rattaché fait tomber l'indicateur « OR à régulariser » */
+            if ($odm->or_a_regulariser && $odm->ordresReparation()->exists()) {
+                $odm->update(['or_a_regulariser' => false]);
             }
 
             /* Dérogation retirée si les dates ou les participants ont changé */
@@ -259,6 +272,8 @@ final class EnregistrementOdm
             ))),
             'date_depart', 'date_retour_prevue' => blank($valeur) ? null : $valeur,
             'niveau_urgence' => blank($valeur) ? 'normale' : $valeur,
+            'or_a_regulariser' => filter_var($valeur, FILTER_VALIDATE_BOOLEAN),
+            'immatriculation' => blank($valeur) ? null : mb_strtoupper(preg_replace('/\s+/', ' ', trim((string) $valeur))),
             default => is_string($valeur) ? (trim($valeur) === '' ? null : trim($valeur)) : $valeur,
         };
     }

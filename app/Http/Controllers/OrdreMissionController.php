@@ -117,6 +117,9 @@ class OrdreMissionController extends Controller
                 'code_exige' => \App\Services\Securite\DoubleAuthentification::exigeCodeVisa($odm->niveau_urgence),
             ] : null,
             'peutModifier' => $odm->estModifiablePar($utilisateur),
+            /* Spec v2.4, RG-M12-39 : OR rattaché après coup par le demandeur ou le chef d'atelier */
+            'peutAjouterOr' => \App\Services\Odm\RegulariserOr::peutAjouter($odm, $utilisateur),
+            'typesOr' => \App\Models\TypeOr::options(),
             /* RG-M12-20, RG-M12-22 : clôture, régularisation des trop-perçus, annulation par le DAF */
             'peutCloturer' => \App\Services\Odm\CloturerOdm::peutCloturer($odm, $utilisateur),
             'peutAnnulerDaf' => \App\Services\Odm\AnnulerOdm::peutAnnulerParLeDaf($odm, $utilisateur)
@@ -143,6 +146,19 @@ class OrdreMissionController extends Controller
         return redirect()->route('odm.show', $odm)->with('success', $odm->statut === 'VALIDE'
             ? \App\Exceptions\ErreurMetier::texte('MSG-M12-08', ['numero' => $odm->numero])
             : "Visa enregistré : l'ordre de mission {$odm->numero} passe au niveau suivant.");
+    }
+
+    /** POST /ordres-mission/{odm}/or — spec v2.4, RG-M12-39 : OR saisi après coup, reporté sur les bons (Q80) */
+    public function ajouterOr(Request $request, OrdreMission $odm)
+    {
+        $donnees = $request->validate([
+            'numero' => ['required', 'string', 'max:20'],
+            'type' => ['required', 'string', 'max:30'],
+            'client_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('clients', 'id')],
+        ]);
+        $or = \App\Services\Odm\RegulariserOr::ajouter($odm, Auth::user(), $donnees['numero'], $donnees['type'], $donnees['client_id'] ?? null);
+
+        return back()->with('success', "OR {$or->numero} rattaché à l'ordre de mission {$odm->numero}" . ($odm->fresh()->or_a_regulariser ? '.' : ' ; il est reporté sur ses bons.'));
     }
 
     /** POST /ordres-mission/{odm}/code-visa — RG-M01-07 : code de visa envoyé par SMS au valideur de l'étape en cours */

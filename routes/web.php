@@ -126,6 +126,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/ordres-mission/{odm}/viser', [OrdreMissionController::class, 'viser'])->name('odm.viser');
     /* Spec v2.4, RG-M01-07 : code de visa par SMS (ODM urgent) */
     Route::post('/ordres-mission/{odm}/code-visa', [OrdreMissionController::class, 'codeVisa'])->name('odm.code-visa');
+    /* Spec v2.4, RG-M12-39 : OR saisi après coup */
+    Route::post('/ordres-mission/{odm}/or', [OrdreMissionController::class, 'ajouterOr'])->name('odm.ajouter-or');
     Route::post('/ordres-mission/{odm}/rejeter', [OrdreMissionController::class, 'rejeter'])->name('odm.rejeter');
     Route::post('/ordres-mission/{odm}/generer-bons', [OrdreMissionController::class, 'genererBons'])->name('odm.generer-bons');
     Route::post('/ordres-mission/{odm}/prolonger', [OrdreMissionController::class, 'prolonger'])->name('odm.prolonger');

@@ -140,6 +140,10 @@ class OdmApiController extends Controller
         $donnees = $request->validate([
             'type' => ['sometimes', Rule::in(array_keys(OrdreMission::TYPES))],
             'technique' => ['sometimes', 'boolean'],
+            /* Spec v2.4, RG-M12-39 : OR à régulariser ; RG-M12-42 : besoin carburant */
+            'or_a_regulariser' => ['sometimes', 'boolean'],
+            'immatriculation' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'itineraire' => ['sometimes', 'nullable', 'string', 'max:255'],
             'site' => ['sometimes', 'nullable', 'string', 'max:255'],
             'service' => ['sometimes', 'nullable', 'string', 'max:255', Rule::exists('services', 'nom')],
             'code_analytique' => ['sometimes', 'nullable', 'string', 'max:50'],

@@ -18,6 +18,7 @@ final class TableauBordOdm
     {
         $enCours = self::missionsEnCours();
         $aRefacturer = self::aRefacturer();
+        $orARegulariser = self::orARegulariser();
 
         return [
             'indicateurs' => [
@@ -27,12 +28,38 @@ final class TableauBordOdm
                 'a_refacturer' => count($aRefacturer),
                 'montant_a_refacturer' => array_sum(array_column($aRefacturer, 'montant')),
                 'incoherences' => count(array_filter($enCours, fn ($m) => $m['incoherences'] > 0)),
+                'or_a_regulariser' => count($orARegulariser),
+                'or_en_retard' => count(array_filter($orARegulariser, fn ($o) => $o['retard'] > 0)),
             ],
             'missionsEnCours' => $enCours,
             'derogations' => self::derogations(),
             'aRefacturer' => $aRefacturer,
             'parClient' => self::parClientEtOr(),
+            'orARegulariser' => $orARegulariser,
         ];
+    }
+
+    /** Spec v2.4, RG-M12-41 : ODM « OR à régulariser » (demandeur, chef d'atelier, validation, échéance, retard en jours) */
+    public static function orARegulariser(): array
+    {
+        return OrdreMission::where('or_a_regulariser', true)->whereNotIn('statut', ['BROUILLON', 'REJETE', 'ANNULE'])
+            ->with(['demandeur', 'etapes.valideur'])->orderByRaw('or_echeance is null')->orderBy('or_echeance')->get()
+            ->map(function (OrdreMission $odm) {
+                $chef = $odm->etapes->where('role', 'chef_atelier')->where('statut', 'validee')->sortByDesc('version')->first()?->valideur?->nom_complet
+                    ?? CircuitOdm::titulaires($odm, 'chef_atelier')->map->nom_complet->implode(', ');
+                $retard = $odm->or_echeance && $odm->or_echeance->lessThan(today()) ? (int) $odm->or_echeance->diffInDays(today()) : 0;
+
+                return [
+                    'id' => $odm->id,
+                    'libelle' => $odm->libelle,
+                    'demandeur' => $odm->demandeur?->nom_complet,
+                    'chef_atelier' => $chef ?: '—',
+                    'validation' => $odm->date_validation ? Format::date($odm->date_validation) : 'En circuit',
+                    'echeance' => $odm->or_echeance ? Format::date($odm->or_echeance) : '—',
+                    'retard' => $retard,
+                    'statut_label' => $odm->statut_label,
+                ];
+            })->values()->all();
     }
 
     /**

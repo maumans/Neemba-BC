@@ -77,6 +77,25 @@ final class NotificationsOdm
             . ' : prolongez-la si elle continue, ou clôturez-la au retour.');
     }
 
+    /** Spec v2.4, RG-M12-40 : OR à régulariser avant l'échéance, au demandeur (MSG-M12-10) */
+    public static function orARegulariser(OrdreMission $odm): void
+    {
+        self::envoyer(collect([$odm->demandeur, $odm->initiateur]), null, $odm, 'odm_or_a_regulariser', "Mission {$odm->numero} : OR à régulariser",
+            \App\Exceptions\ErreurMetier::texte('MSG-M12-10', ['numero' => $odm->numero, 'date' => $odm->or_echeance])
+            . " Rattachez l'OR depuis la fiche de l'ordre de mission.");
+    }
+
+    /** Spec v2.4, RG-M12-40 : échéance dépassée, alerte au chef d'atelier et au DAF */
+    public static function orEnRetard(OrdreMission $odm): void
+    {
+        $destinataires = CircuitOdm::titulaires($odm, 'chef_atelier')
+            ->merge(User::actifs()->avecRoleDans(['daf', 'daf_adjoint'], $odm->entite_id)->get())
+            ->unique('id');
+        self::envoyer($destinataires, null, $odm, 'odm_or_en_retard', "Mission {$odm->numero} : OR à régulariser en retard",
+            "L'OR de la mission {$odm->numero} (" . ($odm->demandeur?->nom_complet ?? 'demandeur inconnu') . ') devait être rattaché avant le '
+            . \App\Support\Format::date($odm->or_echeance) . '.');
+    }
+
     /** RG-M12-24 : clôture notifiée à la liste de diffusion ; retenues sur salaire signalées aux RH, reversements aux caissiers */
     public static function cloture(OrdreMission $odm, User $auteur, array $messages): void
     {

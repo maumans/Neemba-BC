@@ -58,6 +58,10 @@ final class PresentationOdm
             'clients' => $odm->clients()->get()->map(fn (\App\Models\Client $c) => $c->resume())->values()->all(),
             'destinations' => $odm->destinations ?? [],
             'vehicule' => $odm->vehicule ?? '',
+            /* Spec v2.4, RG-M12-39 et RG-M12-42 */
+            'or_a_regulariser' => (bool) $odm->or_a_regulariser,
+            'immatriculation' => $odm->immatriculation ?? '',
+            'itineraire' => $odm->itineraire ?? '',
             'date_depart' => $odm->date_depart?->toDateString() ?? '',
             'date_retour_prevue' => $odm->date_retour_prevue?->toDateString() ?? '',
             'motif_depart_passe' => $odm->motif_depart_passe ?? '',
@@ -77,6 +81,7 @@ final class PresentationOdm
             ])->values()->all(),
             'ordres_reparation' => $odm->ordresReparation()->with('client')->get()->map(fn (OrdreReparationOdm $or) => [
                 'id' => $or->id, 'numero' => $or->numero, 'type' => $or->type, 'type_label' => \App\Models\TypeOr::libelle($or->type),
+                'saisi_apres_coup_le' => $or->saisi_apres_coup_le ? Format::date($or->saisi_apres_coup_le) : null,
                 'client_id' => $or->client_id, 'client' => $or->client?->resume(),
             ])->values()->all(),
             'derogation' => self::derogation($odm),
@@ -200,6 +205,8 @@ final class PresentationOdm
             'demandeur' => $odm->demandeur?->nom_complet,
             'initiateur' => $odm->initiateur_id !== $odm->demandeur_id ? $odm->initiateur?->nom_complet : null,
             'niveau_urgence_label' => \App\Models\BonCaisse::NIVEAUX_URGENCE[$odm->niveau_urgence ?? 'normale'] ?? null,
+            'or_echeance_format' => $odm->or_echeance ? Format::date($odm->or_echeance) : null,
+            'or_en_retard' => $odm->or_a_regulariser && $odm->or_echeance && $odm->or_echeance->lessThan(today()),
             'date_depart_format' => Format::date($odm->date_depart),
             'date_retour_prevue_format' => Format::date($odm->date_retour_prevue),
             'date_retour_reelle_format' => $odm->date_retour_reelle ? Format::date($odm->date_retour_reelle) : null,

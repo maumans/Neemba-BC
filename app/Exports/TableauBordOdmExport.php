@@ -37,6 +37,11 @@ class TableauBordOdmExport implements WithMultipleSheets
                 ['ODM', 'Participant', 'Segment', 'Élément', 'Client', 'OR', 'Code analytique', 'Montant (GNF)', 'Frais OM de la part (GNF)', 'Date de paiement'],
                 array_map(fn ($l) => [$l['odm'], $l['participant'], $l['segment'], $l['element'], $l['client'], $l['or'], $l['code_analytique'], $l['montant'], $l['frais_om'], $l['date_paiement']],
                     $this->donnees['fraisARefacturer'] ?? \App\Services\Odm\TableauBordOdm::partsClient()->all())),
+            /* Spec v2.4, RG-M12-41 : rapport « OR à régulariser » */
+            self::onglet('OR à régulariser',
+                ['ODM', 'Demandeur', "Chef d'atelier", 'Validation', 'Échéance', 'Retard (jours)', 'Statut'],
+                array_map(fn ($o) => [$o['libelle'], $o['demandeur'], $o['chef_atelier'], $o['validation'], $o['echeance'], $o['retard'], $o['statut_label']],
+                    $this->donnees['orARegulariser'] ?? \App\Services\Odm\TableauBordOdm::orARegulariser())),
         ];
     }
 

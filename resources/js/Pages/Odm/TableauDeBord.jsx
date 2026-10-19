@@ -43,7 +43,7 @@ function Tableau({ titre, entetes, lignes, vide }) {
     );
 }
 
-export default function TableauDeBord({ indicateurs, missionsEnCours = [], derogations = [], aRefacturer = [], parClient = [] }) {
+export default function TableauDeBord({ indicateurs, missionsEnCours = [], derogations = [], aRefacturer = [], parClient = [], orARegulariser = [] }) {
     return (
         <AuthenticatedLayout header="Ordres de mission — tableau de bord">
             <Head title="Tableau de bord des ODM" />
@@ -58,13 +58,33 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                     </a>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                     <Indicateur libelle="Missions en cours" valeur={indicateurs.missions_en_cours} />
                     <Indicateur libelle="Salariés en mission" valeur={indicateurs.participants_en_mission} />
                     <Indicateur libelle="Coût des missions en cours" valeur={formaterMontant(indicateurs.cout_en_cours)} />
                     <Indicateur libelle={`À refacturer (${indicateurs.a_refacturer})`} valeur={formaterMontant(indicateurs.montant_a_refacturer)} />
                     <Indicateur libelle="Missions incohérentes" valeur={indicateurs.incoherences} alerte={indicateurs.incoherences > 0} />
+                    <Indicateur libelle={`OR à régulariser (${indicateurs.or_a_regulariser ?? 0})`} valeur={`${indicateurs.or_en_retard ?? 0} en retard`}
+                        alerte={(indicateurs.or_en_retard ?? 0) > 0} />
                 </div>
+
+                {/* Spec v2.4, RG-M12-41 : ODM « OR à régulariser » */}
+                <Tableau
+                    titre="OR à régulariser"
+                    entetes={['ODM', 'Demandeur', "Chef d'atelier", 'Validation', 'Échéance', 'Retard', 'Statut']}
+                    vide="Aucun ordre de mission avec un OR à régulariser."
+                    lignes={orARegulariser.map((o) => (
+                        <tr key={o.id} className="border-b last:border-b-0" data-testid={`or-a-regulariser-${o.id}`}>
+                            <td className="py-2 pr-3"><Link href={route('odm.show', o.id)} className="text-neemba-700 hover:underline">{o.libelle}</Link></td>
+                            <td className="py-2 pr-3">{o.demandeur}</td>
+                            <td className="py-2 pr-3">{o.chef_atelier}</td>
+                            <td className="whitespace-nowrap py-2 pr-3">{o.validation}</td>
+                            <td className="whitespace-nowrap py-2 pr-3">{o.echeance}</td>
+                            <td className={`whitespace-nowrap py-2 pr-3 ${o.retard > 0 ? 'font-semibold text-red-700' : 'text-gray-500'}`}>{o.retard > 0 ? `${o.retard} j` : '—'}</td>
+                            <td className="py-2">{o.statut_label}</td>
+                        </tr>
+                    ))}
+                />
 
                 <Tableau
                     titre="Missions en cours"

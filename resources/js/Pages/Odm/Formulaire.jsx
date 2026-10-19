@@ -60,6 +60,9 @@ function etatInitial(odm, defauts) {
         clients: [],
         destinations: [],
         vehicule: '',
+        immatriculation: '',
+        itineraire: '',
+        or_a_regulariser: false,
         niveau_urgence: 'normale',
         motif_urgence: '',
         date_depart: '',
@@ -332,11 +335,18 @@ export default function Formulaire({
                                 <Champ champ="technique" erreur={erreurDe('technique')}>
                                     <label className="flex items-center gap-2 text-sm">
                                         <input type="checkbox" checked={Boolean(form.technique)} onChange={(e) => changer('technique', e.target.checked)} />
-                                        Mission technique (au moins un OR)
+                                        Mission technique (au moins un OR, ou OR à régulariser)
                                     </label>
                                 </Champ>
-                                <Champ champ="vehicule" libelle="Véhicule" erreur={erreurDe('vehicule')} aide="Facultatif ; exigé pour une avance carburant">
-                                    <Input id="champ-vehicule" value={form.vehicule ?? ''} onChange={(e) => changer('vehicule', e.target.value)} maxLength={60} placeholder="Immatriculation" />
+                                {/* Spec v2.4, RG-M12-42 : besoin carburant ; le véhicule garde le modèle, l'immatriculation et l'itinéraire à part */}
+                                <Champ champ="vehicule" libelle="Véhicule" erreur={erreurDe('vehicule')} aide="Modèle ; facultatif, exigé pour une avance carburant">
+                                    <Input id="champ-vehicule" value={form.vehicule ?? ''} onChange={(e) => changer('vehicule', e.target.value)} maxLength={60} placeholder="Ex. : Toyota Hilux" />
+                                </Champ>
+                                <Champ champ="immatriculation" libelle="Immatriculation" erreur={erreurDe('immatriculation')}>
+                                    <Input id="champ-immatriculation" value={form.immatriculation ?? ''} onChange={(e) => changer('immatriculation', e.target.value.toUpperCase())} maxLength={20} placeholder="Ex. : RC 1234 A" />
+                                </Champ>
+                                <Champ champ="itineraire" libelle="Itinéraire" erreur={erreurDe('itineraire')} aide="Besoin carburant : trajet prévu">
+                                    <Input id="champ-itineraire" value={form.itineraire ?? ''} onChange={(e) => changer('itineraire', e.target.value)} maxLength={255} placeholder="Ex. : Conakry – Kindia – Mamou – Kouroussa" />
                                 </Champ>
                                 {/* Spec v2.4, RG-M01-07, Q76 : un ODM urgent se vise avec un code reçu par SMS */}
                                 <Champ champ="niveau_urgence" libelle="Urgence" erreur={erreurDe('niveau_urgence')}>
@@ -413,8 +423,20 @@ export default function Formulaire({
                             <CardContent>
                                 <Champ champ="ordres_reparation" erreur={null}>
                                     <EtiquettesOrOdm valeurs={form.ordres_reparation} typesOr={typesOr} erreur={erreurDe('ordres_reparation')} clients={form.clients}
-                                        onChange={(v) => majForm((f) => ({ ...f, ordres_reparation: v, clients: clientsAvecCeuxDesOr(f.clients, v) }))} />
+                                        onChange={(v) => majForm((f) => ({ ...f, ordres_reparation: v, clients: clientsAvecCeuxDesOr(f.clients, v),
+                                            or_a_regulariser: v.length > 0 ? false : f.or_a_regulariser }))} />
                                 </Champ>
+                                {/* Spec v2.4, RG-M12-39 : mission technique dont l'OR n'est pas encore connu */}
+                                {form.technique && form.ordres_reparation.length === 0 && (
+                                    <label className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
+                                        <input type="checkbox" id="champ-or_a_regulariser" className="mt-0.5" checked={Boolean(form.or_a_regulariser)}
+                                            onChange={(e) => changer('or_a_regulariser', e.target.checked)} />
+                                        <span>
+                                            <strong>OR à régulariser</strong> : l'OR n'est pas encore connu. Il sera rattaché après coup, depuis la fiche de l'ODM,
+                                            avant l'échéance fixée à la validation.
+                                        </span>
+                                    </label>
+                                )}
                             </CardContent>
                         </Card>
 

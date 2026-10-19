@@ -265,7 +265,7 @@ class PrerequisTest extends TestCase
             ->get(route('parametrage.index'))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('choixParametres.odm_prise_en_charge_client.variante_b', 'Variante B : aucun bon si tout est à la charge de clients')
-                ->where('parametres', fn ($parametres) => collect($parametres)->where('groupe', 'odm')->count() === 6));   // compte refacturable passé au groupe Comptabilité (M16) ; mode du bon groupé retiré, barèmes passés au référentiel daté (v2.4)
+                ->where('parametres', fn ($parametres) => collect($parametres)->where('groupe', 'odm')->count() === 8));   // compte refacturable passé au groupe Comptabilité (M16) ; mode du bon groupé retiré, barèmes passés au référentiel daté (v2.4)
     }
 
     /* ------------------------------------------------------------------

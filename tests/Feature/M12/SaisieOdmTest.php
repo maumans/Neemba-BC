@@ -189,7 +189,7 @@ class SaisieOdmTest extends TestCase
     public function test_une_mission_technique_exige_un_or(): void
     {
         $odm = $this->creer($this->saisieB1(null, ['ordres_reparation' => []]));
-        $this->soumettre($odm)->assertStatus(422)->assertJsonPath('message', 'Mission technique : rattachez au moins un OR.')
+        $this->soumettre($odm)->assertStatus(422)->assertJsonPath('message', 'Mission technique : rattachez au moins un OR ou cochez « OR à régulariser ».')
             ->assertJsonPath('champ', 'ordres_reparation');
 
         $this->actingAs($this->demandeur)->putJson(route('api.odm.enregistrer', $odm), ['ordres_reparation' => [['numero' => '12345678']]]);

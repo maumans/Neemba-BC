@@ -81,9 +81,9 @@ final class ReglesOdm
             $ajouter('MOTIF_DEPART_PASSE', 'MSG-APP-015', [], 'RG-M12-06', 'motif_depart_passe');
         }
 
-        /* OR d'une mission technique (RG-M12-02) */
+        /* OR d'une mission technique (RG-M12-02) ; spec v2.4, RG-M12-39 : ou « OR à régulariser » */
         $ors = $odm->ordresReparation()->get();
-        if ($odm->technique && $ors->isEmpty()) {
+        if ($odm->technique && $ors->isEmpty() && !$odm->or_a_regulariser) {
             $ajouter('OR_OBLIGATOIRE', 'MSG-M12-01', [], 'RG-M12-02', 'ordres_reparation');
         }
         if ($ors->contains(fn (OrdreReparationOdm $or) => !preg_match(OrdreReparationOdm::FORMAT, $or->numero))) {

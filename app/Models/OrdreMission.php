@@ -88,6 +88,10 @@ class OrdreMission extends Model
         'entite_id',
         'numero', 'prefixe', 'sequence', 'annee',
         'type', 'technique',
+        /* Spec v2.4, RG-M12-39, RG-M12-40 : OR à régulariser, échéance, relances */
+        'or_a_regulariser', 'or_echeance', 'or_relance_le', 'or_relance_echeance_le', 'or_retard_signale_le',
+        /* RG-M12-42 : besoin carburant (le véhicule garde le modèle) */
+        'immatriculation', 'itineraire',
         'entite', 'site', 'service', 'code_analytique', 'demandeur_id', 'initiateur_id',
         'but', 'destinations', 'vehicule',
         'date_depart', 'date_retour_prevue', 'date_retour_reelle', 'motif_depart_passe', 'niveau_urgence', 'motif_urgence',
@@ -104,6 +108,11 @@ class OrdreMission extends Model
     {
         return [
             'technique' => 'boolean',
+            'or_a_regulariser' => 'boolean',
+            'or_echeance' => 'date',
+            'or_relance_le' => 'datetime',
+            'or_relance_echeance_le' => 'datetime',
+            'or_retard_signale_le' => 'datetime',
             'a_refacturer' => 'boolean',
             'destinations' => 'array',
             'parametres_figes' => 'array',

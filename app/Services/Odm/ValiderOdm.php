@@ -117,6 +117,11 @@ final class ValiderOdm
         /* RG-M12-37 : « à refacturer » dès qu'au moins une part est à la charge d'un client ; répartition figée (RG-M12-35) */
         $odm->refresh();
         $odm->update(['statut' => 'VALIDE', 'date_validation' => now(), 'a_refacturer' => $odm->aDesPartsClient()]);
+        /* Spec v2.4, RG-M12-40 : échéance de l'OR à régulariser, en jours ouvrés après la validation */
+        if ($odm->or_a_regulariser) {
+            $odm->update(['or_echeance' => RegulariserOr::echeance(now())->toDateString()]);
+            NotificationsOdm::orARegulariser($odm->fresh());
+        }
         HistoriqueOdm::enregistrer($odm, 'validation', $statutAvant, 'VALIDE', $valideur->id,
             "Visa {$niveau} : ordre de mission validé ; calcul et répartition figés." . (filled($commentaire) ? ' ' . trim($commentaire) : ''),
             ['total' => $odm->fresh()->total, 'baremes' => $figes['baremes'], 'repartition' => RepartitionOdm::photographie($odm)]);

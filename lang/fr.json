@@ -41,7 +41,7 @@
     "MSG-APP-009": "Cochez la case pour confirmer que cette pièce concerne une autre dépense.",
     "MSG-APP-010": "Le nom de la station doit comporter entre 2 et 80 caractères.",
     "MSG-M03-06": "Si le caissier retient Orange Money : frais estimés :frais GNF (:taux %), montant versé :montant_verse GNF.",
-    "MSG-M12-01": "Mission technique : rattachez au moins un OR.",
+    "MSG-M12-01": "Mission technique : rattachez au moins un OR ou cochez « OR à régulariser ».",
     "MSG-M12-02": "La date de retour doit être postérieure ou égale à la date de départ.",
     "MSG-M12-03": ":participant est déjà en mission du :debut au :fin (ODM :numero).",
     "MSG-M12-04": ":participant n'a pas de statut cadre / non-cadre : contactez les RH.",
@@ -140,5 +140,9 @@
     "MSG-APP-082": "Aucun numéro de téléphone sur votre compte : le code de visa ne peut pas être envoyé. Contactez l’administrateur.",
     "MSG-APP-083": "Code de visa envoyé par SMS au :telephone. Il est valable :minutes minutes.",
     "MSG-APP-084": "Ce compte est désactivé. Contactez l’administrateur.",
-    "MSG-APP-085": "Patientez une minute avant de demander un nouveau code."
+    "MSG-APP-085": "Patientez une minute avant de demander un nouveau code.",
+    "MSG-M12-10": "ODM :numero : OR à régulariser avant le :date.",
+    "MSG-M12-11": "Vous avez un ODM avec OR à régulariser en retard (:numero). Rattachez l'OR avant de créer un nouvel ODM.",
+    "MSG-APP-086": "L'OR :numero est déjà rattaché à cet ordre de mission.",
+    "MSG-APP-087": "Seuls le demandeur de l'ordre de mission et son chef d'atelier rattachent un OR après coup."
 }

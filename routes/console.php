@@ -32,6 +32,9 @@ Schedule::command('odm:relancer-visas')->hourly();
 /* RG-M12-28 : rappel au demandeur 2 jours ouvrés avant la fin d'un segment de mission */
 Schedule::command('odm:rappeler-fin-segment')->dailyAt('07:00');
 
+/* Spec v2.4, RG-M12-40 : OR à régulariser (relance J+3, échéance, retard) */
+Schedule::command('odm:relancer-or')->dailyAt('07:15');
+
 /* M16, RG-M16-04 : bons payés non imputés à J+1 ouvré, alerte au Chef comptable */
 Schedule::command('comptabilite:alerter-non-imputes')->dailyAt('08:00');
 

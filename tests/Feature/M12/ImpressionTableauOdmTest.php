@@ -172,7 +172,7 @@ class ImpressionTableauOdmTest extends TestCase
 
         Excel::fake();
         $this->actingAs($this->daf)->get(route('odm.tableau-de-bord.export'));
-        Excel::assertDownloaded('ordres-de-mission-2026-09-01.xlsx', fn (TableauBordOdmExport $export) => count($export->sheets()) === 4
+        Excel::assertDownloaded('ordres-de-mission-2026-09-01.xlsx', fn (TableauBordOdmExport $export) => count($export->sheets()) === 5   // spec v2.4 : onglet « OR à régulariser »
             && $export->sheets()[0]->array()[1][0] === 'N°1/AT/26');
 
         /* Une mission clôturée n'est plus en cours ; elle reste à refacturer */

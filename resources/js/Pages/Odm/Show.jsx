@@ -5,7 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import axios from 'axios';
-import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarPlus, CheckCircle2, FileText, Info as IconeInfo, Pencil, ShieldAlert, Stamp, Trash2, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarPlus, CheckCircle2, FileText, Info as IconeInfo, Pencil, Plus, ShieldAlert, Stamp, Trash2, Wrench, XCircle } from 'lucide-react';
 import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
 import CodeVisa from '@/Components/CodeVisa';
@@ -651,10 +651,62 @@ function Prolonger({ odm }) {
     );
 }
 
+/** Spec v2.4, RG-M12-39 : OR rattaché après coup par le demandeur ou le chef d'atelier ; reporté sur les bons de l'ODM */
+function AjoutOr({ odm, typesOr }) {
+    const codes = Object.keys(typesOr);
+    const [ouvert, setOuvert] = useState(odm.or_a_regulariser);
+    const form = useForm({ numero: '', type: codes[0] ?? '', client_id: '' });
+    const valider = (e) => {
+        e.preventDefault();
+        form.transform((d) => ({ ...d, client_id: d.client_id === '' ? null : d.client_id }));
+        form.post(route('odm.ajouter-or', odm.id), { preserveScroll: true, onSuccess: () => form.reset('numero') });
+    };
+
+    if (!ouvert) {
+        return (
+            <Button size="sm" variant="outline" onClick={() => setOuvert(true)} className="mt-1">
+                <Plus className="mr-1 h-4 w-4" /> Rattacher un OR
+            </Button>
+        );
+    }
+
+    return (
+        <form onSubmit={valider} className="mt-2 space-y-2 rounded-md border border-amber-200 bg-amber-50/60 p-3" aria-label="Rattacher un OR">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-900"><Wrench className="h-4 w-4" /> Rattacher un OR</p>
+            <div className="flex flex-wrap items-end gap-2">
+                <div>
+                    <label htmlFor="or-numero" className="text-xs text-gray-600">N° d'OR</label>
+                    <Input id="or-numero" value={form.data.numero} inputMode="numeric" maxLength={8} placeholder="110xxxxx" className="w-32 bg-white"
+                        onChange={(e) => form.setData('numero', e.target.value.replace(/\D/g, ''))} />
+                </div>
+                <div>
+                    <label htmlFor="or-type" className="text-xs text-gray-600">Type</label>
+                    <select id="or-type" value={form.data.type} onChange={(e) => form.setData('type', e.target.value)} className="h-10 rounded-md border border-input bg-white px-2 text-sm">
+                        {Object.entries(typesOr).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                </div>
+                {odm.clients?.length > 0 && (
+                    <div>
+                        <label htmlFor="or-client" className="text-xs text-gray-600">Client (facultatif)</label>
+                        <select id="or-client" value={form.data.client_id} onChange={(e) => form.setData('client_id', e.target.value)} className="h-10 rounded-md border border-input bg-white px-2 text-sm">
+                            <option value="">—</option>
+                            {odm.clients.map((c) => <option key={c.id} value={c.id}>{c.raison_sociale}</option>)}
+                        </select>
+                    </div>
+                )}
+                <Button type="submit" size="sm" disabled={form.processing || form.data.numero.length !== 8}>Rattacher</Button>
+            </div>
+            {(form.errors.numero || form.errors.type) && <p className="text-xs text-red-600" role="alert">{form.errors.numero ?? form.errors.type}</p>}
+            <p className="text-[11px] text-gray-500">L'OR est reporté sur les bons de l'ordre de mission ; la saisie est tracée.</p>
+        </form>
+    );
+}
+
 export default function Show({
     odm, etapes = [], visa = null, bons = [], generation = null, sansBon = false, mission = null,
     peutModifier = false, peutAnnuler = false, peutDeciderDerogation = false, peutProlonger = false, prolongation = null,
     peutCloturer = false, peutAnnulerDaf = false, regularisations = [], regularisationsPossibles = {},
+    peutAjouterOr = false, typesOr = {},
 }) {
     const [annulation, setAnnulation] = useState(false);
     const [motifAnnulation, setMotifAnnulation] = useState('');
@@ -790,12 +842,21 @@ export default function Show({
                                 <Info libelle="Client(s)">{odm.clients.map((c) => c.raison_sociale).join(', ')}</Info>
                                 <Info libelle="But">{odm.but}</Info>
                                 <Info libelle="Code analytique">{odm.code_analytique && `${odm.code_analytique}${odm.code_analytique_libelle ? ' — ' + odm.code_analytique_libelle : ''}`}</Info>
-                                <Info libelle="Véhicule">{odm.vehicule}</Info>
+                                <Info libelle="Véhicule">{[odm.vehicule, odm.immatriculation].filter(Boolean).join(' — ')}</Info>
+                                {odm.itineraire && <Info libelle="Itinéraire">{odm.itineraire}</Info>}
                                 {odm.niveau_urgence && odm.niveau_urgence !== 'normale' && (
                                     <Info libelle="Urgence">{odm.niveau_urgence_label}{odm.motif_urgence ? ` — ${odm.motif_urgence}` : ''}</Info>
                                 )}
                                 <Info libelle="Mission technique">{odm.technique ? 'Oui' : 'Non'}</Info>
-                                <Info libelle="OR liés">{odm.ordres_reparation.map((or) => `${or.numero} (${or.type_label}${or.client ? `, ${or.client.raison_sociale}` : ''})`).join(', ')}</Info>
+                                <Info libelle="OR liés">{odm.ordres_reparation.map((or) => `${or.numero} (${or.type_label}${or.client ? `, ${or.client.raison_sociale}` : ''}${or.saisi_apres_coup_le ? `, rattaché le ${or.saisi_apres_coup_le}` : ''})`).join(', ')}</Info>
+                                {odm.or_a_regulariser && (
+                                    <Info libelle="OR à régulariser">
+                                        <span className={odm.or_en_retard ? 'font-semibold text-red-700' : 'text-amber-800'}>
+                                            {odm.or_echeance_format ? `Avant le ${odm.or_echeance_format}${odm.or_en_retard ? ' — en retard' : ''}` : 'Échéance fixée à la validation'}
+                                        </span>
+                                    </Info>
+                                )}
+                                {peutAjouterOr && <AjoutOr odm={odm} typesOr={typesOr} />}
                                 {odm.motif_depart_passe && <Info libelle="Motif (départ dans le passé)">{odm.motif_depart_passe}</Info>}
                                 {odm.type === 'exterieur' && <Info libelle="Hébergement à l'étranger">{odm.hebergement_exterieur_label}</Info>}
                                 {odm.type === 'exterieur' && <Info libelle="Référence billet / bon de commande Wanda">{odm.reference_billet}</Info>}
