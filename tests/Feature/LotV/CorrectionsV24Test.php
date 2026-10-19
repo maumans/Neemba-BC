@@ -90,7 +90,8 @@ class CorrectionsV24Test extends TestCase
     /** PO-30 : motifs du bon visiteur tenus au paramétrage ; un motif désactivé n'est plus proposé */
     public function test_les_motifs_du_bon_visiteur_sont_parametrables(): void
     {
-        $admin = User::factory()->role('administrateur')->create();
+        /* Spec v2.4, RG-M01-09 : tenus par le gestionnaire des référentiels */
+        $admin = tap(User::factory()->create(), fn (User $u) => $u->ajouterRoles(['gestionnaire_referentiels']));
         $this->assertSame([], MotifVisiteur::libellesActifs());
 
         $this->actingAs($admin)->post(route('parametrage.motifs-visiteur.store'), ['libelle' => 'Mission d\'appui technique'])->assertSessionHas('success');

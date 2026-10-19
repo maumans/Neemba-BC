@@ -172,7 +172,7 @@ class OdmApiController extends Controller
             'participants.*.lignes.*.parts.*.commentaire' => ['nullable', 'string', 'max:500'],
             'ordres_reparation' => ['sometimes', 'array', 'max:20'],
             'ordres_reparation.*.numero' => ['required', 'string', 'max:20'],
-            'ordres_reparation.*.type' => ['sometimes', Rule::in(array_keys(OrdreReparationOdm::TYPES))],
+            'ordres_reparation.*.type' => ['sometimes', Rule::in(\App\Models\TypeOr::codesActifs())],
             'ordres_reparation.*.client_id' => ['sometimes', 'nullable', 'integer', Rule::exists('clients', 'id')],
         ], [
             'date_depart.date_format' => 'Date invalide.',

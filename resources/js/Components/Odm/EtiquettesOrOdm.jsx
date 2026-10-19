@@ -1,5 +1,5 @@
 /**
- * OR liés à un ODM (spec v2.2 §7.3) : n° de 8 chiffres commençant par 110, type VENTE ou GARANTIE.
+ * OR liés à un ODM (spec v2.2 §7.3) : n° de 8 chiffres commençant par 110 ; type du référentiel des types d'OR (spec v2.4, §6.5).
  * Obligatoire pour une mission technique (RG-M12-02, MSG-M12-01).
  * Spec v2.3 : chaque OR peut porter un client du référentiel, proposé ensuite sur les parts (RG-M12-33).
  */
@@ -13,7 +13,7 @@ import { msg } from '@/utils/messages';
 
 export default function EtiquettesOrOdm({ valeurs = [], onChange, typesOr = {}, erreur, clients = [] }) {
     const [saisie, setSaisie] = useState('');
-    const [type, setType] = useState('vente');
+    const [type, setType] = useState(Object.keys(typesOr)[0] ?? '');
     const [erreurSaisie, setErreurSaisie] = useState(null);
 
     const ajouter = () => {

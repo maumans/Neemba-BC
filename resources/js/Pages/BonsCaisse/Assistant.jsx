@@ -120,6 +120,7 @@ export default function Assistant({
     codesAnalytiques = [],
     categories = [],
     motifsUrgence = [],
+    typesOr = {},
     motifsVisiteur = [],
     typesBeneficiaire = {},
     modesPaiement = {},
@@ -667,6 +668,7 @@ export default function Assistant({
                                     )}
                                     {etape === 3 && (
                                         <EtapeDepense
+                                            typesOr={typesOr}
                                             donnees={donnees}
                                             changer={changer}
                                             erreurs={erreurs}

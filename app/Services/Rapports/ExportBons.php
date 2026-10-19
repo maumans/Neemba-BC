@@ -93,7 +93,8 @@ final class ExportBons
             $bon->site,
             $bon->service,
             $bon->code_analytique,
-            implode(', ', $bon->references_or ?? []),
+            /* Spec v2.4 : type de chaque OR (référentiel des types d'OR) */
+            \App\Models\TypeOr::decrire($bon->references_or ?? [], (array) ($bon->types_or ?? [])),
             BonCaisse::MODES_PAIEMENT[$mode] ?? $mode,
             $bon->date_paiement ? Carbon::parse($bon->date_paiement)->format('d/m/Y') : null,
             /* RG-M03-28 (v2.4) : bon au profit d'un visiteur du groupe, à refacturer à sa filiale */

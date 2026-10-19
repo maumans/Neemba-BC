@@ -255,6 +255,7 @@ export default function Show({
     justification = null,
     bpRegularise = null,
     codeVisaExige = false,
+    typesOrLibelles = {},
     motifsRejet = {},
     modesCaissier = {},
     modesAvecReference = [],
@@ -828,7 +829,7 @@ export default function Show({
                                                     <div>
                                                         <p className="text-xs text-gray-500">N° d'OR</p>
                                                         <p className="font-medium">
-                                                            {bonCaisse.references_or.map((numero) => `${numero}${bonCaisse.types_or?.[numero] ? ` (${bonCaisse.types_or[numero] === 'garantie' ? 'Garantie' : 'Vente'})` : ''}`).join(', ')}
+                                                            {bonCaisse.references_or.map((numero) => `${numero}${bonCaisse.types_or?.[numero] ? ` (${typesOrLibelles[bonCaisse.types_or[numero]] ?? bonCaisse.types_or[numero]})` : ''}`).join(', ')}
                                                         </p>
                                                     </div>
                                                 )}

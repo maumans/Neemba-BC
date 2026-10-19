@@ -27,31 +27,80 @@ class ParametrageController extends Controller
      */
     public function index()
     {
+        /* Spec v2.4, RG-M01-09 : chacun ne voit que ses onglets (un compte qui a les deux rôles les voit tous) */
+        $utilisateur = \Illuminate\Support\Facades\Auth::user();
+        $admin = $utilisateur->aLeRole('administrateur');
+        $gestion = $utilisateur->aLeRole('gestionnaire_referentiels');
+        $onglets = array_merge(
+            $admin ? ['entites', 'sites', 'caisses'] : [],
+            $gestion ? ['services', 'codes', 'types', 'motifs', 'motifs-rejet', 'motifs-visiteur', 'types-or', 'baremes-odm'] : [],
+            $admin ? ['parametres', 'securite'] : [],
+        );
+
         return Inertia::render('Parametrage/Index', [
-            'sites' => Site::with('caisses')->orderBy('nom')->get(),
-            'caisses' => Caisse::with(['site', 'gestionnaire:id,name,prenom', 'suppleant:id,name,prenom'])->orderBy('site_id')->orderBy('id')->get()
-                ->map(fn (Caisse $caisse) => $caisse->append(['solde_format', 'type_label'])),
+            'onglets' => $onglets,
+            'sites' => $admin ? Site::with('caisses')->orderBy('nom')->get() : [],
+            'caisses' => $admin ? Caisse::with(['site', 'gestionnaire:id,name,prenom', 'suppleant:id,name,prenom'])->orderBy('site_id')->orderBy('id')->get()
+                ->map(fn (Caisse $caisse) => $caisse->append(['solde_format', 'type_label'])) : [],
             'typesCaisse' => Caisse::TYPES,
             'modesCaisse' => Caisse::MODES,
-            'services' => Service::orderBy('nom')->get()->map(fn (Service $s) => $s->setAttribute(
+            'services' => $gestion ? Service::orderBy('nom')->get()->map(fn (Service $s) => $s->setAttribute(
                 'dernier_numero_odm', \App\Services\Odm\NumeroteurOdm::dernier(\App\Services\Odm\NumeroteurOdm::prefixePour($s->nom), (int) now()->year,
                     \App\Support\EntiteCourante::filtre()),
-            )),
-            'codesAnalytiques' => CodeAnalytique::with('service')->orderBy('code')->get(),
-            'motifsUrgence' => MotifUrgence::orderBy('libelle')->get(),
-            'motifsVisiteur' => \App\Models\MotifVisiteur::orderBy('ordre')->orderBy('libelle')->get(),
+            )) : [],
+            'codesAnalytiques' => $gestion ? CodeAnalytique::with('service')->orderBy('code')->get() : [],
+            'motifsUrgence' => $gestion ? MotifUrgence::orderBy('libelle')->get() : [],
+            'motifsVisiteur' => $gestion ? \App\Models\MotifVisiteur::orderBy('ordre')->orderBy('libelle')->get() : [],
             /* Spec v2.4, RG-M01-02 : entités (mise en service de Neemba Mining : proposition distincte) */
-            'entites' => \App\Models\Entite::orderBy('id')->get(),
-            'motifsRejet' => \App\Models\MotifRejet::orderBy('ordre')->orderBy('libelle')->get(),
-            'typesDocument' => TypeDocument::orderBy('nom')->get(),
+            'entites' => $admin ? \App\Models\Entite::orderBy('id')->get() : [],
+            'motifsRejet' => $gestion ? \App\Models\MotifRejet::orderBy('ordre')->orderBy('libelle')->get() : [],
+            'typesDocument' => $gestion ? TypeDocument::orderBy('nom')->get() : [],
+            /* Spec v2.4, §6.5 : types d'OR ; RG-M02-10 : barèmes ODM datés */
+            'typesOr' => $gestion ? \App\Models\TypeOr::orderBy('ordre')->orderBy('libelle')->get() : [],
+            'baremesOdm' => $gestion ? self::baremesOdm() : null,
             /* Les réglages de la double authentification ont leur onglet « Sécurité » (effet immédiat) */
-            'parametres' => Parametre::whereNotIn('cle', \App\Services\Securite\ReglagesSecurite::cles())->orderBy('groupe')->orderBy('libelle')->get(),
-            'securite' => \App\Services\Securite\ReglagesSecurite::etat(),
+            'parametres' => $admin ? Parametre::whereNotIn('cle', \App\Services\Securite\ReglagesSecurite::cles())->orderBy('groupe')->orderBy('libelle')->get() : [],
+            'securite' => $admin ? \App\Services\Securite\ReglagesSecurite::etat() : null,
             'choixParametres' => Parametre::CHOIX,
             /* Gestionnaire, suppléant et destinataires du rapport d'une caisse (référentiel Neemba, point 14) */
-            'utilisateursActifs' => User::where('actif', true)->orderBy('name')->orderBy('prenom')->get(['id', 'name', 'prenom'])
-                ->map(fn (User $u) => ['id' => $u->id, 'libelle' => trim(mb_strtoupper($u->name) . ' ' . $u->prenom)]),
+            'utilisateursActifs' => $admin ? User::where('actif', true)->orderBy('name')->orderBy('prenom')->get(['id', 'name', 'prenom'])
+                ->map(fn (User $u) => ['id' => $u->id, 'libelle' => trim(mb_strtoupper($u->name) . ' ' . $u->prenom)]) : [],
         ]);
+    }
+
+    /** Barèmes ODM : valeur en vigueur, prochaine valeur datée, historique (spec v2.4, RG-M02-10, RG-M02-01) */
+    private static function baremesOdm(): array
+    {
+        $entite = \App\Support\EntiteCourante::filtre();
+        $aujourdhui = now()->startOfDay();
+        $libelle = fn (string $cle) => \App\Models\BaremeOdm::CLES[$cle]['libelle'] ?? $cle;
+
+        return [
+            'cles' => collect(\App\Models\BaremeOdm::CLES)->map(fn (array $c) => ['libelle' => $c['libelle'], 'type' => $c['type']])->all(),
+            'aujourdhui' => $aujourdhui->toDateString(),
+            'enVigueur' => collect(array_keys(\App\Models\BaremeOdm::CLES))->mapWithKeys(function (string $cle) use ($entite, $aujourdhui) {
+                $ligne = \App\Models\BaremeOdm::ligneEnVigueur($cle, $aujourdhui, $entite);
+                $prochaine = \App\Models\BaremeOdm::where('cle', $cle)->whereDate('date_effet', '>', $aujourdhui)->orderBy('date_effet')->first();
+
+                return [$cle => [
+                    'valeur' => \App\Models\BaremeOdm::enVigueur($cle, $aujourdhui, $entite),
+                    'depuis' => $ligne?->date_effet?->format('d/m/Y'),
+                    'prochaine' => $prochaine ? ['valeur' => $prochaine->valeur, 'date' => $prochaine->date_effet->format('d/m/Y')] : null,
+                ]];
+            })->all(),
+            'historique' => \App\Models\BaremeOdm::with('auteur:id,name,prenom')->orderByDesc('date_effet')->orderByDesc('id')->limit(60)->get()
+                ->map(fn (\App\Models\BaremeOdm $b) => [
+                    'id' => $b->id,
+                    'cle' => $b->cle,
+                    'libelle' => $libelle($b->cle),
+                    'valeur' => $b->valeur,
+                    'date_effet' => $b->date_effet->format('d/m/Y'),
+                    'auteur' => $b->auteur?->nom_complet ?? 'Reprise des paramètres',
+                    'commentaire' => $b->commentaire,
+                    'saisi_le' => $b->created_at?->format('d/m/Y H:i'),
+                    'a_venir' => $b->date_effet->greaterThan($aujourdhui),
+                ])->values()->all(),
+        ];
     }
 
     /* ─── SITES ─────────────────────────────────────────── */
@@ -437,6 +486,77 @@ class ParametrageController extends Controller
         $motifRejet->update(['actif' => !$motifRejet->actif]);
 
         return back()->with('success', $motifRejet->actif ? 'Motif de rejet activé.' : 'Motif de rejet désactivé.');
+    }
+
+    /* ─── TYPES D'OR (spec v2.4, §6.5, RG-M03-13, PO-28) ─────── */
+
+    public function storeTypeOr(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:30', 'regex:/^[a-z0-9_]+$/', \Illuminate\Validation\Rule::unique('types_or', 'code')],
+            'libelle' => ['required', 'string', 'max:100'],
+        ], ['code.regex' => 'Code en minuscules, chiffres et « _ » seulement (ex. : interne).']);
+        \App\Models\TypeOr::create($validated + ['actif' => true, 'ordre' => (int) \App\Models\TypeOr::max('ordre') + 1]);
+
+        return back()->with('success', "Type d'OR ajouté.");
+    }
+
+    /** Le code reste celui des OR déjà saisis : seul le libellé change */
+    public function updateTypeOr(Request $request, \App\Models\TypeOr $typeOr)
+    {
+        $typeOr->update($request->validate(['libelle' => ['required', 'string', 'max:100']]));
+
+        return back()->with('success', "Type d'OR mis à jour.");
+    }
+
+    public function toggleTypeOr(\App\Models\TypeOr $typeOr)
+    {
+        if ($typeOr->actif && \App\Models\TypeOr::where('actif', true)->count() <= 1) {
+            return back()->with('error', "Au moins un type d'OR doit rester actif.");
+        }
+        $typeOr->update(['actif' => !$typeOr->actif]);
+
+        return back()->with('success', $typeOr->actif ? "Type d'OR activé." : "Type d'OR désactivé : il n'est plus proposé, les OR déjà saisis le gardent.");
+    }
+
+    /* ─── BARÈMES ODM (spec v2.4, RG-M02-10, RG-M02-01, §6.6) ── */
+
+    /** Nouvelle valeur datée, sans circuit de validation ; une valeur n'est jamais modifiée (historique) */
+    public function storeBaremeOdm(Request $request)
+    {
+        $cles = \App\Models\BaremeOdm::CLES;
+        $request->validate([
+            'cle' => ['required', \Illuminate\Validation\Rule::in(array_keys($cles))],
+            'date_effet' => ['required', 'date', 'after_or_equal:today'],
+            'commentaire' => ['nullable', 'string', 'max:255'],
+        ], ['date_effet.after_or_equal' => "La date d'effet ne peut pas être passée : un barème ne réécrit pas le passé."]);
+        $nombre = ($cles[$request->input('cle')]['type'] ?? null) === 'number';
+        $request->validate(['valeur' => $nombre ? ['required', 'integer', 'min:1', 'max:100000000'] : ['required', 'string', 'max:60']],
+            ['valeur.integer' => 'Saisissez un montant entier.']);
+
+        $bareme = \App\Models\BaremeOdm::create([
+            'entite_id' => \App\Support\EntiteCourante::id(\Illuminate\Support\Facades\Auth::user()),
+            'cle' => $request->input('cle'),
+            'valeur' => $nombre ? (string) (int) $request->input('valeur') : trim((string) $request->input('valeur')),
+            'date_effet' => $request->input('date_effet'),
+            'saisi_par' => \Illuminate\Support\Facades\Auth::id(),
+            'commentaire' => $request->input('commentaire'),
+        ]);
+
+        $valeur = $nombre ? number_format((int) $bareme->valeur, 0, ',', ' ') : $bareme->valeur;
+
+        return back()->with('success', "Barème enregistré : « {$cles[$bareme->cle]['libelle']} » = {$valeur}, à partir du {$bareme->date_effet->format('d/m/Y')}.");
+    }
+
+    /** Seule une valeur à venir peut être retirée ; une valeur entrée en vigueur reste dans l'historique */
+    public function destroyBaremeOdm(\App\Models\BaremeOdm $baremeOdm)
+    {
+        if (!$baremeOdm->date_effet->isFuture()) {
+            return back()->with('error', "Ce barème est déjà en vigueur : saisissez une nouvelle valeur plutôt que de l'effacer.");
+        }
+        $baremeOdm->delete();
+
+        return back()->with('success', 'Barème à venir retiré.');
     }
 
     /* ─── PARAMETRES SYSTEME ──────────────────────────────── */

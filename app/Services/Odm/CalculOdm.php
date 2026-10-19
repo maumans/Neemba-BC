@@ -2,7 +2,6 @@
 
 namespace App\Services\Odm;
 
-use App\Models\Parametre;
 use App\Services\Paiement\FraisOrangeMoney;
 use Carbon\CarbonInterface;
 
@@ -26,19 +25,12 @@ use Carbon\CarbonInterface;
 final class CalculOdm
 {
     /**
-     * Barèmes et paramètres en vigueur, enregistrés avec l'ODM à sa validation (RG-M12-25).
+     * Barèmes en vigueur à une date (aujourd'hui par défaut) pour l'entité de l'ODM, enregistrés avec l'ODM à sa
+     * soumission puis à sa validation (RG-M12-07, RG-M12-25). Spec v2.4, RG-M02-10 : barèmes datés du référentiel.
      */
-    public static function baremesEnVigueur(): array
+    public static function baremesEnVigueur(?CarbonInterface $date = null, ?int $entite = null): array
     {
-        return [
-            'indemnite_journaliere' => (int) Parametre::valeur('odm_indemnite_journaliere', 250000),
-            'libelle_indemnite_1' => (string) Parametre::valeur('odm_libelle_indemnite_1', 'Indemnité de repas'),
-            'libelle_indemnite_2' => (string) Parametre::valeur('odm_libelle_indemnite_2', 'Indemnité de déplacement'),
-            'hebergement_nuit' => (int) Parametre::valeur('odm_hebergement_nuit', 500000),
-            'bareme_fcfa_non_cadre' => (int) Parametre::valeur('odm_bareme_fcfa_non_cadre', 22000),
-            'bareme_fcfa_cadre' => (int) Parametre::valeur('odm_bareme_fcfa_cadre', 34000),
-            'frais_om_paliers' => FraisOrangeMoney::paliers(),
-        ];
+        return \App\Models\BaremeOdm::tous($date, $entite) + ['frais_om_paliers' => FraisOrangeMoney::paliers()];
     }
 
     /** Jours de mission : le jour du départ et celui du retour comptent (0 si les dates sont incohérentes) */

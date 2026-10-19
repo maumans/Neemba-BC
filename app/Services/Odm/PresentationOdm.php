@@ -76,7 +76,8 @@ final class PresentationOdm
                 'hebergement_facture' => $p->hebergement_facture !== null ? (float) $p->hebergement_facture : null,
             ])->values()->all(),
             'ordres_reparation' => $odm->ordresReparation()->with('client')->get()->map(fn (OrdreReparationOdm $or) => [
-                'id' => $or->id, 'numero' => $or->numero, 'type' => $or->type, 'client_id' => $or->client_id, 'client' => $or->client?->resume(),
+                'id' => $or->id, 'numero' => $or->numero, 'type' => $or->type, 'type_label' => \App\Models\TypeOr::libelle($or->type),
+                'client_id' => $or->client_id, 'client' => $or->client?->resume(),
             ])->values()->all(),
             'derogation' => self::derogation($odm),
             'rejet' => self::rejet($odm),
@@ -98,7 +99,7 @@ final class PresentationOdm
      */
     public static function calcul(OrdreMission $odm): array
     {
-        $baremes = $odm->parametres_figes['baremes'] ?? CalculOdm::baremesEnVigueur();
+        $baremes = $odm->parametres_figes['baremes'] ?? CalculOdm::baremesEnVigueur(null, $odm->entite_id);
         $taux = null;
         if ($odm->type === 'exterieur') {
             $taux = isset($odm->parametres_figes['taux_estime'])
@@ -485,7 +486,8 @@ final class PresentationOdm
             'types' => OrdreMission::TYPES,
             'elementsFrais' => LigneFraisOdm::ELEMENTS,
             'hebergementsExterieurs' => OrdreMission::HEBERGEMENTS_EXTERIEURS,
-            'typesOr' => OrdreReparationOdm::TYPES,
+            /* Spec v2.4, §6.5 : types d'OR du référentiel */
+            'typesOr' => \App\Models\TypeOr::options(),
             'maxParticipants' => (int) Parametre::valeur('odm_participants_max', 10),
             'niveauxUrgence' => \App\Models\BonCaisse::NIVEAUX_URGENCE,
             'motifsUrgence' => \App\Models\MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),

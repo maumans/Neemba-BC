@@ -163,7 +163,7 @@
             <tr>
                 <td style="width: 38%; vertical-align: middle">
                     <span class="discret">N° OR :</span>
-                    <strong>{{ collect($odm['ordres_reparation'])->map(fn ($or) => $or['numero'] . ' (' . ($or['type'] === 'garantie' ? 'Garantie' : 'Vente') . ')')->implode(', ') ?: '—' }}</strong>
+                    <strong>{{ collect($odm['ordres_reparation'])->map(fn ($or) => $or['numero'] . ' (' . \App\Models\TypeOr::libelle($or['type']) . ')')->implode(', ') ?: '—' }}</strong>
                 </td>
                 <td class="droite" style="vertical-align: middle">
                     @foreach (\App\Models\OrdreMission::RUBRIQUES_PDF as $rubrique)

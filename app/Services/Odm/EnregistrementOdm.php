@@ -118,7 +118,7 @@ final class EnregistrementOdm
      */
     public static function recalculer(OrdreMission $odm, ?array $baremes = null, float|string|null $taux = null, array $modeles = []): void
     {
-        $baremes ??= $odm->parametres_figes['baremes'] ?? CalculOdm::baremesEnVigueur();
+        $baremes ??= $odm->parametres_figes['baremes'] ?? CalculOdm::baremesEnVigueur(null, $odm->entite_id);
         if ($odm->type === 'exterieur') {
             $taux ??= $odm->parametres_figes['taux_estime'] ?? TauxChange::dernier()?->taux;
         }
@@ -229,6 +229,8 @@ final class EnregistrementOdm
     private static function synchroniserOr(OrdreMission $odm, array $ors): void
     {
         $voulus = [];
+        /* Spec v2.4, §6.5 : type du référentiel des types d'OR ; à défaut, le premier type actif */
+        $codesTypes = \App\Models\TypeOr::codesActifs();
         foreach ($ors as $or) {
             $numero = mb_substr(preg_replace('/\D/', '', (string) (is_array($or) ? ($or['numero'] ?? '') : $or)), 0, 8);
             if ($numero === '' || isset($voulus[$numero])) {
@@ -236,7 +238,7 @@ final class EnregistrementOdm
             }
             $clientId = is_array($or) && is_numeric($or['client_id'] ?? null) ? (int) $or['client_id'] : null;
             $voulus[$numero] = [
-                'type' => is_array($or) && array_key_exists($or['type'] ?? '', OrdreReparationOdm::TYPES) ? $or['type'] : 'vente',
+                'type' => is_array($or) && in_array($or['type'] ?? null, $codesTypes, true) ? $or['type'] : ($codesTypes[0] ?? 'vente'),
                 'client_id' => $clientId && \App\Models\Client::whereKey($clientId)->exists() ? $clientId : null,
             ];
         }

@@ -795,7 +795,7 @@ export default function Show({
                                     <Info libelle="Urgence">{odm.niveau_urgence_label}{odm.motif_urgence ? ` — ${odm.motif_urgence}` : ''}</Info>
                                 )}
                                 <Info libelle="Mission technique">{odm.technique ? 'Oui' : 'Non'}</Info>
-                                <Info libelle="OR liés">{odm.ordres_reparation.map((or) => `${or.numero} (${or.type === 'garantie' ? 'Garantie' : 'Vente'}${or.client ? `, ${or.client.raison_sociale}` : ''})`).join(', ')}</Info>
+                                <Info libelle="OR liés">{odm.ordres_reparation.map((or) => `${or.numero} (${or.type_label}${or.client ? `, ${or.client.raison_sociale}` : ''})`).join(', ')}</Info>
                                 {odm.motif_depart_passe && <Info libelle="Motif (départ dans le passé)">{odm.motif_depart_passe}</Info>}
                                 {odm.type === 'exterieur' && <Info libelle="Hébergement à l'étranger">{odm.hebergement_exterieur_label}</Info>}
                                 {odm.type === 'exterieur' && <Info libelle="Référence billet / bon de commande Wanda">{odm.reference_billet}</Info>}

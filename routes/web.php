@@ -249,7 +249,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 
     /* --- Référentiel clients (spec v2.3, §6.5) : Comptabilité, CDG, administrateur --- */
-    Route::middleware('role:chef_comptable,comptable,controle_gestion,administrateur')->group(function () {
+    /* Spec v2.4, §6.5 : clients ajoutés par le gestionnaire des référentiels ; la Comptabilité et le CDG gardent l'import (Q83) */
+    Route::middleware('role:chef_comptable,comptable,controle_gestion,gestionnaire_referentiels')->group(function () {
         Route::get('/referentiels/clients', [ClientController::class, 'index'])->name('clients.index');
         Route::post('/referentiels/clients', [ClientController::class, 'store'])->name('clients.store');
         Route::put('/referentiels/clients/{client}', [ClientController::class, 'update'])->name('clients.update');
@@ -297,54 +298,63 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('utilisateurs.toggle-actif');
     });
 
-    /* --- Paramétrage (tables de référence — Administrateur uniquement) --- */
-    Route::middleware('role:administrateur')->group(function () {
+    /* --- Paramétrage. Spec v2.4, RG-M01-09 : l'administrateur tient les entités, sites, caisses, paramètres techniques et la
+     * sécurité (Q78) ; le gestionnaire des référentiels tient les référentiels métier --- */
+    Route::middleware('role:administrateur,gestionnaire_referentiels')->group(function () {
         Route::get('/parametrage', [ParametrageController::class, 'index'])->name('parametrage.index');
 
         /* Sites */
-        Route::post('/parametrage/sites', [ParametrageController::class, 'storeSite'])->name('parametrage.sites.store');
-        Route::put('/parametrage/sites/{site}', [ParametrageController::class, 'updateSite'])->name('parametrage.sites.update');
-        Route::post('/parametrage/sites/{site}/toggle', [ParametrageController::class, 'toggleSite'])->name('parametrage.sites.toggle');
+        Route::post('/parametrage/sites', [ParametrageController::class, 'storeSite'])->name('parametrage.sites.store')->middleware('role:administrateur');
+        Route::put('/parametrage/sites/{site}', [ParametrageController::class, 'updateSite'])->name('parametrage.sites.update')->middleware('role:administrateur');
+        Route::post('/parametrage/sites/{site}/toggle', [ParametrageController::class, 'toggleSite'])->name('parametrage.sites.toggle')->middleware('role:administrateur');
 
         /* Caisses (lot 2) */
-        Route::post('/parametrage/caisses', [ParametrageController::class, 'storeCaisse'])->name('parametrage.caisses.store');
-        Route::put('/parametrage/caisses/{caisse}', [ParametrageController::class, 'updateCaisse'])->name('parametrage.caisses.update');
-        Route::post('/parametrage/caisses/{caisse}/toggle', [ParametrageController::class, 'toggleCaisse'])->name('parametrage.caisses.toggle');
+        Route::post('/parametrage/caisses', [ParametrageController::class, 'storeCaisse'])->name('parametrage.caisses.store')->middleware('role:administrateur');
+        Route::put('/parametrage/caisses/{caisse}', [ParametrageController::class, 'updateCaisse'])->name('parametrage.caisses.update')->middleware('role:administrateur');
+        Route::post('/parametrage/caisses/{caisse}/toggle', [ParametrageController::class, 'toggleCaisse'])->name('parametrage.caisses.toggle')->middleware('role:administrateur');
 
         /* Services */
-        Route::post('/parametrage/services', [ParametrageController::class, 'storeService'])->name('parametrage.services.store');
-        Route::put('/parametrage/services/{service}', [ParametrageController::class, 'updateService'])->name('parametrage.services.update');
-        Route::post('/parametrage/services/{service}/toggle', [ParametrageController::class, 'toggleService'])->name('parametrage.services.toggle');
+        Route::post('/parametrage/services', [ParametrageController::class, 'storeService'])->name('parametrage.services.store')->middleware('role:gestionnaire_referentiels');
+        Route::put('/parametrage/services/{service}', [ParametrageController::class, 'updateService'])->name('parametrage.services.update')->middleware('role:gestionnaire_referentiels');
+        Route::post('/parametrage/services/{service}/toggle', [ParametrageController::class, 'toggleService'])->name('parametrage.services.toggle')->middleware('role:gestionnaire_referentiels');
 
         /* Codes analytiques */
-        Route::post('/parametrage/codes-analytiques', [ParametrageController::class, 'storeCodeAnalytique'])->name('parametrage.codes-analytiques.store');
-        Route::put('/parametrage/codes-analytiques/{codeAnalytique}', [ParametrageController::class, 'updateCodeAnalytique'])->name('parametrage.codes-analytiques.update');
-        Route::post('/parametrage/codes-analytiques/{codeAnalytique}/toggle', [ParametrageController::class, 'toggleCodeAnalytique'])->name('parametrage.codes-analytiques.toggle');
+        Route::post('/parametrage/codes-analytiques', [ParametrageController::class, 'storeCodeAnalytique'])->name('parametrage.codes-analytiques.store')->middleware('role:gestionnaire_referentiels');
+        Route::put('/parametrage/codes-analytiques/{codeAnalytique}', [ParametrageController::class, 'updateCodeAnalytique'])->name('parametrage.codes-analytiques.update')->middleware('role:gestionnaire_referentiels');
+        Route::post('/parametrage/codes-analytiques/{codeAnalytique}/toggle', [ParametrageController::class, 'toggleCodeAnalytique'])->name('parametrage.codes-analytiques.toggle')->middleware('role:gestionnaire_referentiels');
 
         /* Types de document */
-        Route::post('/parametrage/types-document', [ParametrageController::class, 'storeTypeDocument'])->name('parametrage.types-document.store');
-        Route::put('/parametrage/types-document/{typeDocument}', [ParametrageController::class, 'updateTypeDocument'])->name('parametrage.types-document.update');
-        Route::post('/parametrage/types-document/{typeDocument}/toggle', [ParametrageController::class, 'toggleTypeDocument'])->name('parametrage.types-document.toggle');
+        Route::post('/parametrage/types-document', [ParametrageController::class, 'storeTypeDocument'])->name('parametrage.types-document.store')->middleware('role:gestionnaire_referentiels');
+        Route::put('/parametrage/types-document/{typeDocument}', [ParametrageController::class, 'updateTypeDocument'])->name('parametrage.types-document.update')->middleware('role:gestionnaire_referentiels');
+        Route::post('/parametrage/types-document/{typeDocument}/toggle', [ParametrageController::class, 'toggleTypeDocument'])->name('parametrage.types-document.toggle')->middleware('role:gestionnaire_referentiels');
 
         /* Motifs d'urgence */
-        Route::post('/parametrage/motifs-urgence', [ParametrageController::class, 'storeMotifUrgence'])->name('parametrage.motifs-urgence.store');
-        Route::put('/parametrage/motifs-urgence/{motifUrgence}', [ParametrageController::class, 'updateMotifUrgence'])->name('parametrage.motifs-urgence.update');
-        Route::post('/parametrage/motifs-urgence/{motifUrgence}/toggle', [ParametrageController::class, 'toggleMotifUrgence'])->name('parametrage.motifs-urgence.toggle');
+        Route::post('/parametrage/motifs-urgence', [ParametrageController::class, 'storeMotifUrgence'])->name('parametrage.motifs-urgence.store')->middleware('role:gestionnaire_referentiels');
+        Route::put('/parametrage/motifs-urgence/{motifUrgence}', [ParametrageController::class, 'updateMotifUrgence'])->name('parametrage.motifs-urgence.update')->middleware('role:gestionnaire_referentiels');
+        Route::post('/parametrage/motifs-urgence/{motifUrgence}/toggle', [ParametrageController::class, 'toggleMotifUrgence'])->name('parametrage.motifs-urgence.toggle')->middleware('role:gestionnaire_referentiels');
         /* Spec v2.4, RG-M01-02 : entités (raison sociale, adresse et logo des documents imprimés) */
-        Route::put('/parametrage/entites/{entite}', [\App\Http\Controllers\EntiteController::class, 'update'])->name('parametrage.entites.update');
+        Route::put('/parametrage/entites/{entite}', [\App\Http\Controllers\EntiteController::class, 'update'])->name('parametrage.entites.update')->middleware('role:administrateur');
         /* Spec v2.4, RG-M03-28 (PO-30) : motifs du bon exceptionnel au profit d'un visiteur du groupe */
-        Route::post('/parametrage/motifs-visiteur', [ParametrageController::class, 'storeMotifVisiteur'])->name('parametrage.motifs-visiteur.store');
-        Route::put('/parametrage/motifs-visiteur/{motifVisiteur}', [ParametrageController::class, 'updateMotifVisiteur'])->name('parametrage.motifs-visiteur.update');
-        Route::post('/parametrage/motifs-visiteur/{motifVisiteur}/toggle', [ParametrageController::class, 'toggleMotifVisiteur'])->name('parametrage.motifs-visiteur.toggle');
+        Route::post('/parametrage/motifs-visiteur', [ParametrageController::class, 'storeMotifVisiteur'])->name('parametrage.motifs-visiteur.store')->middleware('role:gestionnaire_referentiels');
+        Route::put('/parametrage/motifs-visiteur/{motifVisiteur}', [ParametrageController::class, 'updateMotifVisiteur'])->name('parametrage.motifs-visiteur.update')->middleware('role:gestionnaire_referentiels');
+        Route::post('/parametrage/motifs-visiteur/{motifVisiteur}/toggle', [ParametrageController::class, 'toggleMotifVisiteur'])->name('parametrage.motifs-visiteur.toggle')->middleware('role:gestionnaire_referentiels');
         /* Spec v2.3, RG-M04-04 : motifs de rejet paramétrables */
-        Route::post('/parametrage/motifs-rejet', [ParametrageController::class, 'storeMotifRejet'])->name('parametrage.motifs-rejet.store');
-        Route::put('/parametrage/motifs-rejet/{motifRejet}', [ParametrageController::class, 'updateMotifRejet'])->name('parametrage.motifs-rejet.update');
-        Route::post('/parametrage/motifs-rejet/{motifRejet}/toggle', [ParametrageController::class, 'toggleMotifRejet'])->name('parametrage.motifs-rejet.toggle');
+        Route::post('/parametrage/motifs-rejet', [ParametrageController::class, 'storeMotifRejet'])->name('parametrage.motifs-rejet.store')->middleware('role:gestionnaire_referentiels');
+        Route::put('/parametrage/motifs-rejet/{motifRejet}', [ParametrageController::class, 'updateMotifRejet'])->name('parametrage.motifs-rejet.update')->middleware('role:gestionnaire_referentiels');
+        Route::post('/parametrage/motifs-rejet/{motifRejet}/toggle', [ParametrageController::class, 'toggleMotifRejet'])->name('parametrage.motifs-rejet.toggle')->middleware('role:gestionnaire_referentiels');
 
         /* Paramètres système */
-        Route::put('/parametrage/parametres/{parametre}', [ParametrageController::class, 'updateParametre'])->name('parametrage.parametres.update');
+        Route::put('/parametrage/parametres/{parametre}', [ParametrageController::class, 'updateParametre'])->name('parametrage.parametres.update')->middleware('role:administrateur');
         /* Spec v2.4, RG-M01-07 : double authentification, réglée directement par l'administrateur */
-        Route::put('/parametrage/securite', [ParametrageController::class, 'updateSecurite'])->name('parametrage.securite.update');
+        Route::put('/parametrage/securite', [ParametrageController::class, 'updateSecurite'])->name('parametrage.securite.update')->middleware('role:administrateur');
+
+        /* Spec v2.4, §6.5, RG-M03-13 : types d'OR */
+        Route::post('/parametrage/types-or', [ParametrageController::class, 'storeTypeOr'])->name('parametrage.types-or.store')->middleware('role:gestionnaire_referentiels');
+        Route::put('/parametrage/types-or/{typeOr}', [ParametrageController::class, 'updateTypeOr'])->name('parametrage.types-or.update')->middleware('role:gestionnaire_referentiels');
+        Route::post('/parametrage/types-or/{typeOr}/toggle', [ParametrageController::class, 'toggleTypeOr'])->name('parametrage.types-or.toggle')->middleware('role:gestionnaire_referentiels');
+        /* Spec v2.4, RG-M02-10 : barèmes ODM datés, sans double validation */
+        Route::post('/parametrage/baremes-odm', [ParametrageController::class, 'storeBaremeOdm'])->name('parametrage.baremes-odm.store')->middleware('role:gestionnaire_referentiels');
+        Route::delete('/parametrage/baremes-odm/{baremeOdm}', [ParametrageController::class, 'destroyBaremeOdm'])->name('parametrage.baremes-odm.destroy')->middleware('role:gestionnaire_referentiels');
     });
 
     /* API JSON — listes actives pour les selects searchable */

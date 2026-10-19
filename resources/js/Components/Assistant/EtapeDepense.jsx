@@ -29,12 +29,15 @@ import { msg } from '@/utils/messages';
 import { nombreEnLettres } from '@/utils/nombreEnLettres';
 import Champ from './Champ';
 
-const TYPES_OR = { vente: 'Vente', garantie: 'Garantie' };
-
-/** N° d'OR sous forme d'étiquettes « OR 11022219 · Vente » (RG-M03-13) : le type se choisit avant d'ajouter, se change d'un clic */
-function EtiquettesOr({ valeurs = [], types = {}, onChange, erreur }) {
+/**
+ * N° d'OR sous forme d'étiquettes « OR 11022219 · Vente » (RG-M03-13) : le type se choisit avant d'ajouter, se change d'un
+ * clic (type suivant de la liste). Spec v2.4, §6.5 : types servis par le référentiel des types d'OR.
+ */
+function EtiquettesOr({ valeurs = [], types = {}, typesOr = {}, onChange, erreur }) {
+    const codes = Object.keys(typesOr);
     const [saisie, setSaisie] = useState('');
-    const [type, setType] = useState('vente');
+    const [type, setType] = useState(codes[0] ?? '');
+    const suivant = (code) => codes[(codes.indexOf(code) + 1) % codes.length] ?? code;
     const [erreurSaisie, setErreurSaisie] = useState(null);
 
     const valider = () => {
@@ -59,9 +62,9 @@ function EtiquettesOr({ valeurs = [], types = {}, onChange, erreur }) {
                     <span key={numero} className="inline-flex items-center gap-1 rounded bg-marine-50 px-2 py-0.5 text-xs font-medium text-marine-800">
                         OR {numero}
                         <button type="button" className="rounded bg-white px-1 text-[11px] text-marine-700 ring-1 ring-marine-200 hover:bg-marine-100"
-                            onClick={() => onChange(valeurs, { ...types, [numero]: types[numero] === 'garantie' ? 'vente' : 'garantie' })}
-                            aria-label={`Type de l'OR ${numero} : ${TYPES_OR[types[numero]] ?? 'à choisir'}`}>
-                            {TYPES_OR[types[numero]] ?? 'type ?'}
+                            onClick={() => onChange(valeurs, { ...types, [numero]: suivant(types[numero]) })}
+                            aria-label={`Type de l'OR ${numero} : ${typesOr[types[numero]] ?? 'à choisir'}`}>
+                            {typesOr[types[numero]] ?? 'type ?'}
                         </button>
                         <button type="button" onClick={() => retirer(numero)} aria-label={`Retirer l'OR ${numero}`}>
                             <X className="h-3 w-3" />
@@ -70,7 +73,7 @@ function EtiquettesOr({ valeurs = [], types = {}, onChange, erreur }) {
                 ))}
                 <select value={type} onChange={(e) => setType(e.target.value)} aria-label="Type du prochain OR"
                     className="h-7 rounded border border-gray-200 bg-white px-1 text-xs">
-                    {Object.entries(TYPES_OR).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    {Object.entries(typesOr).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
                 <input
                     id="champ-references_or"
@@ -125,7 +128,7 @@ function EstimationFraisOm({ montant }) {
     ) : null;
 }
 
-export default function EtapeDepense({ donnees, changer, erreurs, categories, modesPaiement, caisses, seuilDP, dateDuJour, numeroOmReferentiel = null }) {
+export default function EtapeDepense({ donnees, changer, erreurs, categories, modesPaiement, caisses, seuilDP, dateDuJour, numeroOmReferentiel = null, typesOr = {} }) {
     const orangeMoney = donnees.mode_paiement === 'orange_money';
     const chiffresOm = (valeur) => String(valeur ?? '').replace(/\D/g, '').slice(-9);
     const omModifie = orangeMoney && numeroOmReferentiel && donnees.numero_om && chiffresOm(donnees.numero_om) !== chiffresOm(numeroOmReferentiel);
@@ -288,6 +291,7 @@ export default function EtapeDepense({ donnees, changer, erreurs, categories, mo
                     <EtiquettesOr
                         valeurs={donnees.references_or ?? []}
                         types={donnees.types_or ?? {}}
+                        typesOr={typesOr}
                         onChange={(liste, types) => {
                             changer('references_or', liste);
                             changer('types_or', types);

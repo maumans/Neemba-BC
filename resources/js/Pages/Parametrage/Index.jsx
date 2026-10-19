@@ -9,7 +9,8 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, ToggleLeft, ToggleRight, Settings2, MapPin, Building2, Hash, FileText, SlidersHorizontal, Save, Check, Wallet, Briefcase, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Plus, Pencil, ToggleLeft, ToggleRight, Settings2, MapPin, Building2, Hash, FileText, SlidersHorizontal, Save, Check, Wallet, Briefcase, AlertTriangle, ShieldCheck, Wrench, Calculator } from 'lucide-react';
+import BaremesOdm from '@/Components/Parametrage/BaremesOdm';
 import ReglagesSecurite from '@/Components/ReglagesSecurite';
 import { formaterNombre, formaterMontant } from '@/utils/nombreEnLettres';
 import { Switch } from '@/Components/ui/switch';
@@ -330,7 +331,7 @@ const LIBELLES_GROUPES_PARAMETRES = {
     comptabilite: 'Comptabilité (M16)',
 };
 
-export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], motifsVisiteur = [], entites = [], parametres = [], securite = null, choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
+export default function Index({ sites, services, codesAnalytiques, typesDocument, motifsUrgence = [], motifsRejet = [], motifsVisiteur = [], entites = [], parametres = [], securite = null, typesOr = [], baremesOdm = null, onglets = [], choixParametres = {}, caisses = [], typesCaisse = {}, modesCaisse = {}, utilisateursActifs = [] }) {
     /* ─── ENTITÉS (spec v2.4, RG-M01-02) ─── */
     const [entiteDialog, setEntiteDialog] = useState({ open: false, item: null });
     const entiteForm = useForm({ nom: '', raison_sociale: '', adresse: '', logo: '' });
@@ -588,6 +589,30 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     };
     const toggleVisiteur = (item) => router.post(route('parametrage.motifs-visiteur.toggle', item.id));
 
+    /* ─── TYPES D'OR (spec v2.4, §6.5) ─── */
+    const [typeOrDialog, setTypeOrDialog] = useState({ open: false, item: null });
+    const typeOrForm = useForm({ code: '', libelle: '' });
+    const openTypeOrAdd = () => {
+        typeOrForm.reset();
+        typeOrForm.clearErrors();
+        setTypeOrDialog({ open: true, item: null });
+    };
+    const openTypeOrEdit = (item) => {
+        typeOrForm.setData({ code: item.code, libelle: item.libelle });
+        typeOrForm.clearErrors();
+        setTypeOrDialog({ open: true, item });
+    };
+    const submitTypeOr = (e) => {
+        e.preventDefault();
+        const options = { onSuccess: () => setTypeOrDialog({ open: false, item: null }) };
+        if (typeOrDialog.item) typeOrForm.put(route('parametrage.types-or.update', typeOrDialog.item.id), options);
+        else typeOrForm.post(route('parametrage.types-or.store'), options);
+    };
+    const toggleTypeOr = (item) => router.post(route('parametrage.types-or.toggle', item.id));
+
+    /* Spec v2.4, RG-M01-09 : onglets de l'administrateur et du gestionnaire des référentiels */
+    const voir = (onglet) => onglets.includes(onglet);
+
     return (
         <AuthenticatedLayout header="Paramétrage">
             <Head title="Paramétrage" />
@@ -604,41 +629,73 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Tabs defaultValue="sites">
+                        <Tabs defaultValue={onglets.includes('sites') ? 'sites' : onglets[0]}>
                             <TabsList className="flex flex-wrap h-auto w-full justify-start gap-1 mb-4 p-1">
-                                <TabsTrigger value="entites" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <Building2 className="h-3.5 w-3.5" /> Entités
-                                </TabsTrigger>
-                                <TabsTrigger value="sites" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <MapPin className="h-3.5 w-3.5" /> Sites
-                                </TabsTrigger>
-                                <TabsTrigger value="caisses" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <Wallet className="h-3.5 w-3.5" /> Caisses
-                                </TabsTrigger>
-                                <TabsTrigger value="services" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <Building2 className="h-3.5 w-3.5" /> Services
-                                </TabsTrigger>
-                                <TabsTrigger value="codes" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <Hash className="h-3.5 w-3.5" /> Codes analytiques
-                                </TabsTrigger>
-                                <TabsTrigger value="types" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <FileText className="h-3.5 w-3.5" /> Types document
-                                </TabsTrigger>
-                                <TabsTrigger value="motifs" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <AlertTriangle className="h-3.5 w-3.5" /> Motifs d'urgence
-                                </TabsTrigger>
-                                <TabsTrigger value="motifs-rejet" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <AlertTriangle className="h-3.5 w-3.5" /> Motifs de rejet
-                                </TabsTrigger>
-                                <TabsTrigger value="motifs-visiteur" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <AlertTriangle className="h-3.5 w-3.5" /> Motifs bon visiteur
-                                </TabsTrigger>
-                                <TabsTrigger value="parametres" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <SlidersHorizontal className="h-3.5 w-3.5" /> Seuils
-                                </TabsTrigger>
-                                <TabsTrigger value="securite" className="gap-1 px-2 text-xs sm:text-sm">
-                                    <ShieldCheck className="h-3.5 w-3.5" /> Sécurité
-                                </TabsTrigger>
+                                {voir('entites') && (
+                                    <TabsTrigger value="entites" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <Building2 className="h-3.5 w-3.5" /> Entités
+                                    </TabsTrigger>
+                                )}
+                                {voir('sites') && (
+                                    <TabsTrigger value="sites" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <MapPin className="h-3.5 w-3.5" /> Sites
+                                    </TabsTrigger>
+                                )}
+                                {voir('caisses') && (
+                                    <TabsTrigger value="caisses" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <Wallet className="h-3.5 w-3.5" /> Caisses
+                                    </TabsTrigger>
+                                )}
+                                {voir('services') && (
+                                    <TabsTrigger value="services" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <Building2 className="h-3.5 w-3.5" /> Services
+                                    </TabsTrigger>
+                                )}
+                                {voir('codes') && (
+                                    <TabsTrigger value="codes" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <Hash className="h-3.5 w-3.5" /> Codes analytiques
+                                    </TabsTrigger>
+                                )}
+                                {voir('types') && (
+                                    <TabsTrigger value="types" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <FileText className="h-3.5 w-3.5" /> Types document
+                                    </TabsTrigger>
+                                )}
+                                {voir('motifs') && (
+                                    <TabsTrigger value="motifs" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <AlertTriangle className="h-3.5 w-3.5" /> Motifs d'urgence
+                                    </TabsTrigger>
+                                )}
+                                {voir('motifs-rejet') && (
+                                    <TabsTrigger value="motifs-rejet" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <AlertTriangle className="h-3.5 w-3.5" /> Motifs de rejet
+                                    </TabsTrigger>
+                                )}
+                                {voir('motifs-visiteur') && (
+                                    <TabsTrigger value="motifs-visiteur" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <AlertTriangle className="h-3.5 w-3.5" /> Motifs bon visiteur
+                                    </TabsTrigger>
+                                )}
+                                {voir('parametres') && (
+                                    <TabsTrigger value="parametres" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <SlidersHorizontal className="h-3.5 w-3.5" /> Seuils
+                                    </TabsTrigger>
+                                )}
+                                {voir('types-or') && (
+                                    <TabsTrigger value="types-or" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <Wrench className="h-3.5 w-3.5" /> Types d'OR
+                                    </TabsTrigger>
+                                )}
+                                {voir('baremes-odm') && (
+                                    <TabsTrigger value="baremes-odm" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <Calculator className="h-3.5 w-3.5" /> Barèmes ODM
+                                    </TabsTrigger>
+                                )}
+                                {voir('securite') && (
+                                    <TabsTrigger value="securite" className="gap-1 px-2 text-xs sm:text-sm">
+                                        <ShieldCheck className="h-3.5 w-3.5" /> Sécurité
+                                    </TabsTrigger>
+                                )}
                             </TabsList>
 
                             {/* Sites */}
@@ -863,6 +920,30 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                                         </p>
                                     )}
                                 </div>
+                            </TabsContent>
+
+                            {/* Types d'OR (spec v2.4, §6.5, RG-M03-13, PO-28) */}
+                            <TabsContent value="types-or" className="mt-4">
+                                <div className="mb-4 p-4 border border-neemba-200 bg-neemba-50/50 rounded-lg">
+                                    <p className="text-sm text-gray-700">
+                                        Types proposés pour les OR d'un bon ou d'un ordre de mission. VENTE et GARANTIE au départ ; les autres types sont
+                                        attendus de Neemba (PO-28). Le code ne change plus une fois créé ; un type désactivé n'est plus proposé, les OR
+                                        déjà saisis le gardent.
+                                    </p>
+                                </div>
+                                <ParametrageTable
+                                    items={typesOr}
+                                    columns={[{ key: 'code', label: 'Code' }, { key: 'libelle', label: 'Libellé' }]}
+                                    onAdd={openTypeOrAdd}
+                                    onEdit={openTypeOrEdit}
+                                    onToggle={toggleTypeOr}
+                                    addLabel="Ajouter un type d'OR"
+                                />
+                            </TabsContent>
+
+                            {/* Barèmes ODM datés (spec v2.4, RG-M02-10) */}
+                            <TabsContent value="baremes-odm" className="mt-4">
+                                {baremesOdm && <BaremesOdm baremes={baremesOdm} />}
                             </TabsContent>
 
                             {/* Double authentification (spec v2.4, RG-M01-07) : effet immédiat, tracé */}
@@ -1243,6 +1324,26 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                     <Label>Libellé du motif *</Label>
                     <Input value={visiteurForm.data.libelle} onChange={(e) => visiteurForm.setData('libelle', e.target.value)} placeholder="Ex : Mission d'appui technique de la filiale" className="mt-1" required />
                     {visiteurForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{visiteurForm.errors.libelle}</p>}
+                </div>
+            </FormDialog>
+            <FormDialog
+                open={typeOrDialog.open}
+                onClose={() => setTypeOrDialog({ open: false, item: null })}
+                title={typeOrDialog.item ? "Modifier le type d'OR" : "Ajouter un type d'OR"}
+                onSubmit={submitTypeOr}
+                processing={typeOrForm.processing}
+            >
+                <div>
+                    <Label>Code *</Label>
+                    <Input value={typeOrForm.data.code} disabled={!!typeOrDialog.item} placeholder="Ex : interne"
+                        onChange={(e) => typeOrForm.setData('code', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} className="mt-1" required />
+                    <p className="text-xs text-gray-500 mt-1">Minuscules, chiffres et « _ » ; ne change plus une fois créé.</p>
+                    {typeOrForm.errors.code && <p className="text-sm text-red-500 mt-1">{typeOrForm.errors.code}</p>}
+                </div>
+                <div>
+                    <Label>Libellé *</Label>
+                    <Input value={typeOrForm.data.libelle} onChange={(e) => typeOrForm.setData('libelle', e.target.value)} placeholder="Ex : Interne" className="mt-1" required />
+                    {typeOrForm.errors.libelle && <p className="text-sm text-red-500 mt-1">{typeOrForm.errors.libelle}</p>}
                 </div>
             </FormDialog>
         </AuthenticatedLayout>

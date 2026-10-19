@@ -222,13 +222,14 @@ class PrerequisTest extends TestCase
 
     public function test_les_parametres_odm_ont_les_valeurs_de_la_spec(): void
     {
-        $this->assertSame(250000.0, Parametre::valeur('odm_indemnite_journaliere'));
-        $this->assertSame(500000.0, Parametre::valeur('odm_hebergement_nuit'));
-        $this->assertSame(22000.0, Parametre::valeur('odm_bareme_fcfa_non_cadre'));
-        $this->assertSame(34000.0, Parametre::valeur('odm_bareme_fcfa_cadre'));
+        /* Spec v2.4, RG-M02-10 : barèmes repris dans le référentiel daté */
+        $this->assertSame(250000, \App\Models\BaremeOdm::enVigueur('indemnite_journaliere'));
+        $this->assertSame(500000, \App\Models\BaremeOdm::enVigueur('hebergement_nuit'));
+        $this->assertSame(22000, \App\Models\BaremeOdm::enVigueur('bareme_fcfa_non_cadre'));
+        $this->assertSame(34000, \App\Models\BaremeOdm::enVigueur('bareme_fcfa_cadre'));
         $this->assertSame(10.0, Parametre::valeur('odm_participants_max'));
-        $this->assertSame('Indemnité de repas', Parametre::valeur('odm_libelle_indemnite_1'));
-        $this->assertSame('Indemnité de déplacement', Parametre::valeur('odm_libelle_indemnite_2'));
+        $this->assertSame('Indemnité de repas', \App\Models\BaremeOdm::enVigueur('libelle_indemnite_1'));
+        $this->assertSame('Indemnité de déplacement', \App\Models\BaremeOdm::enVigueur('libelle_indemnite_2'));
         $this->assertTrue(Parametre::valeur('odm_genere_bp'));
         $this->assertFalse(Parametre::valeur('odm_etape_rh'));
         $this->assertNull(Parametre::where('cle', 'odm_mode_generation')->first());   // spec v2.4 : un bon par participant
@@ -245,7 +246,7 @@ class PrerequisTest extends TestCase
         $modifier('odm_prise_en_charge_client', 'tous')->assertSessionHasErrors(['valeur' => 'Valeur attendue : variante_a, variante_b.']);
         $modifier('jours_feries', '01-01, 13-01')->assertSessionHasErrors(['valeur' => 'Dates invalides : 13-01 (format MM-JJ ou AAAA-MM-JJ).']);
         $modifier('frais_om_paliers', '[{"de":1,"a":10,"taux":1},{"de":5,"a":20,"taux":1}]')->assertSessionHasErrors(['valeur' => 'Deux paliers se chevauchent.']);
-        $modifier('odm_indemnite_journaliere', 'beaucoup')->assertSessionHasErrors(['valeur' => 'Saisissez un nombre positif.']);
+        $modifier('odm_participants_max', 'beaucoup')->assertSessionHasErrors(['valeur' => 'Saisissez un nombre positif.']);
         $this->assertSame(0, ModificationEnAttente::count());
 
         $modifier('odm_prise_en_charge_client', 'variante_b')->assertSessionHasNoErrors();
@@ -264,7 +265,7 @@ class PrerequisTest extends TestCase
             ->get(route('parametrage.index'))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('choixParametres.odm_prise_en_charge_client.variante_b', 'Variante B : aucun bon si tout est à la charge de clients')
-                ->where('parametres', fn ($parametres) => collect($parametres)->where('groupe', 'odm')->count() === 12));   // compte refacturable passé au groupe Comptabilité (M16) ; mode du bon groupé retiré (v2.4)
+                ->where('parametres', fn ($parametres) => collect($parametres)->where('groupe', 'odm')->count() === 6));   // compte refacturable passé au groupe Comptabilité (M16) ; mode du bon groupé retiré, barèmes passés au référentiel daté (v2.4)
     }
 
     /* ------------------------------------------------------------------

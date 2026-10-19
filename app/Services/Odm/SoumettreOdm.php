@@ -34,7 +34,7 @@ final class SoumettreOdm
             }
 
             /* RG-M12-07 : barèmes en vigueur à la soumission, conservés jusqu'à la validation finale (RG-M12-25) */
-            $odm->update(['parametres_figes' => ['baremes' => CalculOdm::baremesEnVigueur(), 'soumis_le' => now()->toIso8601String()]]);
+            $odm->update(['parametres_figes' => ['baremes' => CalculOdm::baremesEnVigueur(now(), $odm->entite_id), 'soumis_le' => now()->toIso8601String()]]);
             EnregistrementOdm::actualiserParticipants($odm);
             EnregistrementOdm::recalculer($odm);
 

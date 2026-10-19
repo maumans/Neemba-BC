@@ -122,7 +122,7 @@ const navigationItems = [
         label: "Clients",
         href: "clients.index",
         icon: Building2,
-        roles: ["chef_comptable", "comptable", "controle_gestion", "administrateur"],
+        roles: ["chef_comptable", "comptable", "controle_gestion", "gestionnaire_referentiels"],
     },
     {
         /* Spec v2.3, §6.5 : tiers proposés par les demandeurs, validés par la Comptabilité ou le CDG */
@@ -186,7 +186,8 @@ const navigationItems = [
         label: "Paramétrage",
         href: "parametrage.index",
         icon: Settings,
-        roles: ["administrateur"],
+        /* Spec v2.4, RG-M01-09 : onglets répartis entre l'administrateur et le gestionnaire des référentiels */
+        roles: ["administrateur", "gestionnaire_referentiels"],
     },
 ];
 

@@ -168,7 +168,7 @@ final class TableauBordOdm
                 'id' => $odm->id,
                 'libelle' => $odm->libelle,
                 'clients' => $odm->clients->pluck('raison_sociale')->implode(', '),
-                'or' => $odm->ordresReparation->map(fn ($or) => $or->numero . ' (' . ($or->type === 'garantie' ? 'Garantie' : 'Vente') . ')')->implode(', '),
+                'or' => $odm->ordresReparation->map(fn ($or) => $or->numero . ' (' . \App\Models\TypeOr::libelle($or->type) . ')')->implode(', '),
                 'periode' => PresentationOdm::periode($odm),
                 'montant' => (float) $odm->montant_a_refacturer,
                 'montant_format' => Format::montant($odm->montant_a_refacturer),

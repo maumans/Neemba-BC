@@ -263,12 +263,28 @@ class SaisieBonTest extends TestCase
         $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), ['references_or' => ['12022204']])->assertStatus(422);
 
         $this->etape(3, $this->depense(['categorie_depense' => 'carburant', 'vehicule' => 'be 3424', 'references_or' => ['11022204', '11022205'], 'types_or' => ['11022204' => 'vente']]), $bon)
-            ->assertJsonPath('erreurs.types_or.0', "Indiquez le type (vente ou garantie) de l'OR 11022205.");
+            ->assertJsonPath('erreurs.types_or.0', "Choisissez le type de l'OR 11022205 dans la liste des types d'OR.");
         $this->etape(3, $this->depense(['categorie_depense' => 'carburant', 'vehicule' => 'be 3424', 'references_or' => ['11022204', '11022205'],
             'types_or' => ['11022204' => 'vente', '11022205' => 'garantie']]), $bon)
             ->assertJsonPath('erreurs', []);
         $this->assertSame(['11022204' => 'vente', '11022205' => 'garantie'], $bon->fresh()->types_or);
         $this->assertSame('BE 3424', $bon->fresh()->vehicule);
+    }
+
+    /** Spec v2.4, §6.5 : un type d'OR ajouté au référentiel est proposé ; désactivé, il est refusé */
+    public function test_le_type_d_or_vient_du_referentiel(): void
+    {
+        $interne = \App\Models\TypeOr::create(['code' => 'interne', 'libelle' => 'Interne', 'actif' => true, 'ordre' => 3]);
+        $bon = $this->brouillon();
+        $this->etape(3, $this->depense(['references_or' => ['11022204'], 'types_or' => ['11022204' => 'interne']]), $bon)
+            ->assertJsonPath('erreurs', []);
+        $this->actingAs($this->souadou)->get(route('bons-caisse.edit', $bon))
+            ->assertInertia(fn ($page) => $page->where('typesOr.interne', 'Interne'));
+
+        $interne->update(['actif' => false]);
+        $this->actingAs($this->souadou)->patchJson(route('api.bons.enregistrer', $bon), ['references_or' => ['11022204'], 'types_or' => ['11022204' => 'interne']])
+            ->assertStatus(422);
+        $this->assertSame('11022204 (Interne)', \App\Models\TypeOr::decrire($bon->fresh()->references_or, $bon->fresh()->types_or));
     }
 
     /** TC-BC-014 */

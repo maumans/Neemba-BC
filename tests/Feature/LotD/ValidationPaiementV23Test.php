@@ -59,7 +59,7 @@ class ValidationPaiementV23Test extends TestCase
                 ->where('rejet.motif', "Manque d'authentification (bon non signé par le bénéficiaire, le demandeur ou le responsable habilité)")
                 ->where('rejet.commentaire', 'Signature du bénéficiaire absente'));
 
-        $admin = User::factory()->role('administrateur')->create();
+        $admin = tap(User::factory()->create(), fn (User $u) => $u->ajouterRoles(['gestionnaire_referentiels']));
         $this->actingAs($admin)->post(route('parametrage.motifs-rejet.store'), ['libelle' => 'Dépense hors budget du service'])->assertSessionHas('success');
         $this->actingAs($admin)->post(route('parametrage.motifs-rejet.toggle', MotifRejet::where('code', 'mention_obligatoire')->sole()))->assertSessionHas('success');
         $this->assertContains('Dépense hors budget du service', MotifRejet::options());

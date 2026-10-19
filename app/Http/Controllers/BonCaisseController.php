@@ -421,6 +421,8 @@ class BonCaisseController extends Controller
             'categories' => \App\Models\CategorieDepense::actives()->where('proposee_assistant', true)
                 ->get(['code', 'libelle', 'vehicule_obligatoire', 'vehicule_affiche', 'or_affiche']),
             'motifsUrgence' => MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),
+            /* Spec v2.4, §6.5 : types d'OR du référentiel */
+            'typesOr' => \App\Models\TypeOr::options(),
             /* Spec v2.4, RG-M03-28 : motifs du bon exceptionnel au profit d'un visiteur du groupe */
             'motifsVisiteur' => \App\Models\MotifVisiteur::libellesActifs(),
             'typesBeneficiaire' => collect(BonCaisse::TYPES_BENEFICIAIRE)->only(BonCaisse::TYPES_BENEFICIAIRE_ASSISTANT),
@@ -517,6 +519,7 @@ class BonCaisseController extends Controller
             'modesPaiement' => BonCaisse::MODES_PAIEMENT,
             'actionsLabels' => HistoriqueAction::ACTIONS_LABELS,
             'peutValiderCeBon' => $peutValiderCeBon,
+            'typesOrLibelles' => \App\Models\TypeOr::libelles(),
             /* Spec v2.4, RG-M01-07 : code SMS exigé pour viser un bon urgent */
             'codeVisaExige' => $peutValiderCeBon && \App\Services\Securite\DoubleAuthentification::exigeCodeVisa($bonCaisse->niveau_urgence),
             'validationEnCours' => $validationEnCours,

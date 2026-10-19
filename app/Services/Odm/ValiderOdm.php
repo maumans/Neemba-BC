@@ -109,7 +109,7 @@ final class ValiderOdm
     private static function valider(OrdreMission $odm, User $valideur, string $niveau, ?string $commentaire, string $statutAvant): void
     {
         $figes = $odm->parametres_figes ?? [];
-        $figes['baremes'] ??= CalculOdm::baremesEnVigueur();
+        $figes['baremes'] ??= CalculOdm::baremesEnVigueur(null, $odm->entite_id);
         $figes['valide_le'] = now()->toIso8601String();
         $odm->update(['parametres_figes' => $figes]);
         EnregistrementOdm::recalculer($odm->fresh());

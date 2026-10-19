@@ -111,7 +111,7 @@
     "MSG-APP-061": "Ce visiteur du groupe n'est plus actif.",
     "MSG-M03-08": "Sélectionnez le motif de l'urgence.",
     "MSG-M03-09": "Un bon définitif doit comporter au moins une facture ou une proforma.",
-    "MSG-APP-062": "Indiquez le type (vente ou garantie) de l'OR :numero.",
+    "MSG-APP-062": "Choisissez le type de l'OR :numero dans la liste des types d'OR.",
     "MSG-APP-063": "Le n° Orange Money diffère de celui du référentiel : indiquez le motif de la modification.",
     "MSG-APP-064": ":nombre pièce(s) scannée(s) sous 300 dpi : acceptée(s), mais une image plus nette évite un rejet.",
     "MSG-APP-065": "Saisissez la référence du paiement : n° de transaction Orange Money ou MTN, n° de chèque ou référence du virement.",

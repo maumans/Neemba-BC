@@ -205,7 +205,7 @@ class ReglesSaisie
             'references_or' => ['nullable', 'array'],
             'references_or.*' => ['regex:' . self::FORMAT_OR],
             'types_or' => ['nullable', 'array'],
-            'types_or.*' => ['nullable', Rule::in(array_keys(\App\Models\OrdreReparationOdm::TYPES))],
+            'types_or.*' => ['nullable', Rule::in(\App\Models\TypeOr::codesActifs())],
             'numero_om' => ['nullable', 'regex:/^(\+224)?6\d{8}$/'],
             'motif_numero_om' => ['nullable', 'string', 'max:255'],
             'lie_mission' => ['nullable', 'boolean'],
@@ -222,8 +222,9 @@ class ReglesSaisie
     private static function regleTypesOr(array $d): \Closure
     {
         return function ($attribut, $valeur, $echec) use ($d) {
+            $codes = \App\Models\TypeOr::codesActifs();
             foreach ((array) ($d['references_or'] ?? []) as $numero) {
-                if (!in_array($valeur[$numero] ?? null, array_keys(\App\Models\OrdreReparationOdm::TYPES), true)) {
+                if (!in_array($valeur[$numero] ?? null, $codes, true)) {
                     $echec(__('MSG-APP-062', ['numero' => $numero]));
 
                     return;

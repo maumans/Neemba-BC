@@ -63,10 +63,10 @@ class ModeleOdmTest extends TestCase
         $this->assertSame('ODM', NumeroteurOdm::prefixePour(null));
     }
 
-    /** RG-M12-07, RG-M12-25 : barèmes lus dans les paramètres, à figer avec l'ODM */
-    public function test_les_baremes_en_vigueur_viennent_des_parametres(): void
+    /** RG-M12-07, RG-M12-25 ; spec v2.4, RG-M02-10 : barèmes lus dans le référentiel daté, à figer avec l'ODM */
+    public function test_les_baremes_en_vigueur_viennent_du_referentiel(): void
     {
-        Parametre::majValeur('odm_indemnite_journaliere', '300000');
+        \App\Models\BaremeOdm::create(['entite_id' => null, 'cle' => 'indemnite_journaliere', 'valeur' => '300000', 'date_effet' => now()->toDateString()]);
 
         $baremes = CalculOdm::baremesEnVigueur();
         $this->assertSame(300000, $baremes['indemnite_journaliere']);

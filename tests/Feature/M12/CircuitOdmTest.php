@@ -245,8 +245,7 @@ class CircuitOdmTest extends TestCase
             $this->viser($odm, $valideur);
         }
 
-        Parametre::majValeur('odm_indemnite_journaliere', '300000');
-        Cache::flush();
+        \App\Models\BaremeOdm::create(['entite_id' => null, 'cle' => 'indemnite_journaliere', 'valeur' => '300000', 'date_effet' => now()->toDateString()]);
         EnregistrementOdm::recalculer($odm->fresh());
 
         $this->assertEquals(3250000, (float) $odm->fresh()->total);

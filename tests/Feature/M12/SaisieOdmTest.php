@@ -389,7 +389,8 @@ class SaisieOdmTest extends TestCase
     /** Q28 : préfixe et reprise du carnet papier depuis le paramétrage des services */
     public function test_le_parametrage_des_services_reprend_le_carnet_papier(): void
     {
-        $administrateur = User::factory()->role('administrateur')->create();
+        /* Spec v2.4, RG-M01-09 : les services sont tenus par le gestionnaire des référentiels */
+        $administrateur = tap(User::factory()->create(), fn (User $u) => $u->ajouterRoles(['gestionnaire_referentiels']));
         $this->actingAs($administrateur)->put(route('parametrage.services.update', $this->technique), [
             'nom' => 'Technique', 'code' => '300', 'prefixe_odm' => 'at', 'diffusion_odm' => [$this->assistante->id], 'reprise_carnet' => 285,
         ])->assertSessionHasNoErrors();
