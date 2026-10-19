@@ -2,10 +2,11 @@
  * Onglet « Sécurité » du paramétrage (spec v2.4, RG-M01-07) : l'administrateur active ou désactive la double
  * authentification (code de connexion par email, code SMS du visa urgent) et en règle la durée et les essais.
  * Effet immédiat, sans second validateur (interrupteurs de secours) ; chaque changement est tracé et les autres
- * administrateurs sont prévenus.
+ * administrateurs sont prévenus. Un interrupteur s'applique dès qu'on le bascule (après confirmation pour le couper) ;
+ * son état affiché est celui enregistré. Les durées et essais s'enregistrent avec leur bouton.
  */
 import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { router, useForm } from '@inertiajs/react';
 import { AlertTriangle, CheckCircle2, Mail, MessageSquareLock, Save, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Switch } from '@/Components/ui/switch';
 import { Button } from '@/Components/ui/button';
@@ -48,12 +49,22 @@ function Nombre({ id, libelle, aide, valeur, bornes, onChange, erreur, desactive
 
 export default function ReglagesSecurite({ securite }) {
     const { valeurs, bornes, email, sms, valideursSansTelephone = [], historique = [] } = securite;
-    const form = useForm({ ...valeurs });
+    const NOMBRES = ['otp_connexion_duree', 'otp_connexion_tentatives', 'otp_visa_duree'];
+    const form = useForm(Object.fromEntries(NOMBRES.map((cle) => [cle, valeurs[cle]])));
     const [confirmation, setConfirmation] = useState(null);
+    const [enCours, setEnCours] = useState(null);
 
+    /* Interrupteur : appliqué tout de suite avec les valeurs enregistrées (les durées en cours de saisie ne partent pas) */
+    const appliquer = (cle, actif) => router.put(route('parametrage.securite.update'), { ...valeurs, [cle]: actif }, {
+        preserveScroll: true,
+        onStart: () => setEnCours(cle),
+        onFinish: () => setEnCours(null),
+    });
     /* Couper un interrupteur demande une confirmation ; le rallumer, non */
-    const basculer = (cle, actif) => (actif ? form.setData(cle, true) : setConfirmation(cle));
-    const modifie = Object.keys(valeurs).some((cle) => form.data[cle] !== valeurs[cle]);
+    const basculer = (cle, actif) => (actif ? appliquer(cle, true) : setConfirmation(cle));
+    const modifie = NOMBRES.some((cle) => form.data[cle] !== valeurs[cle]);
+    /* Durées et essais, avec les interrupteurs tels qu'enregistrés (transform ne renvoie pas le formulaire : pas de chaînage) */
+    form.transform((data) => ({ ...valeurs, ...data }));
     const enregistrer = () => form.put(route('parametrage.securite.update'), { preserveScroll: true });
 
     return (
@@ -75,15 +86,15 @@ export default function ReglagesSecurite({ securite }) {
                             <p className="mt-0.5 text-xs text-gray-500">Après le mot de passe, un code à 6 chiffres est demandé à chaque connexion.</p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Etat actif={form.data.double_authentification_active} />
-                            <Switch aria-label="Code de connexion par email" checked={form.data.double_authentification_active}
+                            <Etat actif={valeurs.double_authentification_active} />
+                            <Switch aria-label="Code de connexion par email" checked={valeurs.double_authentification_active} disabled={enCours !== null}
                                 onCheckedChange={(v) => basculer('double_authentification_active', v)} />
                         </div>
                     </div>
                     <div className="flex flex-wrap gap-4">
                         <Nombre id="otp_connexion_duree" libelle="Validité du code (minutes)" aide="Durée du code" bornes={bornes.otp_connexion_duree}
                             valeur={form.data.otp_connexion_duree} onChange={(v) => form.setData('otp_connexion_duree', v)}
-                            erreur={form.errors.otp_connexion_duree} desactive={!form.data.double_authentification_active} />
+                            erreur={form.errors.otp_connexion_duree} desactive={!valeurs.double_authentification_active} />
                         <Nombre id="otp_connexion_tentatives" libelle="Essais par code" aide="Connexion et visa" bornes={bornes.otp_connexion_tentatives}
                             valeur={form.data.otp_connexion_tentatives} onChange={(v) => form.setData('otp_connexion_tentatives', v)}
                             erreur={form.errors.otp_connexion_tentatives} />
@@ -102,14 +113,14 @@ export default function ReglagesSecurite({ securite }) {
                             <p className="mt-0.5 text-xs text-gray-500">Bon ou ordre de mission urgent ou très urgent : le valideur saisit un code reçu par SMS pour approuver.</p>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Etat actif={form.data.otp_visa_urgent_actif} />
-                            <Switch aria-label="Code SMS pour viser une demande urgente" checked={form.data.otp_visa_urgent_actif}
+                            <Etat actif={valeurs.otp_visa_urgent_actif} />
+                            <Switch aria-label="Code SMS pour viser une demande urgente" checked={valeurs.otp_visa_urgent_actif} disabled={enCours !== null}
                                 onCheckedChange={(v) => basculer('otp_visa_urgent_actif', v)} />
                         </div>
                     </div>
                     <Nombre id="otp_visa_duree" libelle="Validité du code (minutes)" aide="Durée du code de visa" bornes={bornes.otp_visa_duree}
                         valeur={form.data.otp_visa_duree} onChange={(v) => form.setData('otp_visa_duree', v)}
-                        erreur={form.errors.otp_visa_duree} desactive={!form.data.otp_visa_urgent_actif} />
+                        erreur={form.errors.otp_visa_duree} desactive={!valeurs.otp_visa_urgent_actif} />
                     <Canal ok={sms.operationnel} libelleOk="Fournisseur SMS configuré."
                         libelleKo="Aucun fournisseur SMS configuré : en production, les visas urgents seront bloqués tant que ce code est activé." />
                     {valideursSansTelephone.length > 0 && (
@@ -126,7 +137,7 @@ export default function ReglagesSecurite({ securite }) {
                     Plus personne ne peut se connecter ? Sur le serveur : <code className="rounded bg-gray-100 px-1">php artisan securite:double-authentification desactiver</code>
                 </p>
                 <Button onClick={enregistrer} disabled={!modifie || form.processing}>
-                    <Save className="mr-2 h-4 w-4" /> Enregistrer les réglages
+                    <Save className="mr-2 h-4 w-4" /> Enregistrer les durées et essais
                 </Button>
             </div>
 
@@ -169,13 +180,13 @@ export default function ReglagesSecurite({ securite }) {
                         <DialogTitle className="flex items-center gap-2"><ShieldOff className="h-5 w-5 text-red-600" /> Désactiver ce contrôle ?</DialogTitle>
                         <DialogDescription>{confirmation && AVERTISSEMENTS[confirmation]}</DialogDescription>
                     </DialogHeader>
-                    <p className="text-sm text-gray-600">Le changement prendra effet quand vous cliquerez sur « Enregistrer les réglages ».</p>
+                    <p className="text-sm text-gray-600">Le changement prend effet immédiatement, pour tous les utilisateurs.</p>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setConfirmation(null)}>
                             <ShieldCheck className="mr-2 h-4 w-4" /> Garder activé
                         </Button>
-                        <Button variant="destructive" onClick={() => { form.setData(confirmation, false); setConfirmation(null); }}>
-                            Désactiver
+                        <Button variant="destructive" onClick={() => { appliquer(confirmation, false); setConfirmation(null); }}>
+                            Désactiver maintenant
                         </Button>
                     </DialogFooter>
                 </DialogContent>
