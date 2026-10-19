@@ -323,24 +323,30 @@ SMTP et fournisseur SMS sont à confirmer par l'IT de Neemba (PO-23, cloud Neemb
 
 ### 9.1 M08 Caisses, réapprovisionnement et caisse Atelier
 
-**Existant** :
+**Existant** (après le lot F1) :
 - un registre par caisse ;
-- des « mouvements » manuels validés en une fois par le DAF ou le DP ;
-- un arrêté de caisse par site avec billetage.
+- la demande de réapprovisionnement et son circuit, l'encaissement client, la réconciliation Orange Money ;
+- le PV d'arrêté par caisse (lot F0) ; l'arrêté par site reste jusqu'au lot F2.
 
 | Règle | Contenu | État | Ce qui manque | Cause | Lot |
 |---|---|:-:|---|:-:|:-:|
 | RG-M08-01 | Solde par caisse ; Atelier distincte | ✅ | Solde réel de l'Atelier à saisir | N | |
-| RG-M08-02 | Mouvements autorisés, pièce pour chaque encaissement | 🟡 | Retrait libre ; manquent encaissement client, transfert, ajustement signé | L | F1 |
-| RG-M08-03 | Alerte une fois + rappel quotidien ; caissier, Trésorerie, Chef comptable | 🟡 | Alerte répétée ; mauvais destinataires | L | F1 |
-| RG-M08-04 à 10 | Plafond, demande avec rapprochement et PV, montant proposé, circuit et habilitation du DP, origine des fonds, réception, encaissement client | ❌ | | L | F1 |
+| RG-M08-02 | Mouvements autorisés, pièce pour chaque encaissement | ✅ | Lot F1 : plus de retrait libre ni de mouvement manuel ; encaissement client, transfert, ajustement d'inventaire | | |
+| RG-M08-03 | Alerte une fois + rappel quotidien ; caissier, Trésorerie, Chef comptable | ✅ | Lot F1a | | |
+| RG-M08-04 | Plafond de caisse jamais dépassé | ✅ | Lot F1b (MSG-M08-02) | | |
+| RG-M08-05 | Rapprochement signé et PV du jour ; écart affiché | ✅ | Lot F1b (MSG-M08-03 ; PV signé par le gérant, Q92) | C | |
+| RG-M08-06 | Montant proposé, baisse motivée | ✅ | Lot F1b | | |
+| RG-M08-07 | Circuit, habilitation du DP, CODIR en son absence | ✅ | Lot F1b (rôle « Membre du CODIR », Q89, Q91) | C | |
+| RG-M08-08 | Origine des fonds, virement OM, transfert activable | ✅ | Lot F1b (transfert au registre, sans bon, Q93) | C | |
+| RG-M08-09 | Crédit à la réception, écart au DAF | ✅ | Lot F1b (MSG-M08-04) | | |
+| RG-M08-10 | Encaissement client à Conakry, reçu, blocage au plafond | ✅ | Lot F1a (MSG-M08-05, 06 ; chèque hors solde, Q98) | C | |
 | RG-M08-11 | Carnet Atelier | ✅ | Lot C | | |
-| RG-M08-12 | Caissier : sa caisse ; rôles transverses : toutes | 🟡 | Filtres par site ; Trésorerie et Chef comptable exclus | L | F1 |
-| RG-M08-13 | Rapprochement hebdomadaire de la caisse OM | ❌ | Format du relevé OM à obtenir | L, N | F1 |
+| RG-M08-12 | Caissier : sa caisse ; rôles transverses : toutes | ✅ | Lot F1a ; gérant sans rôle caissier au lot F1b (Q95) | | |
+| RG-M08-13 | Rapprochement hebdomadaire de la caisse OM | ✅ | Lot F1c ; lecture d'un relevé réel à confirmer (Q96) | N | |
 
-User stories : US-01, 02, 05, 09 partielles ; US-03, 04, 06, 07, 08, 10 à faire.
+User stories : US-01 à US-10 faites (lot F1).
 
-Messages : MSG-M08-01 à 06 à créer (F1).
+Messages : MSG-M08-01 à 06 au texte de la spec (lot F1).
 
 ### 9.2 M12 Ordres de mission
 
@@ -522,25 +528,25 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 - [x] Écart → ajustement d'inventaire « En attente », validé par le DAF avec motif (RG-M10-03)
 - [x] Tests ; parcours avec les comptes réels
 
-### Lot F1 — Caisses, réapprovisionnement, encaissement client (M08) (≈ 4 j)
+### Lot F1 — Caisses, réapprovisionnement, encaissement client (M08) (≈ 4 j) ✅
 
-- [ ] Rôle « Membre du CODIR » : en l'absence du DP et du DP adjoint, deux membres approuvent ensemble (Q89)
+- [x] Rôle « Membre du CODIR » : en l'absence du DP et du DP adjoint, deux membres approuvent ensemble (Q89)
 
-- [ ] Types de mouvement :
-  - [ ] retrait libre retiré ;
-  - [ ] ajout de l'encaissement client, du transfert (activable par caisse) et de l'ajustement d'inventaire ;
-  - [ ] pièce obligatoire pour chaque encaissement.
-- [ ] Demande de réapprovisionnement :
-  - [ ] montant proposé (plafond − solde ; Atelier : avance fixe − solde), baisse motivée ;
-  - [ ] rapprochement signé et PV du jour (MSG-M08-03) ;
-  - [ ] plafond de caisse respecté (MSG-M08-02).
-- [ ] Circuit caissier → Trésorerie → Chef comptable / DAF → DP ; habilitation du DP à 500 000 000 ; DP absent : deux membres du CODIR
-- [ ] Exécution par la Trésorerie avec l'origine des fonds ; confirmation de réception ; écart signalé au DAF (MSG-M08-04)
-- [ ] Encaissement client à Conakry principale, reçu PDF, blocage au plafond (MSG-M08-05, 06)
-- [ ] Alerte de seuil une fois, puis rappel quotidien ; destinataires caissier, Trésorerie, Chef comptable (MSG-M08-01)
-- [ ] Visibilité par caisse ; rôles transverses voient toutes les caisses
-- [ ] Rapprochement hebdomadaire de la caisse OM, avec trois visas
-- [ ] Notifications de la demande et de l'écart
+- [x] Types de mouvement :
+  - [x] retrait libre retiré ;
+  - [x] ajout de l'encaissement client, du transfert (activable par caisse) et de l'ajustement d'inventaire ;
+  - [x] pièce obligatoire pour chaque encaissement.
+- [x] Demande de réapprovisionnement :
+  - [x] montant proposé (plafond − solde ; Atelier : avance fixe − solde), baisse motivée ;
+  - [x] rapprochement signé et PV du jour (MSG-M08-03) ;
+  - [x] plafond de caisse respecté (MSG-M08-02).
+- [x] Circuit caissier → Trésorerie → Chef comptable / DAF → DP ; habilitation du DP à 500 000 000 ; DP absent : deux membres du CODIR
+- [x] Exécution par la Trésorerie avec l'origine des fonds ; confirmation de réception ; écart signalé au DAF (MSG-M08-04)
+- [x] Encaissement client à Conakry principale, reçu PDF, blocage au plafond (MSG-M08-05, 06)
+- [x] Alerte de seuil une fois, puis rappel quotidien ; destinataires caissier, Trésorerie, Chef comptable (MSG-M08-01)
+- [x] Visibilité par caisse ; rôles transverses voient toutes les caisses
+- [x] Rapprochement hebdomadaire de la caisse OM, avec trois visas
+- [x] Notifications de la demande et de l'écart
 
 ### Lot F2 — Clôture, rapport journalier, inventaire (M09, M10) (≈ 3 j)
 
@@ -603,12 +609,12 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | SC-06 à SC-09 | Régularisation des BP | ✅ | (I pour les emails) |
 | SC-12 | Suppléant ; absence du DP et de son adjoint | 🟡 | G |
 | SC-13 | Délai dépassé : relance et escalade | ✅ | (lot R) |
-| SC-15 à 17, SC-35 | Encaissement client, réapprovisionnement, Atelier, rapprochement OM | ❌ | F1 |
+| SC-15 à 17, SC-35 | Encaissement client, réapprovisionnement, Atelier, rapprochement OM | ✅ | (lot F1) |
 | SC-18, SC-19 | Clôture, rapport, inventaire | ❌ | F2 |
 | SC-20 à SC-22, SC-24 à SC-29, SC-37 | ODM | ✅ | |
 | SC-23 | Génération des bons, un par participant | ✅ | (lot V) |
 | SC-30 à SC-32 | Carburant | ❌ | H |
-| SC-33 | Isolation des caisses et sites | 🟡 | Correspondances caisse ↔ sites faites (lot E4) ; isolation des caisses au lot F1 |
+| SC-33 | Isolation des caisses et sites | ✅ | (lots E4 et F1) |
 | SC-34 | Imputation et export comptable | ✅ | (colonnes v2.4 : lot E1) |
 | SC-36 | Hors ligne | ❌ | P3 |
 | SC-38 **[v2.4]** | ODM technique « OR à régulariser » | ✅ | (lot O) |
@@ -637,12 +643,17 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | Q79 **[v2.4]** | Bon visiteur sans DAF ni DAF adjoint disponible | Le bon attend ; la Finance n'est jamais sautée (appliqué, lot V) | V |
 | Q80 **[v2.4]** | OR saisi après coup | Reporté sur les bons de l'ODM, avec trace (appliqué, lot O) | O |
 | Q81 **[v2.4]** | Qui a la vue consolidée ? | Paramètre ; par défaut DAF, DAF adjoint, DP, DP adjoint, administrateur (appliqué, lot E1) | E1 |
+| Q89, Q91 **[v2.4]** | Membres du CODIR ; quand le DP est-il « absent » ? | Rôle « Membre du CODIR » ; deux membres quand aucun DP ni DP adjoint actif, ou délai de l'étape DP écoulé (appliqué, lot F1) | F1 |
+| Q92 **[v2.4]** | PV du jour exigé pour la demande : signé par qui ? | Par le gérant de la caisse ; les deux autres signatures peuvent suivre (appliqué, lot F1) | F1 |
+| Q93 **[v2.4]** | Transfert depuis une autre caisse « par bon de caisse » | Écriture au registre des deux caisses, sans bon (appliqué, lot F1) | F1 |
+| Q96, Q97 **[v2.4]** | Format du relevé OM ; solde du relevé | En-tête reconnu (date, montant ou débit / crédit) ; solde lu ou saisi, obligatoire (appliqué, lot F1) | F1 |
 
 **À obtenir de Neemba** :
 - valeurs des caisses et solde de l'Atelier ;
 - signataires habilités (PO-15), codes de service (PO-14) ;
 - destinataires du rapport (PO-18), listes de diffusion des ODM ;
-- relevé Orange Money ;
+- un relevé Orange Money exporté de la plateforme, pour confirmer la lecture de l'import (Q96) ;
+- les membres du CODIR (Q89) ;
 - comptes et journaux (PO-17, PO-25), fichier clients (PO-26) ;
 - données de reprise (PO-16) ;
 - SMTP et SMS (PO-23) ;
@@ -669,3 +680,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 19/10/2026 | E4 | (ce commit) | Caisses et sites : table `caisse_site` (reprise de `caisses.site_id`, retiré), caisse OM sans site, sites servis à l'écran des caisses (effet immédiat, Q86), écrans sans plantage pour une caisse sans site. Caisse payeuse tirée de la caisse émettrice (à défaut, site du demandeur), plafond de retrait de cette caisse ; replis par site via les sites servis. Site analytique modifiable à la saisie, corrigé par le CDG avec trace. 402 tests PHP, 74 JS ; parcours Edge (16 vérifications). 165 règles : 108 faites, 34 partielles, 23 à faire. devBook §53 |
 | 19/10/2026 | O | (ce commit) | « OR à régulariser » : case au formulaire, soumission sans OR, échéance à la validation (5 jours ouvrés), OR rattaché après coup sur la fiche par le demandeur ou le chef d'atelier, tracé et reporté sur les bons (Q80), relances J+3 et à l'échéance, alerte de retard au chef d'atelier et au DAF (`odm:relancer-or`), blocage optionnel du prochain ODM, suivi au tableau de bord et à l'export. Immatriculation et itinéraire sur l'ODM. Défaut corrigé : l'urgence de l'ODM choisie au formulaire n'était pas enregistrée (lot E2). 408 tests PHP, 75 JS ; parcours Edge (14 vérifications). 165 règles : 112 faites, 33 partielles, 20 à faire. devBook §54 |
 | 19/10/2026 | F0 | (ce commit) | Décision : billetage et PV d'abord (Q88), rôle « Membre du CODIR » pour F1 (Q89). PV d'arrêté par caisse (Annexe 2) : billetage de 20 000 à 50 ou solde lu (OM), solde comptable, écart, trois signatures par trois personnes, PDF ; écart → ajustement d'inventaire validé par le DAF avec motif (boîte de validation avec motif). Le gérant est le caissier rattaché, le gestionnaire ou le suppléant — pas tout compte rattaché à la caisse. 412 tests PHP (+4 F0), 75 JS ; parcours Edge (14 vérifications). 165 règles : 114 faites, 32 partielles, 19 à faire. devBook §55 |
+| 19/10/2026 | F1 | (ce commit) | F1a : alerte de seuil au franchissement puis rappel quotidien (gérant, trésorerie, Chef comptable), encaissement client à Conakry avec reçu PDF et blocage au plafond, visibilité par caisse, plus de retrait libre. F1b : demande de réapprovisionnement (PV du jour signé, rapprochement, montant proposé, plafond, habilitation du DP), circuit trésorerie → Finance → DP ou deux membres du CODIR (Q89, Q91), exécution avec l'origine des fonds et transfert activable, crédit à la réception, écart au DAF ; plus de mouvement manuel ; gérant sans rôle caissier. F1c : réconciliation hebdomadaire OM (import du relevé, rapprochement automatique, écart, trois validations, rappel du lundi). 426 tests PHP, 75 JS ; parcours Edge (15 + 24 + 14 vérifications). 165 règles : 125 faites, 29 partielles, 11 à faire. devBook §56 |

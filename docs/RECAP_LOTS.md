@@ -1,13 +1,13 @@
 # NEEMBA — Récapitulatif des lots réalisés
 
-*Mis à jour le 19/10/2026. Sources : le devBook (§12 à §55), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
+*Mis à jour le 19/10/2026. Sources : le devBook (§12 à §56), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
 
 Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NEEMBA : bons de caisse et ordres de mission de Neemba Guinée, réalisés par Addvalis. Pour chaque lot, il donne l'objectif, ce qui a été fait, les décisions prises et les vérifications. Le détail technique de chaque lot se trouve au paragraphe indiqué du devBook.
 
 **État au 19/10/2026**
 - Branche de travail `v23-conformite`. Tout le travail d'octobre est en commits locaux : rien n'est poussé ni déployé depuis la mise en production de juin (branche `main`).
-- 412 tests PHP et 75 tests JavaScript passent.
-- Spec v2.4 : 114 règles RG faites sur 165, 32 partielles, 19 à faire.
+- 426 tests PHP et 75 tests JavaScript passent.
+- Spec v2.4 : 125 règles RG faites sur 165, 29 partielles, 11 à faire.
 
 ---
 
@@ -19,7 +19,7 @@ Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NE
 4. [Module « Ordres de mission », spec v2.2 (M12-0 à M12-8)](#4-module--ordres-de-mission--spec-v22-m12-0-à-m12-8)
 5. [Évolutions des ODM et comptabilité (spec v2.3)](#5-évolutions-des-odm-et-comptabilité-spec-v23)
 6. [Conformité à la spec v2.3 (lots A à E)](#6-conformité-à-la-spec-v23-lots-a-à-e)
-7. [Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0)](#7-intégration-de-la-spec-v24-lots-r-v-e1-à-e4-o-f0)
+7. [Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0, F1)](#7-intégration-de-la-spec-v24-lots-r-v-e1-à-e4-o-f0-f1)
 8. [Ce qui reste à faire](#8-ce-qui-reste-à-faire)
 9. [Ce qu'il faut obtenir de Neemba](#9-ce-quil-faut-obtenir-de-neemba)
 
@@ -54,6 +54,7 @@ Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NE
 | 19/10 | Lot E4 | Caisses et sites, site analytique | `v23-conformite` | 402 / 74 | 16 | §53 |
 | 19/10 | Lot O | OR à régulariser, besoin carburant de l'ODM | `v23-conformite` | 408 / 75 | 14 | §54 |
 | 19/10 | Lot F0 | PV d'arrêté de caisse (Annexe 2) | `v23-conformite` | 412 / 75 | 14 | §55 |
+| 19/10 | Lot F1 | Caisses : alertes, encaissement client, réapprovisionnement, réconciliation OM | `v23-conformite` | 426 / 75 | 15 + 24 + 14 | §56 |
 
 Les branches sont en chaîne : chacune part de la précédente.
 
@@ -353,7 +354,7 @@ Un audit du code contre la spec v2.3 (14/10) a fixé l'ordre des lots. Ils sont 
 
 ---
 
-## 7. Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0)
+## 7. Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0, F1)
 
 ### Audit v2.3 et intégration de la v2.4 (15 et 16/10, §46, §47)
 - **Audit v2.3** (15/10) : 152 règles relevées une à une. Résultat : 94 faites, 38 partielles, 20 à faire. Huit écarts graves relevés.
@@ -465,17 +466,35 @@ Le lot F0 a été sorti de F2, parce que la demande de réapprovisionnement de F
 - **Correctif** : tout compte rattaché à la caisse aurait pu signer comme gérant.
 - **Vérifications** : 412 tests PHP, 14 contrôles dans Edge.
 
+### Lot F1 — Caisses, réapprovisionnement, encaissement client, réconciliation OM (19/10, §56)
+Le module M08 de la spec, livré en trois parties.
+- **F1a, alertes et encaissements** :
+  - l'alerte de seuil part une fois, au franchissement vers le bas, au gérant, à la trésorerie et au Chef comptable, puis un rappel chaque jour tant que le solde reste bas ;
+  - l'encaissement client se fait à Conakry principale, avec un reçu PDF ; en espèces, il est refusé s'il dépasse le plafond, et la trésorerie est alertée pour une remise en banque ;
+  - le caissier voit sa caisse, les rôles transverses toutes ; plus de retrait libre.
+- **F1b, réapprovisionnement** :
+  - le gérant demande avec le PV d'arrêté du jour et le rapprochement signé ;
+  - montant proposé : plafond − solde (Atelier : avance − solde), baissé seulement avec un motif ;
+  - plafond de caisse et habilitation du DP (500 000 000) respectés ;
+  - circuit : trésorerie (qui peut réduire), Finance, DP. En l'absence du DP et de son adjoint, deux membres du CODIR approuvent ensemble (nouveau rôle) ;
+  - la trésorerie exécute avec l'origine des fonds (chèque, mise à disposition, Orange Money, virement pour la caisse OM, transfert depuis une autre caisse pour l'Atelier) ;
+  - la caisse n'est créditée qu'à la confirmation de réception ; un écart alerte le DAF ;
+  - les mouvements manuels disparaissent ; la gérante de l'Atelier, sans rôle caissier, a accès aux écrans de sa caisse.
+- **F1c, réconciliation Orange Money** :
+  - chaque semaine, la trésorerie importe le relevé de la plateforme (CSV ou Excel) ;
+  - les écritures du brouillard sont rapprochées automatiquement (même sens, même montant, dates proches) ;
+  - les lignes restantes des deux côtés et l'écart de solde sont affichés ;
+  - la trésorière, le Chef comptable et le DAF valident ; rappel le lundi.
+- **Décisions** : Q89, Q91 à Q98 (absence du DP, PV signé par le gérant, transfert au registre, format du relevé, chèque hors solde).
+- **Correctifs** : l'alerte d'un encaissement refusé disparaissait ; la trésorerie ne voyait aucune caisse ; la gérante de l'Atelier n'ouvrait pas ses écrans ; une réconciliation sans solde de relevé aurait été validée sans écart.
+- **Vérifications** : 426 tests PHP, 53 contrôles dans Edge (15 + 24 + 14).
+
 ---
 
 ## 8. Ce qui reste à faire
 
 | Lot | Contenu | Durée estimée |
 |---|---|---|
-| **F1** | **Caisses (M08)** : | ≈ 4 j |
-| | – réapprovisionnement avec le PV du jour, circuit caissier → Trésorerie → Chef comptable / DAF → DP, plafond respecté, rôle « Membre du CODIR » | |
-| | – encaissement client à Conakry, avec reçu | |
-| | – alertes de seuil (une fois, puis rappel quotidien), visibilité par caisse | |
-| | – réconciliation hebdomadaire de la caisse Orange Money | |
 | **F2** | Clôture journalière par caisse, rapport « REPORTING CAISSE » par caisse, envoi avant 8 h, inventaires obligatoires et contrôles inopinés | ≈ 3 j |
 | **G** | **Gouvernance** : | ≈ 3 j |
 | | – domaine @neemba.com, assistant trésorier | |
@@ -495,6 +514,8 @@ L'échéance de la spec est le 16/12/2026.
 - **Rôles à attribuer** : gestionnaire des référentiels (CDG ou Comptabilité), Comptabilité, RH.
 - **Caisses** :
   - gestionnaire et suppléant de chaque caisse ;
+  - membres du CODIR (rôle à attribuer) ;
+  - un relevé Orange Money exporté, pour confirmer l'import de la réconciliation ;
   - sites servis à vérifier ;
   - numéros de départ des carnets papier.
 - **Listes** :

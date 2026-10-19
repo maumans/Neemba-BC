@@ -5281,3 +5281,133 @@ php artisan migrate        # 2026_10_26_000001
 ```
 
 Renseigner le gestionnaire (et le suppléant) de chaque caisse à l'écran des caisses. Sinon, seul un caissier rattaché à la caisse en est le gérant.
+
+---
+
+## 56. Version v56 — Lot F1 : caisses, réapprovisionnement, encaissement client, réconciliation OM (19 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Spec v2.4, module M08 : RG-M08-02 à RG-M08-10, RG-M08-12, RG-M08-13, MSG-M08-01 à 06, US-01 à US-10, SC-15 à SC-17, SC-35.
+
+Le lot est livré en trois parties, chacune avec ses commits : F1a (alertes, encaissements, visibilité), F1b (réapprovisionnement), F1c (réconciliation Orange Money).
+
+### 56.1 F1a — Alertes de seuil, encaissements clients, visibilité par caisse
+
+- **Alerte de seuil (RG-M08-03, MSG-M08-01)** : envoyée une fois, quand le solde franchit le seuil vers le bas, quel que soit le mouvement (paiement, ajustement, transfert). Elle part après la validation de la transaction, pour ne pas alerter sur un mouvement annulé. Destinataires : gérants de la caisse, trésorerie, Chef comptable ; le DAF ne la reçoit plus. Un rappel part chaque jour à 8 h tant que le solde reste sous le seuil, une fois par jour au plus (`caisses.alerte_seuil_le`, `alerte_seuil_rappel_le`, service `AlerteSeuil`).
+- **Encaissement client (RG-M08-10, MSG-M08-05, 06)** :
+  - seulement sur une caisse autorisée (Conakry principale), par son gérant ou la trésorerie ;
+  - champs : client du référentiel, n° de pièce (OR ou facture), montant, mode (espèces ou chèque), observations, pièce ;
+  - un encaissement en espèces qui porterait le solde au-dessus du plafond est refusé, et la trésorerie est alertée pour une remise en banque ;
+  - reçu PDF A5 numéroté `REC-<code caisse>-<année>-<00001>`, montant en lettres.
+
+  Table `encaissements_clients`, écran « Encaissements clients ».
+- **Visibilité (RG-M08-12)** : service `AccesCaisse`. Le caissier voit et opère sa caisse. Les rôles transverses voient toutes les caisses : DAF, DAF adjoint, Chef comptable, trésorerie, DP, DP adjoint, administrateur. Cela vaut pour les mouvements, le tableau de bord et les PV d'arrêté.
+- **Mouvements autorisés (RG-M08-02)** : le retrait libre et l'ajustement manuel disparaissent. Nouvelles natures au registre : `ajustement_inventaire`, `encaissement_client`, `transfert_emis`.
+
+### 56.2 F1b — Demande de réapprovisionnement (RG-M08-04 à RG-M08-09)
+
+Table `demandes_reapprovisionnement`, modèle `DemandeReapprovisionnement`, service `App\Services\Caisse\Reapprovisionnement`, contrôleur `ReapprovisionnementController`, menu « Réapprovisionnements ».
+
+- **Demande** par le gérant de la caisse :
+  - PV d'arrêté du jour de la caisse, signé par le gérant, et rapprochement comptable signé, joint en pièce. Sans eux : MSG-M08-03. L'écart du PV (billetage − solde comptable) est affiché ;
+  - montant proposé = plafond de caisse − solde. Pour une caisse en avance fixe (Atelier) : avance − solde. Le montant se baisse avec un motif de 10 caractères au moins ;
+  - le solde après réapprovisionnement ne dépasse jamais le plafond (MSG-M08-02), contrôlé aussi au fil de la saisie ;
+  - rien au-delà de l'habilitation du DP : paramètre `habilitation_dp_reappro`, 500 000 000 GNF ;
+  - une seule demande en cours par caisse. Numéro `DRA-<code caisse>-<année>-<0001>`.
+- **Circuit** :
+  1. trésorerie : valide, en réduisant le montant au besoin avec un motif, ou refuse ;
+  2. Finance (Chef comptable, DAF, DAF adjoint) : vise ;
+  3. DP ou DP adjoint : approuve.
+
+  Chaque étape notifie la suivante. Le refus est motivé, à toute étape avant l'approbation, et notifié au demandeur. Personne ne vise une demande qu'il a faite, ni deux étapes de la même demande.
+- **Absence du DP (Q89, Q91)** : nouveau rôle complémentaire « Membre du CODIR » (`membre_codir`). Quand aucun DP ni DP adjoint actif n'existe, ou que le délai de l'étape DP (`sla_directeur_pays`, en heures ouvrées) est écoulé depuis le visa Finance, deux membres du CODIR différents approuvent ensemble. Le premier visa prévient les autres membres. Les membres du CODIR voient les demandes de toutes les caisses.
+- **Exécution (RG-M08-08)** par la trésorerie, avec :
+  - l'origine des fonds : chèque déposé en banque, mise à disposition par la banque, Orange Money ; virement pour la caisse OM ; transfert depuis une autre caisse si la caisse l'autorise (`caisses.reappro_par_transfert`, activé par la migration pour les caisses en avance fixe, case à l'écran des caisses) ;
+  - une référence, une pièce et le montant émis.
+
+  Un transfert débite la caisse source (écriture `transfert_emis`), dont le solde doit couvrir le montant (Q93).
+- **Réception (RG-M08-09)** : la caisse n'est créditée (nature `approvisionnement`) qu'à la confirmation du gérant, avec le montant reçu et la pièce (bordereau, copie de mise à disposition, reçu). Un écart entre émis et reçu alerte le DAF et le DAF adjoint (MSG-M08-04) et s'affiche sur la demande.
+- **Plus de mouvement saisi à la main (RG-M08-02, Q94)** : les routes `mouvements-caisse.create` et `store`, et l'écran de création, sont retirés. Le bouton de la liste des mouvements ouvre la demande de réapprovisionnement. Les mouvements déjà en attente restent validables.
+- **Gérant sans rôle caissier (Q95)** : le gestionnaire ou le suppléant d'une caisse active (exemple : la gérante de la caisse Atelier) reçoit le pseudo-rôle `gerant_caisse`. Il ouvre les PV d'arrêté et les réapprovisionnements (routes et menu), ce qui manquait au lot F0.
+
+### 56.3 F1c — Réconciliation hebdomadaire de la caisse Orange Money (RG-M08-13, §5.4)
+
+Table `reconciliations_om`, modèle `ReconciliationOm`, service `App\Services\Caisse\ReconciliationOrangeMoney`, contrôleur `ReconciliationOmController`, menu « Réconciliation OM ».
+
+- **Établie par la trésorerie**, pour une semaine du lundi au dimanche (la semaine écoulée est proposée), avec le relevé exporté de la plateforme en CSV ou Excel. Numéro `ROM-<code caisse>-<année ISO>-S<semaine>`.
+- **Lecture du relevé (Q96)** : le format n'est pas fixé, l'API Orange Money étant hors périmètre. L'en-tête est reconnu dans les 15 premières lignes :
+  - « Date » ;
+  - « Montant » signé, ou « Débit » et « Crédit » ;
+  - si possible « Référence », « Libellé », « Solde ».
+
+  Sont acceptés : le séparateur point-virgule ou virgule, les dates JJ/MM/AAAA ou Excel, les montants avec espaces. Les lignes hors de la semaine sont écartées. Un relevé sans date ni montant est refusé (MSG-APP-103).
+- **Rapprochement automatique** : une écriture du brouillard et une ligne du relevé de même sens et de même montant sont rapprochées si leurs dates sont au plus à `reconciliation_om_delai_jours` jours (2 par défaut). L'écran liste :
+  - les lignes du relevé absentes du brouillard ;
+  - les écritures absentes du relevé ;
+  - les lignes rapprochées, avec l'écriture correspondante ;
+  - les soldes du brouillard (début, fin), le solde de fin du relevé et l'écart.
+- **Solde du relevé (Q97)** : lu dans la colonne « Solde », sinon saisi. Sans solde, la réconciliation n'est pas établie (MSG-APP-104), parce que l'écart en dépend.
+- **Validation** par la trésorière, le Chef comptable et le DAF (ou son adjoint), trois personnes différentes. Le Chef comptable et le DAF sont prévenus à l'établissement, la trésorerie à la validation. Tant qu'elle n'est pas validée, la trésorerie peut la refaire avec un nouveau relevé, et les signatures repartent de zéro. Validée, elle est verrouillée.
+- **Rappel** chaque lundi à 9 h (`caisse:rappeler-reconciliation-om`) :
+  - à la trésorerie, si la réconciliation de la semaine écoulée n'est pas établie ;
+  - aux signataires manquants, si elle n'est pas validée.
+
+### 56.4 Données
+
+Migrations (chacune vérifiée sur une copie de la base de dev, aller, retour, aller, puis appliquée en dev) :
+- `2026_10_27_000001_lot_f1a_alertes_encaissements_clients` : colonnes d'alerte sur `caisses`, table `encaissements_clients` ;
+- `2026_10_28_000001_lot_f1b_reapprovisionnement` : table `demandes_reapprovisionnement`, `caisses.reappro_par_transfert` (activé pour l'Atelier), paramètre `habilitation_dp_reappro` ;
+- `2026_10_29_000001_lot_f1c_reconciliation_om` : table `reconciliations_om`, paramètre `reconciliation_om_delai_jours`.
+
+Messages : MSG-M08-01 à 06 au texte de la spec ; MSG-APP-090 à 104.
+
+### 56.5 Vérifications
+
+- Tests :
+  - `tests/Feature/LotF1/CaissesM08Test.php` (4) : alerte au franchissement puis rappel quotidien, encaissement client et reçu, refus au plafond avec alerte à la trésorerie, visibilité par caisse ;
+  - `tests/Feature/LotF1/ReapprovisionnementTest.php` (6) :
+    - PV du jour signé et rapprochement exigés, montant proposé ;
+    - plafond, baisse motivée, habilitation ;
+    - circuit complet jusqu'à la réception avec écart ;
+    - deux membres du CODIR (délai du DP écoulé, puis sans DP actif) ;
+    - transfert depuis Conakry vers l'Atelier ;
+    - refus motivé, auto-visa refusé, routes manuelles retirées ;
+  - `tests/Feature/LotF1/ReconciliationOmTest.php` (4) :
+    - rapprochement d'un relevé CSV à la française ;
+    - trois signatures, reprise avant validation, verrouillage, une personne une signature ;
+    - refus (caisse espèces, non-trésorerie, semaine future, relevé illisible, solde manquant) et relevé Excel ;
+    - rappel du lundi ;
+  - tests existants adaptés : alerte à la trésorerie, approvisionnement historique validé, demande sur la caisse d'un autre site refusée.
+- **Total** : 426 tests PHP et 75 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base, avec les comptes réels, sans erreur JavaScript :
+  - **F1a** (15 vérifications) : encaissement client par Youssouf TOURE et reçu PDF, refus au plafond, visibilité par caisse, alerte au rappel quotidien ;
+  - **F1b** (24 vérifications) :
+    - Youssouf TOURE n'a pas de PV du jour et est renvoyé au PV : il l'établit et le signe ;
+    - il demande 249 250 000 (plafond 250 000 000 − solde 750 000), avec le rapprochement ;
+    - Mariamagbè CAMARA valide, Mamadou Alpha BAH vise, Mamadou LO approuve ;
+    - la trésorerie exécute par chèque, sans transfert proposé pour Conakry ;
+    - Youssouf reçoit 10 000 de moins : caisse créditée du reçu, DAF alerté ;
+    - Youssouf, aussi trésorerie, ne valide pas sa propre demande ;
+    - Raby TOUNKARA, gestionnaire de la caisse Atelier sans rôle caissier, a les menus et le montant proposé (15 000 000 − solde) ;
+    - téléphone ;
+  - **F1c** (14 vérifications) :
+    - Mariamagbè CAMARA importe un relevé sans colonne « Solde » : le solde de fin est demandé ;
+    - écart de −75 000 ;
+    - la ligne inconnue du relevé ressort, l'écriture du brouillard est rapprochée ;
+    - trois validations, relevé téléchargeable ;
+    - un demandeur n'y a pas accès ; téléphone.
+- Défauts relevés en cours de lot, corrigés :
+  - l'alerte de plafond d'un encaissement refusé disparaissait avec la transaction annulée ;
+  - la trésorerie ne voyait aucune caisse (ancienne liste de rôles) ;
+  - la gérante de la caisse Atelier, sans rôle caissier, n'ouvrait ni les PV d'arrêté ni les réapprovisionnements ;
+  - une réconciliation sans solde de relevé aurait été validée sans écart.
+
+### 56.6 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_27_000001, 2026_10_28_000001, 2026_10_29_000001
+```
+
+- Attribuer le rôle « Membre du CODIR » aux membres désignés par Neemba (écran des utilisateurs, rôles complémentaires).
+- Vérifier, à l'écran des caisses, le gestionnaire et le suppléant de chaque caisse et la case « Réapprovisionnée par transfert » (activée pour l'Atelier).
+- Le planificateur exécute `caisse:verifier-seuils` à 8 h et `caisse:rappeler-reconciliation-om` le lundi à 9 h.
+- Obtenir de Neemba un relevé Orange Money exporté, pour confirmer la lecture de son en-tête (Q96).
