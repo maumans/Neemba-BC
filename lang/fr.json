@@ -144,5 +144,7 @@
     "MSG-M12-10": "ODM :numero : OR à régulariser avant le :date.",
     "MSG-M12-11": "Vous avez un ODM avec OR à régulariser en retard (:numero). Rattachez l'OR avant de créer un nouvel ODM.",
     "MSG-APP-086": "L'OR :numero est déjà rattaché à cet ordre de mission.",
-    "MSG-APP-087": "Seuls le demandeur de l'ordre de mission et son chef d'atelier rattachent un OR après coup."
+    "MSG-APP-087": "Seuls le demandeur de l'ordre de mission et son chef d'atelier rattachent un OR après coup.",
+    "MSG-APP-088": "Seuls le gérant de la caisse, la trésorerie et le Chef comptable établissent un PV d'arrêté.",
+    "MSG-APP-089": "Vous ne pouvez pas donner cette signature : chaque signature est donnée une fois, par trois personnes différentes."
 }

@@ -52,7 +52,11 @@ class MouvementCaisseController extends Controller
 
         /* Droits d'action basés sur le rôle effectif */
         $peutCreer = $utilisateur->peutPayer() || $utilisateur->aLeRole(['daf', 'directeur_pays', 'administrateur']);
-        $peutValider = $utilisateur->aLeRole(['daf', 'directeur_pays']);
+        $peutValider = $utilisateur->aLeRole(['daf', 'daf_adjoint', 'directeur_pays']);
+        /* Spec v2.4, RG-M10-03 : sens de l'ajustement d'inventaire ; seul le DAF le valide */
+        $mouvements->through(fn (MouvementCaisse $m) => $m->setAttribute('sortie', $m->type === 'retrait'
+            || ($m->type === 'ajustement_inventaire' && ($m->metadata['sens'] ?? null) === 'sortie'))
+            ->setAttribute('validable', $m->type !== 'ajustement_inventaire' || $utilisateur->aLeRole(['daf', 'daf_adjoint'])));
 
         /* Soldes par caisse (ANO-09) : le caissier voit les caisses de son site, DAF / DP / admin toutes */
         $soldesCaisses = $this->caissesAccessibles($utilisateur)->map(fn (Caisse $caisse) => [
@@ -156,7 +160,7 @@ class MouvementCaisseController extends Controller
     {
         $utilisateur = Auth::user();
 
-        if (!$utilisateur->aLeRole(['daf', 'directeur_pays'])) {
+        if (!$utilisateur->aLeRole(['daf', 'daf_adjoint', 'directeur_pays'])) {
             abort(403, 'Seuls le DAF et le Directeur Pays peuvent valider les mouvements de caisse.');
         }
 
@@ -164,9 +168,14 @@ class MouvementCaisseController extends Controller
             return back()->with('error', 'Ce mouvement a déjà été traité.');
         }
 
+        /* Spec v2.4, RG-M10-03 : un ajustement d'inventaire n'est passé qu'après validation du DAF, avec motif */
+        $inventaire = $mouvement->type === 'ajustement_inventaire';
+        if ($inventaire && !$utilisateur->aLeRole(['daf', 'daf_adjoint'])) {
+            abort(403, "Seul le DAF valide un ajustement d'inventaire.");
+        }
         $request->validate([
-            'commentaire' => ['nullable', 'string', 'max:1000'],
-        ]);
+            'commentaire' => $inventaire ? ['required', 'string', 'min:10', 'max:1000'] : ['nullable', 'string', 'max:1000'],
+        ], ['commentaire.required' => "Indiquez le motif de l'ajustement d'inventaire (10 caractères au moins)."]);
 
         $caisse = $mouvement->caisse;
         if (!$caisse) {
@@ -174,7 +183,8 @@ class MouvementCaisseController extends Controller
         }
 
         /* Vérifications métier pour les retraits */
-        if ($mouvement->type === 'retrait' && !$caisse->peutPayer((float) $mouvement->montant)) {
+        $sortie = $mouvement->type === 'retrait' || ($inventaire && ($mouvement->metadata['sens'] ?? null) === 'sortie');
+        if ($sortie && !$caisse->peutPayer((float) $mouvement->montant)) {
             return back()->with('error', "Solde insuffisant sur la {$caisse->libelle} pour ce retrait.");
         }
 
@@ -183,7 +193,7 @@ class MouvementCaisseController extends Controller
         \App\Services\NotificationService::notifierMouvementCaisseValidee($mouvement, $utilisateur);
 
         /* Alerte si la caisse passe sous son seuil après un retrait */
-        if ($mouvement->type === 'retrait' && $caisse->fresh()->sousSeuil()) {
+        if ($sortie && $caisse->fresh()->sousSeuil()) {
             \App\Services\NotificationService::notifierAlerteSolde($caisse->fresh(), $utilisateur);
         }
 

@@ -55,6 +55,8 @@ class MouvementCaisse extends Model
         'approvisionnement' => 'Approvisionnement',
         'retrait' => 'Retrait',
         'ajustement' => 'Ajustement',
+        /* Spec v2.4, RG-M10-03 : écart d'un PV d'arrêté, passé après validation du DAF avec motif */
+        'ajustement_inventaire' => "Ajustement d'inventaire",
     ];
 
     const STATUTS = [
@@ -164,8 +166,10 @@ class MouvementCaisse extends Model
                 'utilisateur_id' => $valideur->id,
                 'libelle' => "{$this->type_label} {$this->reference} — {$this->motif}",
             ];
-            $this->type === 'retrait'
-                ? $this->caisse->debiter((float) $this->montant, 'retrait', $contexte)
+            /* Ajustement d'inventaire : entrée (excédent) ou sortie (manquant) selon l'écart du PV */
+            $sortie = $this->type === 'retrait' || ($this->type === 'ajustement_inventaire' && ($this->metadata['sens'] ?? null) === 'sortie');
+            $sortie
+                ? $this->caisse->debiter((float) $this->montant, $this->type, $contexte)
                 : $this->caisse->crediter((float) $this->montant, $this->type, $contexte);
         }
 

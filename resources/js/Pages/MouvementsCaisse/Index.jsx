@@ -49,6 +49,8 @@ const TYPES_CONFIG = {
     approvisionnement: { label: 'Approvisionnement', icone: ArrowUpCircle, couleur: 'text-green-600' },
     retrait: { label: 'Retrait', icone: ArrowDownCircle, couleur: 'text-red-600' },
     ajustement: { label: 'Ajustement', icone: Settings2, couleur: 'text-blue-600' },
+    /* Spec v2.4, RG-M10-03 : écart d'un PV d'arrêté, validé par le DAF avec motif */
+    ajustement_inventaire: { label: "Ajustement d'inventaire", icone: Settings2, couleur: 'text-blue-600' },
 };
 
 const CAISSE_CONFIG = {
@@ -75,6 +77,9 @@ export default function Index({
     const [mvtToValider, setMvtToValider] = useState(null);
     const [mvtToRejeter, setMvtToRejeter] = useState(null);
     const [commentaireRejet, setCommentaireRejet] = useState('');
+    const [motifValidation, setMotifValidation] = useState('');
+    const mvtAValider = mouvements.data.find((m) => m.id === mvtToValider);
+    const motifExige = mvtAValider?.type === 'ajustement_inventaire';
 
     const handleAction = (action, id, commentaire = '') => {
         if (processing) return;
@@ -244,9 +249,9 @@ export default function Index({
                                             </div>
                                             <div className="text-right flex-shrink-0">
                                                 <p className={`text-lg font-bold ${typeConfig.couleur}`}>
-                                                    {mvt.type === 'retrait' ? '−' : '+'}{formaterMontant(mvt.montant)}
+                                                    {mvt.sortie ? '−' : '+'}{formaterMontant(mvt.montant)}
                                                 </p>
-                                                {peutValider && mvt.statut === 'en_attente' && (
+                                                {peutValider && mvt.validable !== false && mvt.statut === 'en_attente' && (
                                                     <div className="flex gap-1 mt-2">
                                                         <Button
                                                             size="sm"
@@ -302,11 +307,23 @@ export default function Index({
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>Valider le mouvement</DialogTitle>
-                        <DialogDescription>Êtes-vous sûr de vouloir valider ce mouvement de caisse ?</DialogDescription>
+                        <DialogDescription>
+                            {motifExige
+                                ? "L'ajustement d'inventaire corrige le solde de la caisse de l'écart du PV d'arrêté. Indiquez le motif."
+                                : 'Êtes-vous sûr de vouloir valider ce mouvement de caisse ?'}
+                        </DialogDescription>
                     </DialogHeader>
+                    {motifExige && (
+                        <div>
+                            <Label htmlFor="motif-validation">Motif de l'ajustement *</Label>
+                            <Textarea id="motif-validation" value={motifValidation} onChange={(e) => setMotifValidation(e.target.value)}
+                                placeholder="Ex. : erreur de rendu de monnaie constatée au comptage" className="mt-1" />
+                        </div>
+                    )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setMvtToValider(null)}>Annuler</Button>
-                        <Button onClick={() => { handleAction('valider', mvtToValider); setMvtToValider(null); }} className="bg-green-600 hover:bg-green-700 text-white">Confirmer</Button>
+                        <Button onClick={() => { handleAction('valider', mvtToValider, motifValidation); setMvtToValider(null); setMotifValidation(''); }}
+                            disabled={motifExige && motifValidation.trim().length < 10} className="bg-green-600 hover:bg-green-700 text-white">Confirmer</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

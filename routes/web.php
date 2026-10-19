@@ -275,6 +275,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/referentiels/visiteurs/{visiteur}/basculer', [VisiteurController::class, 'basculer'])->name('visiteurs.basculer');
     });
 
+    /* --- Spec v2.4, RG-M10-02, Annexe 2 : PV d'arrêté de caisse (gérant, trésorerie, Chef comptable ; consultation transverse) --- */
+    Route::middleware('role:caissier,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
+        Route::get('/caisses/pv-arrete', [\App\Http\Controllers\PvArreteController::class, 'index'])->name('pv-arrete.index');
+        Route::get('/caisses/pv-arrete/nouveau', [\App\Http\Controllers\PvArreteController::class, 'create'])->name('pv-arrete.create');
+        Route::post('/caisses/pv-arrete', [\App\Http\Controllers\PvArreteController::class, 'store'])->name('pv-arrete.store');
+        Route::get('/caisses/pv-arrete/{pvArrete}', [\App\Http\Controllers\PvArreteController::class, 'show'])->name('pv-arrete.show');
+        Route::post('/caisses/pv-arrete/{pvArrete}/signer', [\App\Http\Controllers\PvArreteController::class, 'signer'])->name('pv-arrete.signer');
+        Route::get('/caisses/pv-arrete/{pvArrete}/pdf', [\App\Http\Controllers\PvArreteController::class, 'pdf'])->name('pv-arrete.pdf');
+    });
+
     /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */
     Route::middleware('role:tresorerie,daf,daf_adjoint,chef_comptable,directeur_pays,caissier,administrateur')->group(function () {
         Route::get('/tresorerie/taux-du-jour', [TauxChangeController::class, 'index'])->name('tresorerie.taux.index');

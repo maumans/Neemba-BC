@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Toaster } from "@/Components/ui/sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+    ClipboardCheck,
     LayoutDashboard,
     FileText,
     CheckSquare,
@@ -109,6 +110,13 @@ const navigationItems = [
         href: "mouvements-caisse.index",
         icon: Wallet,
         roles: ["caissier", "daf", "directeur_pays", "administrateur"],
+    },
+    {
+        /* Spec v2.4, RG-M10-02 : PV d'arrêté de caisse (Annexe 2) */
+        label: "PV d'arrêté",
+        href: "pv-arrete.index",
+        icon: ClipboardCheck,
+        roles: ["caissier", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
     },
     {
         /* M16 : imputation comptable des bons payés et export des écritures */

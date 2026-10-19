@@ -518,12 +518,7 @@ class NotificationService
      */
     public static function notifierMouvementCaisseCreee(\App\Models\MouvementCaisse $mouvement, User $createur): void
     {
-        $typeLabel = match ($mouvement->type) {
-            'approvisionnement' => 'Approvisionnement',
-            'retrait'           => 'Retrait',
-            'ajustement'        => 'Ajustement',
-            default             => ucfirst($mouvement->type),
-        };
+        $typeLabel = $mouvement->type_label;
 
         $montantFormat = Format::montant($mouvement->montant);
 
