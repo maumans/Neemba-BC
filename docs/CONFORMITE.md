@@ -52,11 +52,11 @@
 | M08 Caisses et réapprovisionnement | 13 | 2 | 3 | 8 | F1 |
 | M09 Clôture et rapport journalier | 5 | 0 | 4 | 1 | F2 |
 | M10 Inventaire et contrôle | 3 | 0 | 1 | 2 | F2 |
-| M12 Ordres de mission | 42 | 37 | 2 | 3 | O |
+| M12 Ordres de mission | 42 | 41 | 1 | 0 | H |
 | M13 Carburant | 15 | 3 | 8 | 4 | H |
 | M15 Archivage et audit | 3 | 0 | 3 | 0 | G |
 | M16 Imputation comptable | 6 | 6 | 0 | 0 | — |
-| **Total des règles RG** | **165** | **108** | **34** | **23** | |
+| **Total des règles RG** | **165** | **112** | **33** | **20** | |
 
 Les lots R, V et E1 sont terminés et commités le 16/10 : leurs règles sont à ✅.
 
@@ -286,7 +286,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 | Seuil franchi ; demande de réapprovisionnement ; écart de réception | 🟡 | ❌ | 🟡 | Avec M08 | F1 |
 | ODM soumis, validé, prolongé, clôturé, rejeté ; incohérence de nuitées | 🟡 | ❌ | ❌ | Email ; rejet à la liste de diffusion | I |
 | Avance carburant, fiche de régularisation, retenue (RH) | 🟡 | ❌ | ❌ | Avec M13 | H, I |
-| OR à régulariser : relance J+3, échéance, retard **[v2.4]** | ❌ | ❌ | ❌ | | O, I |
+| OR à régulariser : relance J+3, échéance, retard **[v2.4]** | ✅ | ❌ | ❌ | Dans l'application (lot O) ; email au lot I | I |
 | Bon au profit d'un visiteur du groupe (DAF) **[v2.4]** | ✅ | ❌ | ❌ | Email | I |
 | OTP de connexion (email) et de visa urgent (SMS) **[v2.4]** | — | ✅ | ✅ | Fait (lot E2) ; SMTP et SMS de Neemba à brancher (PO-23) | |
 
@@ -298,7 +298,7 @@ SMTP et fournisseur SMS sont à confirmer par l'IT de Neemba (PO-23, cloud Neemb
 |---|:-:|---|:-:|:-:|
 | Tableau de bord du DAF | 🟡 | Bons en attente par étape, BP en cours, alertes doublon, vue unique ; Chef comptable et DAF adjoint exclus | O | I |
 | Export Excel opérationnel ; « Frais à refacturer » ; rapport mensuel des BP | ✅ | | | |
-| Rapport « OR à régulariser » (RG-M12-41) **[v2.4]** | ❌ | | L | O |
+| Rapport « OR à régulariser » (RG-M12-41) **[v2.4]** | ✅ | Lot O : section du tableau de bord des ODM et onglet de l'export | | |
 | Bons au profit de visiteurs, par filiale d'origine (RG-M03-28) **[v2.4]** | 🟡 | Colonnes de l'export faites (lot V) ; rapport par filiale au lot I | L | I |
 | Tous les tableaux, rapports et exports filtrables par entité, avec vue consolidée **[v2.4]** | ✅ | Lot E1 : portée globale sur l'entité courante, vue consolidée | | |
 
@@ -348,23 +348,23 @@ Le suivi détaillé reste dans `docs/ORDRE_DE_MISSIONS.md`. RG-M12-01, 03 à 13,
 
 | Règle | Contenu | État | Ce qui manque | Cause | Lot |
 |---|---|:-:|---|:-:|:-:|
-| RG-M12-02 | Mission technique : au moins un OR, **ou ODM marqué « OR à régulariser » [v2.4]** | 🟡 | L'OR est obligatoire, sans l'option | V4 | O |
+| RG-M12-02 | Mission technique : au moins un OR, **ou ODM marqué « OR à régulariser » [v2.4]** | ✅ | Lot O | | |
 | RG-M12-14 | **Un bon par participant ; bon groupé abandonné, paramètre à retirer [v2.4]** | ✅ | Lot V : paramètre et option retirés ; les bons groupés déjà émis restent valides | | |
 | RG-M12-24 | Liste de diffusion du service | ✅ | Listes réelles à saisir | N | |
 | RG-M12-34 | Répartition consultable par la Comptabilité | ✅ | Lot R : rôle `comptable` dans la vue globale des ODM | | |
 | RG-M12-38 | **Aucune saisie hors barème ; hôtel au forfait de 500 000 [v2.4]** | ✅ | Lot V : bon complémentaire de la clôture verrouillé, créé avec sa facture et soumis aussitôt ; facture d'hébergement ignorée hors ODM extérieur payé avant le départ | | |
-| RG-M12-39 | **« OR à régulariser » : soumission sans OR, OR saisi après coup et tracé, l'indicateur tombe [v2.4]** | ❌ | | L | O |
-| RG-M12-40 | **Délai de 5 jours ouvrés, relances J+3 et échéance, alerte au chef d'atelier et au DAF, blocage optionnel [v2.4]** | ❌ | | L | O |
-| RG-M12-41 | **Suivi au tableau de bord DAF et rapport M14 [v2.4]** | ❌ | | L | O |
-| RG-M12-42 | **Besoin carburant sur l'ODM (véhicule, immatriculation, itinéraire) ; jamais une ligne de frais [v2.4]** | 🟡 | Un seul champ « véhicule » ; pas d'itinéraire | V4 | O |
+| RG-M12-39 | **« OR à régulariser » : soumission sans OR, OR saisi après coup et tracé, l'indicateur tombe [v2.4]** | ✅ | Lot O : case au formulaire, « Rattacher un OR » sur la fiche (demandeur, chef d'atelier), report sur les bons (Q80) | | |
+| RG-M12-40 | **Délai de 5 jours ouvrés, relances J+3 et échéance, alerte au chef d'atelier et au DAF, blocage optionnel [v2.4]** | ✅ | Lot O : paramètres `odm_delai_or` et `odm_blocage_or_retard`, commande `odm:relancer-or` | | |
+| RG-M12-41 | **Suivi au tableau de bord DAF et rapport M14 [v2.4]** | ✅ | Lot O | | |
+| RG-M12-42 | **Besoin carburant sur l'ODM (véhicule, immatriculation, itinéraire) ; jamais une ligne de frais [v2.4]** | 🟡 | Immatriculation et itinéraire faits (lot O) ; obligatoires dès une avance carburant, bon carburant rattaché : lot H | | H |
 
 **Messages M12**
 
 | Message | État | Écart | Lot |
 |---|:-:|---|:-:|
 | MSG-M12-02 à 09 | ✅ | — | |
-| MSG-M12-01 **[v2.4]** | ❌ | Nouveau texte : « …ou cochez « OR à régulariser ». » | O |
-| MSG-M12-10, 11 **[v2.4]** | ❌ | Nouveaux | O |
+| MSG-M12-01 **[v2.4]** | ✅ | (lot O) | |
+| MSG-M12-10, 11 **[v2.4]** | ✅ | (lot O) | |
 
 ### 9.3 M13 Carburant
 
@@ -505,15 +505,15 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 
 ### Lot O — ODM : OR à régulariser, besoin carburant (≈ 2 j)
 
-- [ ] Case « OR à régulariser » ; MSG-M12-01 nouveau texte
-- [ ] Échéance en jours ouvrés après la validation ; ajout d'OR après coup, tracé et reporté sur les bons (Q80)
-- [ ] Commande `odm:relancer-or` :
-  - [ ] relance à J+3 et à l'échéance (MSG-M12-10) ;
-  - [ ] alerte au chef d'atelier et au DAF.
-- [ ] Blocage optionnel du prochain ODM (MSG-M12-11)
-- [ ] Section « OR à régulariser » au tableau de bord et à l'export (RG-M12-41)
-- [ ] Immatriculation et itinéraire sur l'ODM, la fiche et le PDF (RG-M12-42)
-- [ ] Tests SC-38
+- [x] Case « OR à régulariser » ; MSG-M12-01 nouveau texte
+- [x] Échéance en jours ouvrés après la validation ; ajout d'OR après coup, tracé et reporté sur les bons (Q80)
+- [x] Commande `odm:relancer-or` :
+  - [x] relance à J+3 et à l'échéance (MSG-M12-10) ;
+  - [x] alerte au chef d'atelier et au DAF.
+- [x] Blocage optionnel du prochain ODM (MSG-M12-11)
+- [x] Section « OR à régulariser » au tableau de bord et à l'export (RG-M12-41)
+- [x] Immatriculation et itinéraire sur l'ODM, la fiche et le PDF (RG-M12-42)
+- [x] Tests SC-38
 
 ### Lot F1 — Caisses, réapprovisionnement, encaissement client (M08) (≈ 4 j)
 
@@ -602,7 +602,7 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | SC-33 | Isolation des caisses et sites | 🟡 | Correspondances caisse ↔ sites faites (lot E4) ; isolation des caisses au lot F1 |
 | SC-34 | Imputation et export comptable | ✅ | (colonnes v2.4 : lot E1) |
 | SC-36 | Hors ligne | ❌ | P3 |
-| SC-38 **[v2.4]** | ODM technique « OR à régulariser » | ❌ | O |
+| SC-38 **[v2.4]** | ODM technique « OR à régulariser » | ✅ | (lot O) |
 | SC-39 **[v2.4]** | Bon exceptionnel au profit d'un visiteur | ✅ | (lot V ; rapport par filiale au lot I) |
 | SC-40 **[v2.4]** | Double authentification, visa urgent par SMS | ✅ | (lot E2) |
 | SC-41 **[v2.4]** | Isolation par entité et vue consolidée | ✅ | (lot E1) |
@@ -626,7 +626,7 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | Q78 **[v2.4]** | Qui tient les sites et les caisses ? | L'administrateur, avec double validation ; le gestionnaire des référentiels tient le reste (appliqué, lot E3) | E3 |
 | Q83 **[v2.4]** | Qui tient les clients ? | Le gestionnaire des référentiels, avec la Comptabilité, le Chef comptable et le CDG (import du fichier) ; plus l'administrateur (appliqué, lot E3) | E3 |
 | Q79 **[v2.4]** | Bon visiteur sans DAF ni DAF adjoint disponible | Le bon attend ; la Finance n'est jamais sautée (appliqué, lot V) | V |
-| Q80 **[v2.4]** | OR saisi après coup | Reporté sur les bons de l'ODM, avec trace | O |
+| Q80 **[v2.4]** | OR saisi après coup | Reporté sur les bons de l'ODM, avec trace (appliqué, lot O) | O |
 | Q81 **[v2.4]** | Qui a la vue consolidée ? | Paramètre ; par défaut DAF, DAF adjoint, DP, DP adjoint, administrateur (appliqué, lot E1) | E1 |
 
 **À obtenir de Neemba** :
@@ -658,3 +658,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 19/10/2026 | E2 | (ce commit) | Onglet « Sécurité » (demande de l'utilisateur, Q82) : l'administrateur active ou désactive le code de connexion et le code de visa, règle durées et essais ; effet immédiat, tracé, autres administrateurs prévenus ; état des canaux email et SMS, valideurs sans téléphone ; commande de secours `securite:double-authentification`. 389 tests PHP ; parcours Edge (16 vérifications). devBook §51.7 |
 | 19/10/2026 | E3 | (ce commit) | Rôle « gestionnaire des référentiels » : onglets et routes répartis (l'administrateur garde entités, sites, caisses, seuils, sécurité ; le gestionnaire tient services, codes analytiques, types de document, motifs, types d'OR, barèmes, clients). Barèmes ODM datés (`baremes_odm`, reprise des paramètres, lecture à la date de soumission, sans double validation, valeur à venir annulable). Types d'OR en référentiel (`types_or`, enum de l'ODM retiré, listes servies par le serveur). 397 tests PHP, 74 JS ; parcours Edge (19 vérifications). 165 règles : 106 faites, 35 partielles, 24 à faire. devBook §52 |
 | 19/10/2026 | E4 | (ce commit) | Caisses et sites : table `caisse_site` (reprise de `caisses.site_id`, retiré), caisse OM sans site, sites servis à l'écran des caisses (effet immédiat, Q86), écrans sans plantage pour une caisse sans site. Caisse payeuse tirée de la caisse émettrice (à défaut, site du demandeur), plafond de retrait de cette caisse ; replis par site via les sites servis. Site analytique modifiable à la saisie, corrigé par le CDG avec trace. 402 tests PHP, 74 JS ; parcours Edge (16 vérifications). 165 règles : 108 faites, 34 partielles, 23 à faire. devBook §53 |
+| 19/10/2026 | O | (ce commit) | « OR à régulariser » : case au formulaire, soumission sans OR, échéance à la validation (5 jours ouvrés), OR rattaché après coup sur la fiche par le demandeur ou le chef d'atelier, tracé et reporté sur les bons (Q80), relances J+3 et à l'échéance, alerte de retard au chef d'atelier et au DAF (`odm:relancer-or`), blocage optionnel du prochain ODM, suivi au tableau de bord et à l'export. Immatriculation et itinéraire sur l'ODM. Défaut corrigé : l'urgence de l'ODM choisie au formulaire n'était pas enregistrée (lot E2). 408 tests PHP, 75 JS ; parcours Edge (14 vérifications). 165 règles : 112 faites, 33 partielles, 20 à faire. devBook §54 |

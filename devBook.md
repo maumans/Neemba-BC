@@ -1,9 +1,9 @@
 # NEEMBA - Gestion de Caisse (devBook)
 
 > **Application interne de gestion des bons de caisse pour l'entreprise NEEMBA**
-> Dernière mise à jour : 19 Octobre 2026 (v53 — lot E4 : caisses et sites, site analytique)
+> Dernière mise à jour : 19 Octobre 2026 (v54 — lot O : OR à régulariser, besoin carburant de l'ODM)
 >
-> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §53) indiquent ce qui a changé.
+> **Où en est le projet** : voir le chapitre 0 ci-dessous. Les chapitres 1, 4 et 5 sont à jour au 15/10/2026. Les chapitres 3 et 6 à 18 décrivent les versions de mars à juin 2026 : ils sont gardés pour l'historique, et les versions suivantes (§19 à §54) indiquent ce qui a changé.
 
 ---
 
@@ -14,7 +14,7 @@
 - **Spécification en vigueur** : `docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (Thierno DIALLO, Addvalis, 14/10/2026). Elle remplace la v2.3 du 09/10, qui remplaçait elle-même la SFD v1.3 (M03) et la v2.2. Ces fichiers ne sont pas commités (documents de l'utilisateur).
 - **Suivi de conformité** : [docs/CONFORMITE.md](docs/CONFORMITE.md). Il donne toutes les règles de la spec v2.4, avec pour chacune l'état dans le code, ce qui manque, pourquoi, et le lot qui la traite. Ses cases et son journal sont tenus à chaque lot. Il s'appelait `CONFORMITE_V23.md` jusqu'au 16/10.
 - **Suivi du module M12 (ODM)** : [docs/ORDRE_DE_MISSIONS.md](docs/ORDRE_DE_MISSIONS.md).
-- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51, Q83 et Q84 au §52, Q85 et Q86 au §53 ; Q73, Q76 à Q79 et Q81 à Q86 sont appliquées (§48 à §53).
+- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51, Q83 et Q84 au §52, Q85 et Q86 au §53, Q87 au §54 ; Q73 et Q76 à Q87 sont appliquées (§48 à §54).
 
 ### 0.2 Branches
 
@@ -42,7 +42,7 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 | M15 Archivage, audit | Partiel | Journal protégé, PDF archivés, purge (lot G) |
 | M16 Imputation comptable | Fait | §38 |
 
-**Règles RG de la v2.4** : 165, dont 108 faites, 34 partielles et 23 à faire au 19/10, après les lots R, V et E1 à E4 (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
+**Règles RG de la v2.4** : 165, dont 112 faites, 33 partielles et 20 à faire au 19/10, après les lots R, V, E1 à E4 et O (88, 45 et 32 à l'intégration de la v2.4, §47). La v2.4 ajoute ou modifie, entre autres :
 - l'entité transverse ;
 - la double authentification ;
 - le gestionnaire des référentiels ;
@@ -52,9 +52,9 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 - un seul bon par participant ;
 - le modèle caisse ≠ site.
 
-**Prochain lot** : O (ODM : OR à régulariser, besoin carburant), puis F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V et le bloc E (E1 à E4) sont faits (§48 à §53).
+**Prochain lot** : F1 (caisses, réapprovisionnement, encaissement client, M08), puis F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V, le bloc E (E1 à E4) et O sont faits (§48 à §54).
 
-**Tests** : 402 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
+**Tests** : 408 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 75 tests JavaScript (`npm test`).
 
 **Connexion en dev** : depuis le lot E2, la connexion demande un code à 6 chiffres envoyé par email. Avec `MAIL_MAILER=log`, il se lit dans `storage/logs/laravel.log` (« Code : NNNNNN »). L'administrateur active ou désactive la double authentification dans Paramétrage > Sécurité (§51.7).
 
@@ -5136,3 +5136,83 @@ php artisan migrate        # 2026_10_24_000001
 ```
 
 Ensuite, vérifier les sites servis de chaque caisse à l'écran des caisses. Le tableau §6.1 de la spec donne un site par caisse, et aucun pour la caisse OM.
+
+---
+
+## 54. Version v54 — Lot O : OR à régulariser, besoin carburant de l'ODM (19 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Spec v2.4 : RG-M12-02, RG-M12-39 à RG-M12-42, MSG-M12-01, 10 et 11, SC-38. Décisions : Q80, Q87.
+
+### 54.1 « OR à régulariser » (RG-M12-02, RG-M12-39)
+
+- **Formulaire** : pour une mission technique encore sans OR, la case « OR à régulariser » apparaît sous les OR liés. Elle se décoche dès qu'un OR est saisi, et ne vaut que pour une mission technique.
+- `ReglesOdm` accepte une mission technique sans OR quand la case est cochée. Le nouveau texte de MSG-M12-01 : « Mission technique : rattachez au moins un OR ou cochez « OR à régulariser ». »
+- **Validation finale** : échéance `or_echeance` = validation + `odm_delai_or` jours ouvrés (5 par défaut). Le demandeur est prévenu (MSG-M12-10).
+- **OR rattaché après coup** (service `RegulariserOr`, route `odm.ajouter-or`) :
+  - depuis la fiche de l'ODM (« Rattacher un OR » : n°, type du référentiel, client facultatif), par le demandeur, l'initiateur ou un chef d'atelier titulaire de l'étape ; l'ODM doit être soumis ou plus avancé ;
+  - format contrôlé (MSG-M03-07), type actif, pas de doublon (MSG-APP-086) ; sinon MSG-APP-087 ;
+  - l'OR garde sa date et son auteur (`saisi_apres_coup_le`, `saisi_par`) ; historique de l'ODM `or_ajoute` (avant / après) ;
+  - l'indicateur tombe au premier OR ;
+  - Q80 : l'OR est ajouté aux OR des bons de l'ODM (sauf annulés), avec une ligne `or_ajoute` au journal de chaque bon.
+
+### 54.2 Relances, retard, blocage (RG-M12-40)
+
+- Commande `odm:relancer-or`, chaque jour à 7 h 15 (Q87). Chaque envoi part une seule fois et entre dans l'historique de l'ODM :
+  - J+3 (jours ouvrés après la validation) : relance au demandeur (MSG-M12-10) ;
+  - jour de l'échéance : seconde relance ;
+  - lendemain de l'échéance : alerte au chef d'atelier (titulaires de l'étape) et au DAF (et DAF adjoint).
+- **Blocage du prochain ODM** : paramètre `odm_blocage_or_retard` (désactivé par défaut). Actif, la création d'un ODM est refusée au demandeur qui a un OR en retard (MSG-M12-11).
+
+### 54.3 Suivi (RG-M12-41)
+
+- Tableau de bord des ODM :
+  - indicateur « OR à régulariser (n) — x en retard » ;
+  - section « OR à régulariser » : ODM, demandeur, chef d'atelier, validation, échéance, retard en jours, statut.
+- Export Excel du tableau de bord : onglet « OR à régulariser », ajouté en dernier.
+
+### 54.4 Besoin carburant (RG-M12-42)
+
+- Colonnes `immatriculation` (en majuscules) et `itineraire` ; `vehicule` garde le modèle du véhicule.
+- Champs du formulaire ; fiche de l'ODM (« Véhicule » : modèle et immatriculation ; « Itinéraire ») ; PDF.
+- Obligatoires dès qu'une avance carburant est demandée : au lot H, avec le bon carburant rattaché à l'ODM. Le carburant reste hors des lignes de frais.
+
+### 54.5 Défaut corrigé : urgence de l'ODM au formulaire
+
+`donneesOdm` (resources/js/utils/odm.js) n'envoyait ni l'urgence ni le motif d'urgence ajoutés au lot E2 : choisis à l'écran, ils n'étaient pas enregistrés. Les tests et le parcours du lot E2 passaient par l'API. La fonction envoie désormais l'urgence, le motif, la case « OR à régulariser », l'immatriculation et l'itinéraire. Un test JavaScript et le parcours dans Edge le vérifient.
+
+### 54.6 Données
+
+Migration `2026_10_25_000001_lot_o_or_a_regulariser` :
+- colonnes de l'ODM : indicateur, échéance, dates des relances et de l'alerte, immatriculation, itinéraire ;
+- date et auteur des OR saisis après coup ;
+- paramètres `odm_delai_or` (5) et `odm_blocage_or_retard` (non).
+
+Vérifiée sur une copie de la base de dev (aller, retour, aller), puis appliquée en dev.
+
+### 54.7 Vérifications
+
+- `tests/Feature/LotO/OrARegulariserTest.php`, 6 tests (SC-38) :
+  - soumission sans OR avec la case ;
+  - échéance et message à la validation ;
+  - OR rattaché après coup, refus (tiers, format, type, doublon), report sur les bons ;
+  - relances J+3 et échéance, alerte de retard, une seule fois chacune ; tableau de bord et export ;
+  - blocage optionnel ;
+  - besoin carburant (fiche, PDF).
+- Tests adaptés : texte de MSG-M12-01, nombre d'onglets de l'export, nombre de paramètres « odm ».
+- **Total** : 408 tests PHP et 75 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base : 14 vérifications, sans erreur JavaScript.
+  - Case cochée au formulaire, avec immatriculation et itinéraire, puis soumission.
+  - Visas de Thierry GOMIS (chef d'atelier dans la copie), Mohamed DIAKITE et Mamadou LO.
+  - Échéance ; ligne au tableau de bord du DAF.
+  - Échéance passée dans la copie, commande lancée : chef d'atelier et DAF alertés.
+  - OR rattaché par Souadou BARRY.
+  - Urgence choisie au formulaire, enregistrée.
+  - Téléphone.
+
+### 54.8 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_25_000001
+```
+
+La commande `odm:relancer-or` est planifiée (`routes/console.php`) ; le planificateur doit tourner (`schedule:run`).
