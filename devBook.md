@@ -14,7 +14,7 @@
 - **Spécification en vigueur** : `docs/Spec_Fonctionnelle_v2.4_Neemba_P2.docx` (Thierno DIALLO, Addvalis, 14/10/2026). Elle remplace la v2.3 du 09/10, qui remplaçait elle-même la SFD v1.3 (M03) et la v2.2. Ces fichiers ne sont pas commités (documents de l'utilisateur).
 - **Suivi de conformité** : [docs/CONFORMITE.md](docs/CONFORMITE.md). Il donne toutes les règles de la spec v2.4, avec pour chacune l'état dans le code, ce qui manque, pourquoi, et le lot qui la traite. Ses cases et son journal sont tenus à chaque lot. Il s'appelait `CONFORMITE_V23.md` jusqu'au 16/10.
 - **Suivi du module M12 (ODM)** : [docs/ORDRE_DE_MISSIONS.md](docs/ORDRE_DE_MISSIONS.md).
-- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47 ; Q73, Q76, Q77, Q79 et Q81 sont appliquées (§48 à §51).
+- **Décisions de développement** : [docs/questions.md](docs/questions.md), Q1 à Q69. Q70 à Q75 sont proposées au §46, Q76 à Q81 au §47, Q82 au §51 ; Q73, Q76, Q77, Q79, Q81 et Q82 sont appliquées (§48 à §51).
 
 ### 0.2 Branches
 
@@ -54,9 +54,9 @@ Toutes locales, chacune partie de la précédente ; rien n'est poussé ni déplo
 
 **Prochain lot** : E3 (gestionnaire des référentiels, barèmes ODM datés, types d'OR), puis E4 → O → F1 → F2 → G → I → H → P3 (plan validé le 16/10, §47). R, V, E1 et E2 sont faits (§48 à §51).
 
-**Tests** : 382 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
+**Tests** : 389 tests PHP (`php artisan test`, base MySQL `neemba_test`) et 74 tests JavaScript (`npm test`).
 
-**Connexion en dev** : depuis le lot E2, la connexion demande un code à 6 chiffres envoyé par email. Avec `MAIL_MAILER=log`, il se lit dans `storage/logs/laravel.log` (« Code : NNNNNN »). Le paramètre `double_authentification_active` permet de revenir à la connexion simple (§51).
+**Connexion en dev** : depuis le lot E2, la connexion demande un code à 6 chiffres envoyé par email. Avec `MAIL_MAILER=log`, il se lit dans `storage/logs/laravel.log` (« Code : NNNNNN »). L'administrateur active ou désactive la double authentification dans Paramétrage > Sécurité (§51.7).
 
 ---
 
@@ -4934,7 +4934,7 @@ Comme la session ne s'ouvre qu'après le code, les tests qui utilisent `actingAs
 Migration `2026_10_22_000001_lot_e2_double_authentification` :
 - table `codes_otp` : compte, objet (`connexion`, `visa_bon`, `visa_odm`), cible, canal (email, SMS), **empreinte** du code (HMAC avec la clé de l'application ; jamais le code en clair), essais, expiration, consommation ;
 - colonnes d'urgence de l'ODM ;
-- paramètres du groupe « Sécurité », modifiables avec la double validation habituelle :
+- paramètres du groupe « Sécurité », réglés par l'administrateur dans l'onglet « Sécurité », avec effet immédiat (§51.7) :
 
 | Paramètre | Défaut | Rôle |
 |---|---|---|
@@ -4950,7 +4950,7 @@ Service : `App\Services\Securite\DoubleAuthentification` (émission, envoi, vér
 
 - `tests/Feature/Auth/AuthenticationTest.php`, réécrit (10 tests) : code exigé, code faux puis épuisé, code expiré, renvoi après une minute, écran du code sans mot de passe, compte désactivé, paramètre de secours.
 - `tests/Feature/LotE2/CodeVisaUrgentTest.php` (8 tests, SMS simulé) : visa d'un bon urgent (SC-40), code lié au bon, bon normal et rejet sans code, demande de code réservée au valideur, compte sans téléphone, paramètre de secours, ODM urgent (motif exigé, puis visa avec le code), ODM repassé en « normale ».
-- **Total** : 382 tests PHP et 74 tests JavaScript passent.
+- **Total** : 382 tests PHP et 74 tests JavaScript passent (389 PHP après l'onglet « Sécurité », §51.7).
 - Migration : aller, retour, aller sur une copie de la base, puis appliquée en dev.
 - Parcours dans Edge sur une copie de la base de dev, avec les comptes réels : 25 vérifications, sans erreur JavaScript.
   - Connexion de Souadou BARRY : écran du code, pas de session avant le code, code faux, renvoi trop tôt, code juste.
@@ -4967,6 +4967,29 @@ php artisan migrate        # 2026_10_22_000001
 ```
 
 À vérifier avant la mise en production :
-- **SMTP** (PO-23) : sans serveur d'email, personne ne peut se connecter. En cas de panne, passer `double_authentification_active` à « non » (double validation).
-- **SMS** : le jeton Nimba doit être en place ; sinon, les visas urgents sont bloqués en production. En cas de panne, passer `otp_visa_urgent_actif` à « non ».
+- **SMTP** (PO-23) : sans serveur d'email, personne ne peut se connecter. En cas de panne, désactiver le code de connexion dans Paramétrage > Sécurité, ou sur le serveur : `php artisan securite:double-authentification desactiver`.
+- **SMS** : le jeton Nimba doit être en place ; sinon, les visas urgents sont bloqués en production. En cas de panne, désactiver le code de visa dans Paramétrage > Sécurité, ou : `php artisan securite:double-authentification desactiver --visa`.
 - **Téléphones** : chaque valideur doit avoir un numéro sur son compte.
+
+### 51.7 Onglet « Sécurité » : l'administrateur active ou désactive la double authentification (19/10/2026)
+
+Demande de l'utilisateur, le 19/10 : l'administrateur doit pouvoir activer et désactiver la double authentification et ses réglages. Décision Q82.
+
+- **Onglet « Sécurité »** du paramétrage (composant `ReglagesSecurite`), réservé à l'administrateur :
+  - deux interrupteurs : « Code de connexion par email » et « Code SMS pour viser une demande urgente » ;
+  - durée du code de connexion (1 à 60 min), essais par code (1 à 10), durée du code de visa (1 à 30 min) ;
+  - une confirmation est demandée avant de couper un interrupteur ;
+  - état des canaux : serveur d'email configuré ou non (en mode `log`, les codes sont écrits dans le journal), fournisseur SMS configuré ou non ;
+  - valideurs actifs (bons et ODM) sans numéro de téléphone, qui ne peuvent pas recevoir le code de visa ;
+  - les dix derniers changements (date, réglage, avant → après, auteur).
+- **Effet immédiat, sans second validateur** (`ReglagesSecurite::appliquer`, route `parametrage.securite.update`) :
+  - chaque changement est tracé dans le journal des modifications (« Modifications Admin »), approuvé par son auteur ;
+  - une double validation encore en attente sur le même réglage est close ;
+  - les autres administrateurs reçoivent une notification quand un interrupteur change.
+- Ces cinq réglages sortent de l'onglet « Seuils » ; la route générique des paramètres les refuse.
+- **Secours sur le serveur**, quand plus personne ne peut se connecter : `php artisan securite:double-authentification desactiver` (ou `activer`, et `--visa` pour le code de visa). Le changement est écrit dans le journal applicatif.
+- **Vérifications** :
+  - `tests/Feature/LotE2/ReglagesSecuriteTest.php`, 7 tests : écran, désactivation tracée et autres administrateurs prévenus, connexion directe, réactivation et durée, bornes, accès réservé, double validation close, commande de secours ;
+  - 389 tests PHP et 74 tests JavaScript passent ;
+  - parcours dans Edge sur une copie de la base, 16 vérifications, sans erreur JavaScript : désactivation avec confirmation, trace, autre administrateur prévenu, connexion sans code, réactivation à 15 min, téléphone.
+- Sur la base de dev, deux valideurs n'ont pas de téléphone : Mamadou Alpha BAH et Saliou BOIRO.
