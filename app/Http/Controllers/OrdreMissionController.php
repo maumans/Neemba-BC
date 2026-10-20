@@ -114,7 +114,6 @@ class OrdreMissionController extends Controller
                 'niveau' => $visa['etape']->libelle,
                 'au_titre_de' => $visa['au_titre_de']?->nom_complet,
                 'dernier' => $odm->etapes()->where('version', $odm->version)->where('statut', 'a_venir')->doesntExist(),
-                'code_exige' => \App\Services\Securite\DoubleAuthentification::exigeCodeVisa($odm->niveau_urgence),
             ] : null,
             'peutModifier' => $odm->estModifiablePar($utilisateur),
             /* Spec v2.4, RG-M12-39 : OR rattaché après coup par le demandeur ou le chef d'atelier */
@@ -137,10 +136,6 @@ class OrdreMissionController extends Controller
     public function viser(Request $request, OrdreMission $odm)
     {
         $request->validate(['commentaire' => ['nullable', 'string', 'max:1000']]);
-        /* Spec v2.4, RG-M01-07 : un ODM urgent ou très urgent se vise avec le code reçu par SMS */
-        if (\App\Services\Securite\DoubleAuthentification::exigeCodeVisa($odm->niveau_urgence) && \App\Services\Odm\CircuitOdm::peutViser($odm, Auth::user())) {
-            \App\Services\Securite\DoubleAuthentification::verifier(Auth::user(), 'visa_odm', $odm, $request->input('code_visa'), 'code_visa');
-        }
         $odm = \App\Services\Odm\ValiderOdm::viser($odm, Auth::user(), $request->input('commentaire'));
 
         return redirect()->route('odm.show', $odm)->with('success', $odm->statut === 'VALIDE'
@@ -159,15 +154,6 @@ class OrdreMissionController extends Controller
         $or = \App\Services\Odm\RegulariserOr::ajouter($odm, Auth::user(), $donnees['numero'], $donnees['type'], $donnees['client_id'] ?? null);
 
         return back()->with('success', "OR {$or->numero} rattaché à l'ordre de mission {$odm->numero}" . ($odm->fresh()->or_a_regulariser ? '.' : ' ; il est reporté sur ses bons.'));
-    }
-
-    /** POST /ordres-mission/{odm}/code-visa — RG-M01-07 : code de visa envoyé par SMS au valideur de l'étape en cours */
-    public function codeVisa(OrdreMission $odm)
-    {
-        $utilisateur = Auth::user();
-        abort_unless(\App\Services\Odm\CircuitOdm::peutViser($odm, $utilisateur) && \App\Services\Securite\DoubleAuthentification::exigeCodeVisa($odm->niveau_urgence), 403);
-
-        return response()->json(['message' => \App\Services\Securite\DoubleAuthentification::envoyerCodeVisa($utilisateur, $odm, 'visa_odm', "l'ordre de mission {$odm->numero}")]);
     }
 
     /** POST /ordres-mission/{odm}/generer-bons — US-08, RG-M12-13 à RG-M12-15 */

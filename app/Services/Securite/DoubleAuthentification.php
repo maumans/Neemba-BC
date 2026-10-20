@@ -7,7 +7,6 @@ use App\Mail\CodeConnexion;
 use App\Models\CodeOtp;
 use App\Models\Parametre;
 use App\Models\User;
-use App\Services\NimbaSmsService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -17,25 +16,16 @@ use Illuminate\Support\Facades\Mail;
  *
  * - Connexion : après le mot de passe, un code à 6 chiffres est envoyé par email ; la session n'est ouverte qu'après sa
  *   saisie. Durée et nombre d'essais paramétrables.
- * - Visa d'une demande urgente ou très urgente (bon ou ODM) : le valideur reçoit un code par SMS et le saisit pour viser
- *   (l'approbation seulement, Q77). Distinct de l'OTP de paiement (RG-M06-02).
- * - Paramètres de secours : chaque mécanisme se désactive (panne SMTP ou SMS), sous double validation.
- * - Sans fournisseur SMS (poste de développement, tests, recette), le code de visa est écrit dans le journal ; en
- *   production, l'envoi est refusé.
+ * - Paramètre de secours : le code se désactive (panne du serveur d'email), dans Paramétrage > Sécurité.
+ * - Le code SMS exigé pour viser une demande urgente (RG-M01-07, seconde moitié) a été retiré le 20/10 à la demande de
+ *   l'utilisateur (Q104) : le valideur est déjà authentifié par ce code de connexion ; l'urgence déclenche à la place une
+ *   alerte SMS au valideur.
  */
 final class DoubleAuthentification
 {
-    public const NIVEAUX_URGENTS = ['urgente', 'tres_urgente'];
-
     public static function connexionActive(): bool
     {
         return (bool) Parametre::valeur('double_authentification_active', true);
-    }
-
-    /** Le visa d'une demande de ce niveau d'urgence exige-t-il un code SMS ? */
-    public static function exigeCodeVisa(?string $niveauUrgence): bool
-    {
-        return in_array($niveauUrgence, self::NIVEAUX_URGENTS, true) && (bool) Parametre::valeur('otp_visa_urgent_actif', true);
     }
 
     /** Code de connexion envoyé par email */
@@ -52,29 +42,6 @@ final class DoubleAuthentification
         }
     }
 
-    /** Code de visa envoyé par SMS au valideur ; renvoie le message à afficher */
-    public static function envoyerCodeVisa(User $valideur, Model $cible, string $objet, string $libelle): string
-    {
-        if (blank($valideur->telephone)) {
-            throw new ErreurMetier('TELEPHONE_MANQUANT', 'MSG-APP-082', [], 'RG-M01-07', 'code_visa');
-        }
-        $duree = max(1, (int) Parametre::valeur('otp_visa_duree', 5));
-        $code = self::emettre($valideur, $objet, $cible, 'sms', $duree);
-        $resultat = app(NimbaSmsService::class)->envoyerSms($valideur->telephone,
-            "NEEMBA - Code de visa {$code} pour {$libelle}. Valable {$duree} min. Ne le communiquez a personne.");
-
-        if (empty($resultat['success'])) {
-            if (!app()->environment(['local', 'testing', 'e2e'])) {
-                self::invalider($valideur, $objet, $cible);
-                throw new ErreurMetier('ENVOI_CODE_IMPOSSIBLE', 'MSG-APP-080', [], 'RG-M01-07', 'code_visa', 503);
-            }
-            /* Poste de développement, tests, recette : pas de fournisseur SMS, le code est lu dans le journal */
-            Log::info("Code de visa (SMS non envoyé, environnement " . app()->environment() . ") : {$code}", ['user_id' => $valideur->id, 'objet' => $objet]);
-        }
-
-        return __('MSG-APP-083', ['telephone' => self::masquer($valideur->telephone), 'minutes' => $duree]);
-    }
-
     /**
      * Vérifie le code saisi ; le code juste est consommé. Un code faux compte un essai ; au dernier essai, le code tombe.
      *
@@ -84,7 +51,7 @@ final class DoubleAuthentification
     {
         $otp = self::actif($utilisateur, $objet, $cible);
         if (!$otp) {
-            throw new ErreurMetier('CODE_EXPIRE', $objet === 'connexion' ? 'MSG-APP-079' : 'MSG-APP-081', [], 'RG-M01-07', $champ);
+            throw new ErreurMetier('CODE_EXPIRE', 'MSG-APP-079', [], 'RG-M01-07', $champ);
         }
         if (!hash_equals($otp->code_hash, CodeOtp::empreinte(preg_replace('/\D/', '', (string) $saisi)))) {
             $otp->increment('tentatives');

@@ -35,7 +35,6 @@ class ReglagesSecuriteTest extends TestCase
     {
         return $modifs + [
             'double_authentification_active' => true, 'otp_connexion_duree' => 10, 'otp_connexion_tentatives' => 5,
-            'otp_visa_urgent_actif' => true, 'otp_visa_duree' => 5,
         ];
     }
 
@@ -49,7 +48,7 @@ class ReglagesSecuriteTest extends TestCase
             ->where('securite.email.operationnel', false)
             ->where('securite.sms.operationnel', false)
             ->where('securite.valideursSansTelephone', ['Mohamed DIAKITE'])
-            ->where('parametres', fn ($parametres) => collect($parametres)->pluck('cle')->intersect(['double_authentification_active', 'otp_visa_duree'])->isEmpty()));
+            ->where('parametres', fn ($parametres) => collect($parametres)->pluck('cle')->intersect(['double_authentification_active', 'otp_connexion_duree'])->isEmpty()));
     }
 
     /** Désactivation immédiate : tracée, autre administrateur prévenu, connexion par mot de passe seul */
@@ -79,14 +78,12 @@ class ReglagesSecuriteTest extends TestCase
     public function test_reactivation_et_durees(): void
     {
         Parametre::majValeur('double_authentification_active', 'false');
-        Parametre::majValeur('otp_visa_urgent_actif', 'false');
 
-        $this->actingAs($this->admin)->put(route('parametrage.securite.update'), $this->reglages(['otp_connexion_duree' => 15, 'otp_visa_duree' => 3]))
+        $this->actingAs($this->admin)->put(route('parametrage.securite.update'), $this->reglages(['otp_connexion_duree' => 15]))
             ->assertSessionHas('success');
 
-        $this->assertSame([true, 15.0, true, 3.0], [Parametre::valeur('double_authentification_active'), Parametre::valeur('otp_connexion_duree'),
-            Parametre::valeur('otp_visa_urgent_actif'), Parametre::valeur('otp_visa_duree')]);
-        $this->assertSame(4, ModificationEnAttente::where('statut', 'approuvee')->count());
+        $this->assertSame([true, 15.0], [Parametre::valeur('double_authentification_active'), Parametre::valeur('otp_connexion_duree')]);
+        $this->assertSame(2, ModificationEnAttente::where('statut', 'approuvee')->count());
 
         auth()->logout();
         $utilisateur = User::factory()->create();
@@ -113,15 +110,15 @@ class ReglagesSecuriteTest extends TestCase
     /** Le réglage ne passe plus par la double validation ; une demande en attente est close */
     public function test_la_double_validation_ne_s_applique_plus_a_ces_reglages(): void
     {
-        $parametre = Parametre::where('cle', 'otp_visa_urgent_actif')->first();
+        $parametre = Parametre::where('cle', 'double_authentification_active')->first();
         $this->actingAs($this->admin)->put(route('parametrage.parametres.update', $parametre), ['valeur' => 'false'])->assertSessionHasErrors('valeur');
 
         $enAttente = ModificationEnAttente::create(['type_entite' => 'parametre', 'entite_id' => $parametre->id, 'champ' => 'valeur',
             'ancienne_valeur' => 'true', 'nouvelle_valeur' => 'false', 'demandeur_id' => $this->autreAdmin->id, 'statut' => 'en_attente']);
-        $this->actingAs($this->admin)->put(route('parametrage.securite.update'), $this->reglages(['otp_visa_urgent_actif' => false]))->assertSessionHas('success');
+        $this->actingAs($this->admin)->put(route('parametrage.securite.update'), $this->reglages(['double_authentification_active' => false]))->assertSessionHas('success');
 
         $this->assertSame('refusee', $enAttente->fresh()->statut);
-        $this->assertFalse(Parametre::valeur('otp_visa_urgent_actif'));
+        $this->assertFalse(Parametre::valeur('double_authentification_active'));
     }
 
     public function test_la_commande_de_secours(): void
@@ -129,9 +126,6 @@ class ReglagesSecuriteTest extends TestCase
         $this->artisan('securite:double-authentification', ['etat' => 'desactiver'])
             ->expectsOutput('Code de connexion par email : désactivé.')->assertSuccessful();
         $this->assertFalse(Parametre::valeur('double_authentification_active'));
-
-        $this->artisan('securite:double-authentification', ['etat' => 'desactiver', '--visa' => true])->assertSuccessful();
-        $this->assertFalse(Parametre::valeur('otp_visa_urgent_actif'));
 
         $this->artisan('securite:double-authentification', ['etat' => 'activer'])->assertSuccessful();
         $this->assertTrue(Parametre::valeur('double_authentification_active'));

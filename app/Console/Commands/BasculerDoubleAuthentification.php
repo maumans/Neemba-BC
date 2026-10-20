@@ -11,13 +11,11 @@ use Illuminate\Console\Command;
  * Paramétrage > Sécurité.
  *
  * Usage : php artisan securite:double-authentification desactiver
- *         php artisan securite:double-authentification activer --visa   (code SMS du visa urgent)
  */
 class BasculerDoubleAuthentification extends Command
 {
     protected $signature = 'securite:double-authentification
-        {etat : activer ou desactiver}
-        {--visa : agit sur le code SMS du visa urgent au lieu du code de connexion}';
+        {etat : activer ou desactiver}';
 
     protected $description = 'Activer ou désactiver la double authentification (secours, sur le serveur)';
 
@@ -30,7 +28,7 @@ class BasculerDoubleAuthentification extends Command
             return self::INVALID;
         }
 
-        $cle = $this->option('visa') ? 'otp_visa_urgent_actif' : 'double_authentification_active';
+        $cle = 'double_authentification_active';
         $modifies = ReglagesSecurite::appliquer([$cle => $etat === 'activer'], null);
         $libelle = ReglagesSecurite::REGLAGES[$cle]['libelle'];
 

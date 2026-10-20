@@ -80,18 +80,7 @@ class ValidationController extends Controller
             'motifsRejet' => \App\Models\MotifRejet::options(),
             /* RG-M04-05 : le valideur voit le doublon probable et les BP en retard du bénéficiaire là où il vise */
             'alertes' => \App\Services\BonCaisse\AlertesBon::pourAffichage($bonCaisse),
-            /* Spec v2.4, RG-M01-07 : code SMS exigé pour viser un bon urgent */
-            'codeVisaExige' => \App\Services\Securite\DoubleAuthentification::exigeCodeVisa($bonCaisse->niveau_urgence),
         ]);
-    }
-
-    /** POST /validations/{bon}/code-visa — RG-M01-07 : code de visa envoyé par SMS au valideur de l'étape en cours */
-    public function codeVisa(BonCaisse $bonCaisse)
-    {
-        $utilisateur = Auth::user();
-        abort_unless(CircuitBon::peutViser($bonCaisse, $utilisateur) && \App\Services\Securite\DoubleAuthentification::exigeCodeVisa($bonCaisse->niveau_urgence), 403);
-
-        return response()->json(['message' => \App\Services\Securite\DoubleAuthentification::envoyerCodeVisa($utilisateur, $bonCaisse, 'visa_bon', "le bon {$bonCaisse->numero}")]);
     }
 
     /**
@@ -105,10 +94,6 @@ class ValidationController extends Controller
         $droit = CircuitBon::peutViser($bonCaisse, $utilisateur);
         if (!$droit) {
             return back()->with('error', CircuitBon::motifRefus($bonCaisse, $utilisateur));
-        }
-        /* Spec v2.4, RG-M01-07 : un bon urgent ou très urgent se vise avec le code reçu par SMS */
-        if (\App\Services\Securite\DoubleAuthentification::exigeCodeVisa($bonCaisse->niveau_urgence)) {
-            \App\Services\Securite\DoubleAuthentification::verifier($utilisateur, 'visa_bon', $bonCaisse, $request->input('code_visa'), 'code_visa');
         }
         $roleValidation = $droit['role'];
 

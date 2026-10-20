@@ -46,9 +46,8 @@ import { nombreEnLettres, formaterMontant as formatMontant } from '@/utils/nombr
 import BadgeStatut from '@/Components/BadgeStatut';
 import BandeauPiecesDejaUtilisees from '@/Components/BandeauPiecesDejaUtilisees';
 import AlertesDuBon from '@/Components/AlertesDuBon';
-import CodeVisa from '@/Components/CodeVisa';
 
-export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [], sitesActifs = [], motifsRejet = {}, alertes = {}, codeVisaExige = false }) {
+export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques = [], sitesActifs = [], motifsRejet = {}, alertes = {} }) {
     const { auth } = usePage().props;
     const [showRejetDialog, setShowRejetDialog] = useState(false);
     const [showComplementDialog, setShowComplementDialog] = useState(false);
@@ -64,7 +63,6 @@ export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques =
     /* Formulaire pour l'approbation */
     const approuverForm = useForm({
         commentaire: '',
-        code_visa: '',
         ...(estCDG ? { code_analytique: bonCaisse.code_analytique || '', site: bonCaisse.site || '', ventilations: bonCaisse.ventilations || [] } : {}),
     });
 
@@ -397,17 +395,10 @@ export default function Show({ bonCaisse, statutsLabels = {}, codesAnalytiques =
                                             className="mt-1 min-h-[60px] text-sm"
                                         />
                                     </div>
-                                    {/* Spec v2.4, RG-M01-07 : bon urgent, visa avec le code reçu par SMS */}
-                                    {codeVisaExige && (
-                                        <div className="mb-2">
-                                            <CodeVisa url={route('validations.code-visa', bonCaisse.id)} valeur={approuverForm.data.code_visa}
-                                                onChange={(v) => approuverForm.setData('code_visa', v)} erreur={approuverForm.errors.code_visa} />
-                                        </div>
-                                    )}
                                     <Button
                                         type="submit"
                                         className="w-full bg-green-600 hover:bg-green-700 text-white"
-                                        disabled={approuverForm.processing || (codeVisaExige && approuverForm.data.code_visa.length !== 6)}
+                                        disabled={approuverForm.processing}
                                     >
                                         <CheckCircle2 className="mr-2 h-4 w-4" />
                                         Approuver

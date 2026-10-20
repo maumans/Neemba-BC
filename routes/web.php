@@ -124,8 +124,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/ordres-mission/{odm}/pdf', [OrdreMissionController::class, 'pdf'])->name('odm.pdf');
     Route::post('/ordres-mission/{odm}/derogation', [OrdreMissionController::class, 'deciderDerogation'])->name('odm.derogation');
     Route::post('/ordres-mission/{odm}/viser', [OrdreMissionController::class, 'viser'])->name('odm.viser');
-    /* Spec v2.4, RG-M01-07 : code de visa par SMS (ODM urgent) */
-    Route::post('/ordres-mission/{odm}/code-visa', [OrdreMissionController::class, 'codeVisa'])->name('odm.code-visa');
     /* Spec v2.4, RG-M12-39 : OR saisi après coup */
     Route::post('/ordres-mission/{odm}/or', [OrdreMissionController::class, 'ajouterOr'])->name('odm.ajouter-or');
     Route::post('/ordres-mission/{odm}/rejeter', [OrdreMissionController::class, 'rejeter'])->name('odm.rejeter');
@@ -174,8 +172,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('role:responsable_service,controle_gestion,daf,daf_adjoint,chef_comptable,directeur_pays,dp_adjoint')->group(function () {
         Route::get('/validations', [ValidationController::class, 'index'])->name('validations.index');
         Route::get('/validations/{bonCaisse}', [ValidationController::class, 'show'])->name('validations.show');
-        /* Spec v2.4, RG-M01-07 : code de visa par SMS (bon urgent) */
-        Route::post('/validations/{bonCaisse}/code-visa', [ValidationController::class, 'codeVisa'])->name('validations.code-visa');
         Route::post('/validations/{bonCaisse}/approuver', [ValidationController::class, 'approuver'])
             ->name('validations.approuver');
         Route::post('/validations/{bonCaisse}/rejeter', [ValidationController::class, 'rejeter'])

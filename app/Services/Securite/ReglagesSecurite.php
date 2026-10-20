@@ -26,8 +26,6 @@ final class ReglagesSecurite
         'double_authentification_active' => ['type' => 'boolean', 'libelle' => 'Code de connexion par email'],
         'otp_connexion_duree' => ['type' => 'number', 'min' => 1, 'max' => 60, 'libelle' => 'Validité du code de connexion (minutes)'],
         'otp_connexion_tentatives' => ['type' => 'number', 'min' => 1, 'max' => 10, 'libelle' => 'Essais par code'],
-        'otp_visa_urgent_actif' => ['type' => 'boolean', 'libelle' => 'Code SMS pour viser une demande urgente'],
-        'otp_visa_duree' => ['type' => 'number', 'min' => 1, 'max' => 30, 'libelle' => 'Validité du code de visa (minutes)'],
     ];
 
     /** Valeurs par défaut (celles de la migration du lot E2) */
@@ -35,8 +33,6 @@ final class ReglagesSecurite
         'double_authentification_active' => true,
         'otp_connexion_duree' => 10,
         'otp_connexion_tentatives' => 5,
-        'otp_visa_urgent_actif' => true,
-        'otp_visa_duree' => 5,
     ];
 
     public static function cles(): array
@@ -60,7 +56,10 @@ final class ReglagesSecurite
             : (int) Parametre::valeur($cle, self::DEFAUTS[$cle]))->all();
     }
 
-    /** Ce qu'affiche l'onglet « Sécurité » : réglages, canaux d'envoi, valideurs sans téléphone, derniers changements */
+    /**
+     * Ce qu'affiche l'onglet « Sécurité » : réglages, canaux d'envoi, valideurs sans téléphone (ils ne reçoivent pas l'alerte
+     * SMS des demandes urgentes), derniers changements
+     */
     public static function etat(): array
     {
         $mailer = (string) config('mail.default');
@@ -161,7 +160,7 @@ final class ReglagesSecurite
     /** Un interrupteur a changé : les autres administrateurs sont prévenus */
     private static function prevenirAdministrateurs(array $modifies, User $auteur): void
     {
-        $interrupteurs = array_intersect_key($modifies, ['double_authentification_active' => 1, 'otp_visa_urgent_actif' => 1]);
+        $interrupteurs = array_intersect_key($modifies, ['double_authentification_active' => 1]);
         if (!$interrupteurs) {
             return;
         }

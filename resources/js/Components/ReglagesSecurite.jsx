@@ -1,13 +1,14 @@
 /**
  * Onglet « Sécurité » du paramétrage (spec v2.4, RG-M01-07) : l'administrateur active ou désactive la double
- * authentification (code de connexion par email, code SMS du visa urgent) et en règle la durée et les essais.
+ * authentification (code de connexion par email) et en règle la durée et les essais. Le code SMS du visa urgent a été
+ * retiré (Q104) ; l'encart SMS montre l'état des alertes des demandes urgentes.
  * Effet immédiat, sans second validateur (interrupteurs de secours) ; chaque changement est tracé et les autres
  * administrateurs sont prévenus. Un interrupteur s'applique dès qu'on le bascule (après confirmation pour le couper) ;
  * son état affiché est celui enregistré. Les durées et essais s'enregistrent avec leur bouton.
  */
 import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle2, Mail, MessageSquareLock, Save, ShieldCheck, ShieldOff } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Mail, MessageSquareWarning, Save, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Switch } from '@/Components/ui/switch';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -17,7 +18,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 const AVERTISSEMENTS = {
     double_authentification_active: "Sans code de connexion, un mot de passe suffit pour entrer dans l'application. À réserver à une panne du serveur d'email.",
-    otp_visa_urgent_actif: "Sans code SMS, une demande urgente se vise comme une demande normale. À réserver à une panne du fournisseur SMS.",
 };
 
 function Etat({ actif }) {
@@ -49,7 +49,7 @@ function Nombre({ id, libelle, aide, valeur, bornes, onChange, erreur, desactive
 
 export default function ReglagesSecurite({ securite }) {
     const { valeurs, bornes, email, sms, valideursSansTelephone = [], historique = [] } = securite;
-    const NOMBRES = ['otp_connexion_duree', 'otp_connexion_tentatives', 'otp_visa_duree'];
+    const NOMBRES = ['otp_connexion_duree', 'otp_connexion_tentatives'];
     const form = useForm(Object.fromEntries(NOMBRES.map((cle) => [cle, valeurs[cle]])));
     const [confirmation, setConfirmation] = useState(null);
     const [enCours, setEnCours] = useState(null);
@@ -70,8 +70,8 @@ export default function ReglagesSecurite({ securite }) {
     return (
         <div className="space-y-4">
             <div className="rounded-lg border border-neemba-200 bg-neemba-50/50 p-4 text-sm text-gray-700">
-                La double authentification protège la connexion (code envoyé par email) et le visa des demandes urgentes ou très
-                urgentes (code envoyé par SMS au valideur). Vos changements s'appliquent <strong>immédiatement</strong>, sans
+                La double authentification protège la connexion (code envoyé par email). Les demandes urgentes se visent sans
+                code : leurs valideurs sont prévenus par SMS. Vos changements s'appliquent <strong>immédiatement</strong>, sans
                 second validateur ; ils sont tracés ci-dessous et les autres administrateurs sont prévenus.
             </div>
 
@@ -95,7 +95,7 @@ export default function ReglagesSecurite({ securite }) {
                         <Nombre id="otp_connexion_duree" libelle="Validité du code (minutes)" aide="Durée du code" bornes={bornes.otp_connexion_duree}
                             valeur={form.data.otp_connexion_duree} onChange={(v) => form.setData('otp_connexion_duree', v)}
                             erreur={form.errors.otp_connexion_duree} desactive={!valeurs.double_authentification_active} />
-                        <Nombre id="otp_connexion_tentatives" libelle="Essais par code" aide="Connexion et visa" bornes={bornes.otp_connexion_tentatives}
+                        <Nombre id="otp_connexion_tentatives" libelle="Essais par code" aide="Code de connexion" bornes={bornes.otp_connexion_tentatives}
                             valeur={form.data.otp_connexion_tentatives} onChange={(v) => form.setData('otp_connexion_tentatives', v)}
                             erreur={form.errors.otp_connexion_tentatives} />
                     </div>
@@ -103,29 +103,21 @@ export default function ReglagesSecurite({ securite }) {
                         libelleKo={`Aucun serveur d'email (mode « ${email.mailer} ») : les codes sont écrits dans le journal du serveur, pas envoyés.`} />
                 </section>
 
-                {/* Visa urgent */}
-                <section className="space-y-3 rounded-lg border bg-white p-4" aria-labelledby="titre-visa">
-                    <div className="flex items-start justify-between gap-3">
-                        <div>
-                            <h4 id="titre-visa" className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
-                                <MessageSquareLock className="h-4 w-4 text-neemba-600" /> Code SMS pour viser une demande urgente
-                            </h4>
-                            <p className="mt-0.5 text-xs text-gray-500">Bon ou ordre de mission urgent ou très urgent : le valideur saisit un code reçu par SMS pour approuver.</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Etat actif={valeurs.otp_visa_urgent_actif} />
-                            <Switch aria-label="Code SMS pour viser une demande urgente" checked={valeurs.otp_visa_urgent_actif} disabled={enCours !== null}
-                                onCheckedChange={(v) => basculer('otp_visa_urgent_actif', v)} />
-                        </div>
+                {/* Alertes SMS des demandes urgentes (plus de code de visa, Q104) */}
+                <section className="space-y-3 rounded-lg border bg-white p-4" aria-labelledby="titre-alertes-sms">
+                    <div>
+                        <h4 id="titre-alertes-sms" className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+                            <MessageSquareWarning className="h-4 w-4 text-neemba-600" /> Alertes SMS des demandes urgentes
+                        </h4>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                            Ordre de mission urgent ou très urgent, bon très urgent : le valideur est prévenu par SMS à chaque étape. Aucun code n'est demandé pour viser.
+                        </p>
                     </div>
-                    <Nombre id="otp_visa_duree" libelle="Validité du code (minutes)" aide="Durée du code de visa" bornes={bornes.otp_visa_duree}
-                        valeur={form.data.otp_visa_duree} onChange={(v) => form.setData('otp_visa_duree', v)}
-                        erreur={form.errors.otp_visa_duree} desactive={!valeurs.otp_visa_urgent_actif} />
                     <Canal ok={sms.operationnel} libelleOk="Fournisseur SMS configuré."
-                        libelleKo="Aucun fournisseur SMS configuré : en production, les visas urgents seront bloqués tant que ce code est activé." />
+                        libelleKo="Aucun fournisseur SMS configuré : les alertes SMS ne partent pas (la notification dans l'application reste)." />
                     {valideursSansTelephone.length > 0 && (
                         <div className="rounded-md bg-amber-50 p-2 text-xs text-amber-800">
-                            <p className="font-medium">Valideurs sans numéro de téléphone ({valideursSansTelephone.length}) : ils ne peuvent pas recevoir le code.</p>
+                            <p className="font-medium">Valideurs sans numéro de téléphone ({valideursSansTelephone.length}) : ils ne reçoivent pas l'alerte SMS.</p>
                             <p className="mt-0.5">{valideursSansTelephone.join(', ')}</p>
                         </div>
                     )}

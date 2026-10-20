@@ -45,10 +45,44 @@ final class NotificationsOdm
     public static function aViser(OrdreMission $odm, \App\Models\EtapeOdm $etape, ?User $expediteur): void
     {
         $libelle = self::libelle($odm);
-        self::envoyer(CircuitOdm::valideursPossibles($odm, $etape->role), $expediteur, $odm, 'odm_a_viser',
+        $valideurs = CircuitOdm::valideursPossibles($odm, $etape->role);
+        self::envoyer($valideurs, $expediteur, $odm, 'odm_a_viser',
             "ODM {$libelle} à viser",
             "L'ordre de mission {$libelle} (" . self::periode($odm) . ', ' . implode(', ', $odm->destinations ?? [])
             . ") attend votre visa ({$etape->libelle}).");
+        self::alerteSmsUrgence($odm, $valideurs, $etape->libelle);
+    }
+
+    /**
+     * Décision de l'utilisateur du 20/10 (Q104) : un ODM urgent ou très urgent prévient ses valideurs par SMS à chaque étape,
+     * en plus de la notification dans l'application (le code SMS de visa est retiré). Un valideur sans téléphone, ou un
+     * SMS qui ne part pas, n'empêche pas le circuit.
+     */
+    public static function alerteSmsUrgence(OrdreMission $odm, Collection $valideurs, string $etape): void
+    {
+        $niveau = match ($odm->niveau_urgence) {
+            'urgente' => 'URGENT',
+            'tres_urgente' => 'TRES URGENT',
+            default => null,
+        };
+        if (!$niveau) {
+            return;
+        }
+        $message = "NEEMBA [{$niveau}] - L'ordre de mission " . self::libelle($odm)
+            . ($odm->demandeur ? " de {$odm->demandeur->nom_complet}" : '') . ' (' . self::periode($odm) . ") attend votre visa ({$etape}). "
+            . ($odm->niveau_urgence === 'tres_urgente' ? 'Merci d\'agir immediatement.' : 'Merci d\'agir rapidement.');
+
+        foreach ($valideurs->filter()->unique('id') as $valideur) {
+            if (blank($valideur->telephone)) {
+                \Illuminate\Support\Facades\Log::info('Alerte SMS ODM urgent non envoyée : aucun téléphone', ['user_id' => $valideur->id, 'odm_id' => $odm->id]);
+                continue;
+            }
+            try {
+                app(\App\Services\NimbaSmsService::class)->envoyerSms($valideur->telephone, $message);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Alerte SMS ODM urgent échouée pour {$valideur->telephone} : " . $e->getMessage());
+            }
+        }
     }
 
     /** RG-M12-24 et MSG-M12-08 : validation finale, au demandeur et à la liste de diffusion */
