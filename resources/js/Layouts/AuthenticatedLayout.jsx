@@ -293,7 +293,7 @@ export default function AuthenticatedLayout({ header, children }) {
                    ============================================================ */}
                 <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-marine-950 text-white">
                     {/* Logo NEEMBA */}
-                    <div className="flex items-center h-16 px-6 border-b border-marine-800 bg-yellow-400">
+                    <div className="flex shrink-0 items-center h-16 px-6 border-b border-marine-800 bg-yellow-400">
                         <Link
                             href={route("dashboard")}
                             className="flex items-center space-x-3"
@@ -307,7 +307,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     </div>
 
                     {/* Navigation */}
-                    <ScrollArea className="flex-1 py-4">
+                    <ScrollArea className="min-h-0 flex-1 py-4">
                         <nav className="px-3 space-y-1">
                             {menuItems.map((item) => {
                                 const Icon = item.icon;
@@ -332,7 +332,7 @@ export default function AuthenticatedLayout({ header, children }) {
                     </ScrollArea>
 
                     {/* Profil utilisateur en bas de la sidebar */}
-                    <div className="border-t border-marine-800 p-4">
+                    <div className="shrink-0 border-t border-marine-800 p-4">
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-full bg-neemba-400 flex items-center justify-center flex-shrink-0">
                                 <span className="text-marine-950 font-semibold text-sm">
@@ -415,10 +415,10 @@ export default function AuthenticatedLayout({ header, children }) {
                                     damping: 25,
                                     stiffness: 200,
                                 }}
-                                className="fixed inset-y-0 left-0 z-50 w-64 bg-marine-950 text-white lg:hidden"
+                                className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-marine-950 text-white lg:hidden"
                             >
                                 {/* Header mobile */}
-                                <div className="flex items-center justify-between h-16 px-6 border-b border-marine-800">
+                                <div className="flex shrink-0 items-center justify-between h-16 px-6 border-b border-marine-800">
                                     <Link
                                         href={route("dashboard")}
                                         className="flex items-center space-x-3"
@@ -438,7 +438,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </div>
 
                                 {/* Navigation mobile */}
-                                <nav className="px-3 py-4 space-y-1">
+                                <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1">
                                     {menuItems.map((item) => {
                                         const Icon = item.icon;
                                         const active = isActive(item.href);
@@ -464,7 +464,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                 </nav>
 
                                 {/* Profil mobile */}
-                                <div className="absolute bottom-0 left-0 right-0 border-t border-marine-800 p-4">
+                                <div className="shrink-0 border-t border-marine-800 p-4">
                                     <div className="flex items-center gap-3 mb-3">
                                         <div className="w-9 h-9 rounded-full bg-neemba-400 flex items-center justify-center">
                                             <span className="text-marine-950 font-semibold text-sm">
