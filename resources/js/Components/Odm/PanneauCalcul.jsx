@@ -34,7 +34,9 @@ function PartClient({ p }) {
     return <p className="text-xs text-purple-800">{entrees.map(([nom, m]) => `${nom} ${formaterMontant(m)}`).join(' · ')}</p>;
 }
 
-export default function PanneauCalcul({ calcul, type = 'interieur', enCours = false, titre = 'Calcul des indemnités' }) {
+export default function PanneauCalcul({ calcul, type = 'interieur', enCours = false, titre = 'Calcul des indemnités', tauxEnVigueur = null }) {
+    /* Taux du calcul ; avant le premier calcul (brouillon sans participants ni dates), dernier taux saisi par la trésorerie */
+    const taux = calcul?.taux ?? tauxEnVigueur;
     const participants = calcul?.participants ?? [];
     const exterieur = type === 'exterieur';
     const fraisOm = participants.reduce((somme, p) => somme + (p.frais_om ?? 0), 0);
@@ -52,8 +54,8 @@ export default function PanneauCalcul({ calcul, type = 'interieur', enCours = fa
             {exterieur && (
                 <p className="mb-3 flex items-start gap-1.5 rounded-md bg-blue-50 p-2 text-xs text-blue-800">
                     <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                    {calcul?.taux
-                        ? `Taux ${calcul.taux.fige ? 'figé' : 'du ' + calcul.taux.date} : 1 FCFA = ${String(calcul.taux.taux).replace('.', ',')} GNF, recalculé au paiement.`
+                    {taux
+                        ? `Taux ${taux.fige ? 'figé' : 'du ' + taux.date} : 1 FCFA = ${String(taux.taux).replace('.', ',')} GNF, recalculé au paiement.`
                         : 'Aucun taux FCFA → GNF saisi : montant calculé au paiement.'}
                 </p>
             )}

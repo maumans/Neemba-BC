@@ -499,6 +499,9 @@ final class PresentationOdm
             'niveauxUrgence' => \App\Models\BonCaisse::NIVEAUX_URGENCE,
             'motifsUrgence' => \App\Models\MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),
             'dateDuJour' => today()->toDateString(),
+            /* Dernier taux FCFA → GNF saisi par la trésorerie : affiché avant le premier calcul du brouillon */
+            'tauxEnVigueur' => ($dernier = TauxChange::dernier())
+                ? ['taux' => (float) $dernier->taux, 'date' => Format::date($dernier->date_taux), 'fige' => false] : null,
         ];
     }
 

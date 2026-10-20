@@ -83,7 +83,7 @@ function aDuContenu(form) {
 
 export default function Formulaire({
     odm = null, defauts = null, services = [], codesAnalytiques = [], types = {},
-    hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour, niveauxUrgence = {}, motifsUrgence = [],
+    hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour, niveauxUrgence = {}, motifsUrgence = [], tauxEnVigueur = null,
 }) {
     const [form, setForm] = useState(() => etatInitial(odm, defauts));
     const [odmId, setOdmId] = useState(odm?.id ?? null);
@@ -538,7 +538,7 @@ export default function Formulaire({
 
                     {/* Calcul et actions */}
                     <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-                        <PanneauCalcul calcul={calcul} type={form.type} enCours={enregistrement === 'en_cours'} />
+                        <PanneauCalcul calcul={calcul} type={form.type} enCours={enregistrement === 'en_cours'} tauxEnVigueur={tauxEnVigueur} />
                         <div className="space-y-2 rounded-lg border bg-white p-4 shadow-sm">
                             <Button type="button" className="w-full" onClick={soumettre} disabled={soumission}>
                                 {soumission ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
