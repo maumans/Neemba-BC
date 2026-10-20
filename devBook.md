@@ -5411,3 +5411,99 @@ php artisan migrate        # 2026_10_27_000001, 2026_10_28_000001, 2026_10_29_00
 - Vérifier, à l'écran des caisses, le gestionnaire et le suppléant de chaque caisse et la case « Réapprovisionnée par transfert » (activée pour l'Atelier).
 - Le planificateur exécute `caisse:verifier-seuils` à 8 h et `caisse:rappeler-reconciliation-om` le lundi à 9 h.
 - Obtenir de Neemba un relevé Orange Money exporté, pour confirmer la lecture de son en-tête (Q96).
+
+---
+
+## 57. Version v57 — Lot F2 : clôture journalière par caisse, REPORTING CAISSE, inventaires et contrôles inopinés (20 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Spec v2.4 : RG-M09-01 à RG-M09-05, RG-M10-01 (RG-M10-02 et 03 faites au lot F0), PO-18, SC-18, SC-19.
+
+### 57.1 Clôture journalière par caisse (RG-M09-03)
+
+- Table `clotures_caisse`, modèle `ClotureCaisse`, service `App\Services\Caisse\ClotureJournaliere`, écran « Clôtures de caisse » (`ClotureCaisseController`).
+- **Clôture manuelle** : le gérant de la caisse clôture sa journée depuis l'écran, avec des observations facultatives. Cela vaut pour un caissier rattaché, ou pour le gestionnaire ou le suppléant (pseudo-rôle `gerant_caisse`). Un autre compte est refusé (MSG-APP-106) ; une journée déjà close aussi (MSG-APP-107), ainsi qu'une journée à venir (MSG-APP-108).
+- **Clôture automatique** à 23 h 45 (`caisse:cloturer-journees`), pour chaque caisse active dont la journée n'est pas close (Q99). Les journées oubliées, si le planificateur s'est arrêté, sont rattrapées sur 31 jours au plus. Elles ne remontent jamais avant la mise en service, fixée par le paramètre `clotures_caisse_depuis`, que la migration règle au jour de son passage. Sans cette date, la première nuit aurait clôturé après coup les semaines précédentes.
+- **Contenu figé à la clôture** :
+  - solde initial ;
+  - total des encaissements et des décaissements, solde final ;
+  - solde final de la veille (clôture précédente) et écart de contrôle ;
+  - nombre d'opérations ;
+  - auteur (ou « automatique »), date.
+- **Verrou** : `Caisse::ecrire`, par où passe toute écriture, refuse une opération datée d'une journée close (MSG-APP-105). Cela couvre le paiement d'un bon, l'encaissement client, la réception d'un réapprovisionnement, le reliquat de BP, le reversement d'ODM, le mouvement validé et l'ajustement d'inventaire. Une correction passe le lendemain.
+- L'écran montre, pour chaque caisse visible, la journée en cours : solde initial, encaissements, décaissements, solde final, nombre d'opérations, écart avec la veille. Il propose le bouton « Clôturer la journée » au gérant, puis liste l'historique des journées closes, avec qui a clôturé, quand, et l'état de l'envoi.
+
+### 57.2 Rapport « REPORTING CAISSE » (RG-M09-01, RG-M09-02, RG-M09-05)
+
+- Services `ReportingCaisse` (une journée d'une caisse, lue dans le registre) et `RapportsCaisse` (fichiers et envoi). Le classeur Excel s'appuie sur `ReportingCaisseExport` ; le PDF sur `exports/reporting-caisse-pdf`.
+- **Une feuille par jour et par caisse**, au format de Neemba :
+  - en-tête « REPORTING CAISSE » : société et adresse de l'entité (Neemba Guinée, Matam Route du Niger), période, caisse ;
+  - contrôle : solde final de la veille, solde initial du jour, ligne « Écart », en rouge si elle n'est pas nulle ;
+  - synthèse : solde initial, + encaissements, − décaissements, solde final ;
+  - encaissements (date, n° pièce, libellé, montant) et décaissements (date, libellé, n° pièce, montant). Pour un bon, le libellé est le motif du bon et le n° de pièce le n° du bon. Pour les autres écritures, on prend la nouvelle colonne `ecritures_caisse.piece` : n° du reçu, de la demande de réapprovisionnement, du mouvement ou de l'ODM.
+- **Onglet « Détail »** : pour chaque bon décaissé, le bénéficiaire, le service, le mode de paiement, le montant versé, puis le valideur et le délai en heures de chaque étape (chef de service, CDG, Finance, DP).
+- Une reprise de solde du jour fait partie du solde initial, pas des flux.
+- Téléchargement en PDF ou en Excel depuis l'écran, pour une journée ou une période de 62 jours au plus, sur les seules caisses visibles.
+
+### 57.3 Envoi avant 8 h (RG-M09-04, PO-18)
+
+- `rapports:envoyer-quotidien`, à 7 h : rapport de la veille, par caisse, en PDF et en Excel (`ReportingCaisseQuotidien`). Une journée restée ouverte est d'abord clôturée. Une journée déjà envoyée n'est pas renvoyée ; une journée sans opération n'est pas envoyée (Q100).
+- **Destinataires** : ceux de la caisse (`caisses.destinataires_rapport`, repris du référentiel de Neemba ; pour Conakry : Chef comptable, assistant trésorier, responsable trésorerie, DAF). À défaut, le gestionnaire et le suppléant de la caisse (sinon ses caissiers) et la trésorerie (PO-18). L'envoi est daté et les destinataires sont gardés sur la clôture.
+- L'envoi par site du socle est remplacé. Le tableau en temps réel par site de l'écran « Rapports Caisse » reste disponible (Q102).
+
+### 57.4 Inventaires et contrôles inopinés (RG-M10-01)
+
+- Service `InventairesCaisse`, commande quotidienne `caisse:verifier-inventaires` (8 h 15).
+- **Inventaire de fin de mois** : un PV d'arrêté « inventaire de fin de mois » dans le mois (Q101). Le dernier jour ouvré du mois, s'il manque, un rappel part au gérant, à la trésorerie et au Chef comptable. Le mois suivant, une alerte part au Chef comptable (garant) et au DAF.
+- **Inventaire avant réapprovisionnement** : exigé par la demande (lot F1b).
+- **Contrôle inopiné** : un PV « contrôle inopiné » par période. Elle est trimestrielle pour Conakry, Boké et Sangarédi (réglé sur la caisse par la migration) et mensuelle pour les autres (paramètre `frequence_controle_inopine`, réglable par caisse à l'écran des caisses).
+  - Il est établi par la trésorerie ou le Chef comptable, jamais par le gérant de la caisse (MSG-APP-109).
+  - Pour qu'il reste inopiné, seul le Chef comptable reçoit le rappel, dans les 7 derniers jours de la période. Une période écoulée sans contrôle alerte le Chef comptable et le DAF.
+- **Une seule alerte** par sujet (clé dans la notification).
+- **Pas de retard compté** pour une période terminée avant la mise en service (paramètre `inventaires_suivis_depuis`, premier jour du mois de la migration).
+- **Suivi** sur l'écran des PV d'arrêté, pour les rôles transverses seulement : inventaire du mois et du mois précédent, fréquence, contrôle de la période en cours, dernier contrôle. Il n'est pas montré aux gérants.
+
+### 57.5 Données
+
+Migrations (vérifiées sur une copie de la base de dev, aller, retour, aller, puis appliquées en dev) :
+- `2026_10_30_000001_lot_f2a_cloture_journaliere` : table `clotures_caisse`, colonne `ecritures_caisse.piece`, paramètre `clotures_caisse_depuis` ;
+- `2026_10_31_000001_lot_f2b_inventaires_controles` : `caisses.frequence_controle` (trimestrielle pour CKY-ESP, BOK-ESP, SAN-ESP), paramètres `frequence_controle_inopine` et `inventaires_suivis_depuis`.
+
+Messages : MSG-APP-105 à 109.
+
+### 57.6 Vérifications
+
+- `tests/Feature/LotF2/ClotureJournaliereTest.php` (5) :
+  - clôture automatique de deux journées, totaux, contrôle avec la veille ;
+  - libellé et pièce du rapport, valideurs et délais ;
+  - aucun rattrapage avant la mise en service ;
+  - journée close verrouillée, clôture réservée au gérant et unique ;
+  - écart avec la veille en rouge à l'écran ;
+  - PDF et Excel (feuilles par jour, « Détail », ligne « Écart ») ;
+  - envoi aux destinataires de la caisse ou, à défaut, au gestionnaire et à la trésorerie ; pièces jointes ; pas d'envoi sans opération ni en double.
+- `tests/Feature/LotF2/InventairesControlesTest.php` (4) :
+  - fréquence et période, dernier jour ouvré, réglage à l'écran des caisses ;
+  - rappel puis alerte d'inventaire ;
+  - rappel du contrôle au seul Chef comptable, alerte après la période, refus au gérant, contrôle par la trésorerie ;
+  - suivi réservé aux rôles transverses.
+- **Total** : 435 tests PHP et 75 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base, avec les comptes réels : 21 vérifications, sans erreur JavaScript.
+  - Youssouf TOURE encaisse puis clôture la journée de Conakry ; un second encaissement est refusé ;
+  - PDF et Excel ; envoi au journal ; clôture automatique des autres caisses, sans remonter avant la mise en service ;
+  - contrôle inopiné refusé au gérant ;
+  - Mamadou Alpha BAH voit le suivi (Conakry trimestriel) ;
+  - la gérante de l'Atelier, Raby TOUNKARA, ne le voit pas, mais clôture sa caisse ;
+  - téléphone.
+- Défauts relevés en cours de lot, corrigés :
+  - un écart nul s'écrivait comme une cellule vide dans l'Excel ;
+  - la première clôture automatique aurait clôturé après coup toutes les journées passées (paramètre de mise en service) ;
+  - le formulaire du PV n'affichait pas l'erreur du motif.
+
+### 57.7 Déploiement
+
+```bash
+php artisan migrate        # 2026_10_30_000001, 2026_10_31_000001
+```
+
+- Le planificateur exécute `caisse:cloturer-journees` à 23 h 45, `rapports:envoyer-quotidien` à 7 h et `caisse:verifier-inventaires` à 8 h 15.
+- Vérifier les destinataires du rapport de chaque caisse. Pour Conakry, la spec cite aussi Mor CISS (DAF adjoint), qui n'a pas encore de compte.
+- Le serveur email (PO-23) est nécessaire à l'envoi ; en son absence, les rapports restent téléchargeables à l'écran.

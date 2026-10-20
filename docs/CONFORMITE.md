@@ -260,17 +260,17 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 
 | Règle | Contenu | État | Ce qui manque | Cause | Lot |
 |---|---|:-:|---|:-:|:-:|
-| RG-M09-01 | Format Neemba « REPORTING CAISSE », par jour et par caisse | 🟡 | Rapport par site au format v1.3 | L | F2 |
-| RG-M09-02 | Ligne « Écart » de contrôle | 🟡 | Absente du rapport | L | F2 |
-| RG-M09-03 | Clôture par le caissier ; jour clos bloqué | ❌ | | L | F2 |
-| RG-M09-04 | Génération à 23 h 45, envoi avant 8 h, destinataires par caisse | 🟡 | Envoi à 7 h 30 ; mauvais destinataires | L, N (PO-18) | F2 |
-| RG-M09-05 | Onglet « Détail » : valideurs et délais par étape | 🟡 | Partiel | L | F2 |
+| RG-M09-01 | Format Neemba « REPORTING CAISSE », par jour et par caisse | ✅ | Lot F2 : une feuille par jour et par caisse, PDF et Excel | | |
+| RG-M09-02 | Ligne « Écart » de contrôle | ✅ | Lot F2 : solde initial / solde final de la veille, en rouge si non nul | | |
+| RG-M09-03 | Clôture par le caissier ; jour clos bloqué | ✅ | Lot F2 : gérant, à défaut automatique à 23 h 45 (Q99) ; aucune écriture sur une journée close | C | |
+| RG-M09-04 | Génération à 23 h 45, envoi avant 8 h, destinataires par caisse | ✅ | Lot F2 : envoi à 7 h ; destinataires de la caisse, à défaut gestionnaire + trésorerie ; compte de Mor CISS à créer | N (PO-23) | |
+| RG-M09-05 | Onglet « Détail » : valideurs et délais par étape | ✅ | Lot F2 | | |
 
 ### 8.6 M10 Inventaire et contrôle de caisse
 
 | Règle | Contenu | État | Ce qui manque | Cause | Lot |
 |---|---|:-:|---|:-:|:-:|
-| RG-M10-01 | Inventaires et contrôles inopinés | ❌ | | L | F2 |
+| RG-M10-01 | Inventaires et contrôles inopinés | ✅ | Lot F2 : inventaire de fin de mois, contrôles par période (trimestrielle pour Conakry, Boké, Sangarédi), rappels et alertes au Chef comptable (Q101) | C | |
 | RG-M10-02 | PV d'arrêté Annexe 2 | ✅ | Lot F0 : PV par caisse, billetage de 20 000 à 50 (solde lu pour la caisse OM), écart, trois signatures, PDF | | |
 | RG-M10-03 | Écart → ajustement en attente du DAF | ✅ | Lot F0 : ajustement d'inventaire créé à la troisième signature, validé par le DAF ou son adjoint avec motif | | |
 
@@ -407,7 +407,7 @@ User stories US-01 à 07 et messages MSG-M13-01 à 05 : à faire (H).
 | PO-14 | Codes de service numériques | Champ vide | 🟡 (G) | Neemba |
 | PO-15 | Utilisateurs et signataires habilités | Import partiel | 🟡 (G) | Neemba, RH |
 | PO-16 | Reprise des données | Import contrôlé | ❌ (P3) | Neemba, avant S5 |
-| PO-18 | Destinataires du rapport hors Conakry | Gestionnaire + Trésorerie | ❌ (F2) | Neemba |
+| PO-18 | Destinataires du rapport hors Conakry | Gestionnaire + Trésorerie | ✅ (F2) | Neemba |
 | PO-23 | Infrastructure **[v2.4 : cloud Neemba retenu le 08/10]** | — | — | IT Neemba |
 | PO-26 | Référentiel clients (export Helium ou fichier) | Import prêt | 🟡 | Neemba |
 | PO-28 **[v2.4]** | Liste complète des types d'OR | VENTE, GARANTIE | Référentiel prêt (lot E3) ; liste attendue | Neemba |
@@ -548,16 +548,16 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 - [x] Rapprochement hebdomadaire de la caisse OM, avec trois visas
 - [x] Notifications de la demande et de l'écart
 
-### Lot F2 — Clôture, rapport journalier, inventaire (M09, M10) (≈ 3 j)
+### Lot F2 — Clôture, rapport journalier, inventaire (M09, M10) (≈ 3 j) ✅
 
-- [ ] Clôture par le caissier, par caisse ; écriture impossible sur une journée close
-- [ ] Rapport « REPORTING CAISSE » :
-  - [ ] une feuille par jour et par caisse ;
-  - [ ] bloc contrôle, ligne « Écart » en rouge ;
-  - [ ] onglet « Détail ».
-- [ ] Génération à 23 h 45 ; envoi avant 8 h aux destinataires de chaque caisse
+- [x] Clôture par le caissier, par caisse ; écriture impossible sur une journée close
+- [x] Rapport « REPORTING CAISSE » :
+  - [x] une feuille par jour et par caisse ;
+  - [x] bloc contrôle, ligne « Écart » en rouge ;
+  - [x] onglet « Détail ».
+- [x] Génération à 23 h 45 ; envoi avant 8 h aux destinataires de chaque caisse
 - [x] PV d'arrêté Annexe 2 par caisse, avec trois signatures (lot F0)
-- [ ] Inventaires obligatoires, contrôles inopinés paramétrables ; écart → ajustement en attente du DAF
+- [x] Inventaires obligatoires, contrôles inopinés paramétrables ; écart → ajustement en attente du DAF
 
 ### Lot G — Gouvernance (reste après le bloc E) (≈ 3 j)
 
@@ -610,7 +610,7 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | SC-12 | Suppléant ; absence du DP et de son adjoint | 🟡 | G |
 | SC-13 | Délai dépassé : relance et escalade | ✅ | (lot R) |
 | SC-15 à 17, SC-35 | Encaissement client, réapprovisionnement, Atelier, rapprochement OM | ✅ | (lot F1) |
-| SC-18, SC-19 | Clôture, rapport, inventaire | ❌ | F2 |
+| SC-18, SC-19 | Clôture, rapport, inventaire | ✅ | (lot F2) |
 | SC-20 à SC-22, SC-24 à SC-29, SC-37 | ODM | ✅ | |
 | SC-23 | Génération des bons, un par participant | ✅ | (lot V) |
 | SC-30 à SC-32 | Carburant | ❌ | H |
@@ -647,11 +647,14 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | Q92 **[v2.4]** | PV du jour exigé pour la demande : signé par qui ? | Par le gérant de la caisse ; les deux autres signatures peuvent suivre (appliqué, lot F1) | F1 |
 | Q93 **[v2.4]** | Transfert depuis une autre caisse « par bon de caisse » | Écriture au registre des deux caisses, sans bon (appliqué, lot F1) | F1 |
 | Q96, Q97 **[v2.4]** | Format du relevé OM ; solde du relevé | En-tête reconnu (date, montant ou débit / crédit) ; solde lu ou saisi, obligatoire (appliqué, lot F1) | F1 |
+| Q99 **[v2.4]** | Journée non clôturée par le gérant | Clôture automatique à 23 h 45, jamais avant la mise en service (appliqué, lot F2) | F2 |
+| Q100 **[v2.4]** | Rapport d'une journée sans opération | Clôturée, téléchargeable, pas envoyée (appliqué, lot F2) | F2 |
+| Q101 **[v2.4]** | Qu'est-ce qu'un inventaire de fin de mois, un contrôle inopiné ? | Un PV d'arrêté du motif correspondant dans la période ; contrôle par la trésorerie ou le Chef comptable, rappel au seul Chef comptable (appliqué, lot F2) | F2 |
 
 **À obtenir de Neemba** :
 - valeurs des caisses et solde de l'Atelier ;
 - signataires habilités (PO-15), codes de service (PO-14) ;
-- destinataires du rapport (PO-18), listes de diffusion des ODM ;
+- destinataires du rapport de chaque caisse (PO-18 : défaut appliqué), compte de Mor CISS (DAF adjoint), listes de diffusion des ODM ;
 - un relevé Orange Money exporté de la plateforme, pour confirmer la lecture de l'import (Q96) ;
 - les membres du CODIR (Q89) ;
 - comptes et journaux (PO-17, PO-25), fichier clients (PO-26) ;
@@ -681,3 +684,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 19/10/2026 | O | (ce commit) | « OR à régulariser » : case au formulaire, soumission sans OR, échéance à la validation (5 jours ouvrés), OR rattaché après coup sur la fiche par le demandeur ou le chef d'atelier, tracé et reporté sur les bons (Q80), relances J+3 et à l'échéance, alerte de retard au chef d'atelier et au DAF (`odm:relancer-or`), blocage optionnel du prochain ODM, suivi au tableau de bord et à l'export. Immatriculation et itinéraire sur l'ODM. Défaut corrigé : l'urgence de l'ODM choisie au formulaire n'était pas enregistrée (lot E2). 408 tests PHP, 75 JS ; parcours Edge (14 vérifications). 165 règles : 112 faites, 33 partielles, 20 à faire. devBook §54 |
 | 19/10/2026 | F0 | (ce commit) | Décision : billetage et PV d'abord (Q88), rôle « Membre du CODIR » pour F1 (Q89). PV d'arrêté par caisse (Annexe 2) : billetage de 20 000 à 50 ou solde lu (OM), solde comptable, écart, trois signatures par trois personnes, PDF ; écart → ajustement d'inventaire validé par le DAF avec motif (boîte de validation avec motif). Le gérant est le caissier rattaché, le gestionnaire ou le suppléant — pas tout compte rattaché à la caisse. 412 tests PHP (+4 F0), 75 JS ; parcours Edge (14 vérifications). 165 règles : 114 faites, 32 partielles, 19 à faire. devBook §55 |
 | 19/10/2026 | F1 | (ce commit) | F1a : alerte de seuil au franchissement puis rappel quotidien (gérant, trésorerie, Chef comptable), encaissement client à Conakry avec reçu PDF et blocage au plafond, visibilité par caisse, plus de retrait libre. F1b : demande de réapprovisionnement (PV du jour signé, rapprochement, montant proposé, plafond, habilitation du DP), circuit trésorerie → Finance → DP ou deux membres du CODIR (Q89, Q91), exécution avec l'origine des fonds et transfert activable, crédit à la réception, écart au DAF ; plus de mouvement manuel ; gérant sans rôle caissier. F1c : réconciliation hebdomadaire OM (import du relevé, rapprochement automatique, écart, trois validations, rappel du lundi). 426 tests PHP, 75 JS ; parcours Edge (15 + 24 + 14 vérifications). 165 règles : 125 faites, 29 partielles, 11 à faire. devBook §56 |
+| 20/10/2026 | F2 | (ce commit) | Clôture journalière par caisse (gérant, à défaut automatique à 23 h 45, jamais avant la mise en service), journée close verrouillée dans le registre ; rapport « REPORTING CAISSE » par caisse et par jour (contrôle avec la veille, écart en rouge, synthèse, encaissements, décaissements, onglet « Détail » avec valideurs et délais), PDF et Excel, envoi à 7 h aux destinataires de la caisse (défaut PO-18) ; inventaire de fin de mois et contrôles inopinés par période (trimestrielle pour Conakry, Boké, Sangarédi), rappels et alertes au Chef comptable, contrôle interdit au gérant, suivi réservé aux rôles transverses. 435 tests PHP, 75 JS ; parcours Edge (21 vérifications). 165 règles : 131 faites, 25 partielles, 9 à faire. devBook §57 |

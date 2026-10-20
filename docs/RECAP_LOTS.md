@@ -1,13 +1,13 @@
 # NEEMBA — Récapitulatif des lots réalisés
 
-*Mis à jour le 19/10/2026. Sources : le devBook (§12 à §56), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
+*Mis à jour le 20/10/2026. Sources : le devBook (§12 à §57), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
 
 Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NEEMBA : bons de caisse et ordres de mission de Neemba Guinée, réalisés par Addvalis. Pour chaque lot, il donne l'objectif, ce qui a été fait, les décisions prises et les vérifications. Le détail technique de chaque lot se trouve au paragraphe indiqué du devBook.
 
-**État au 19/10/2026**
+**État au 20/10/2026**
 - Branche de travail `v23-conformite`. Tout le travail d'octobre est en commits locaux : rien n'est poussé ni déployé depuis la mise en production de juin (branche `main`).
-- 426 tests PHP et 75 tests JavaScript passent.
-- Spec v2.4 : 125 règles RG faites sur 165, 29 partielles, 11 à faire.
+- 435 tests PHP et 75 tests JavaScript passent.
+- Spec v2.4 : 131 règles RG faites sur 165, 25 partielles, 9 à faire.
 
 ---
 
@@ -19,7 +19,7 @@ Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NE
 4. [Module « Ordres de mission », spec v2.2 (M12-0 à M12-8)](#4-module--ordres-de-mission--spec-v22-m12-0-à-m12-8)
 5. [Évolutions des ODM et comptabilité (spec v2.3)](#5-évolutions-des-odm-et-comptabilité-spec-v23)
 6. [Conformité à la spec v2.3 (lots A à E)](#6-conformité-à-la-spec-v23-lots-a-à-e)
-7. [Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0, F1)](#7-intégration-de-la-spec-v24-lots-r-v-e1-à-e4-o-f0-f1)
+7. [Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0 à F2)](#7-intégration-de-la-spec-v24-lots-r-v-e1-à-e4-o-f0-à-f2)
 8. [Ce qui reste à faire](#8-ce-qui-reste-à-faire)
 9. [Ce qu'il faut obtenir de Neemba](#9-ce-quil-faut-obtenir-de-neemba)
 
@@ -55,6 +55,7 @@ Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NE
 | 19/10 | Lot O | OR à régulariser, besoin carburant de l'ODM | `v23-conformite` | 408 / 75 | 14 | §54 |
 | 19/10 | Lot F0 | PV d'arrêté de caisse (Annexe 2) | `v23-conformite` | 412 / 75 | 14 | §55 |
 | 19/10 | Lot F1 | Caisses : alertes, encaissement client, réapprovisionnement, réconciliation OM | `v23-conformite` | 426 / 75 | 15 + 24 + 14 | §56 |
+| 20/10 | Lot F2 | Clôture journalière par caisse, REPORTING CAISSE, inventaires et contrôles inopinés | `v23-conformite` | 435 / 75 | 21 | §57 |
 
 Les branches sont en chaîne : chacune part de la précédente.
 
@@ -354,7 +355,7 @@ Un audit du code contre la spec v2.3 (14/10) a fixé l'ordre des lots. Ils sont 
 
 ---
 
-## 7. Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0, F1)
+## 7. Intégration de la spec v2.4 (lots R, V, E1 à E4, O, F0 à F2)
 
 ### Audit v2.3 et intégration de la v2.4 (15 et 16/10, §46, §47)
 - **Audit v2.3** (15/10) : 152 règles relevées une à une. Résultat : 94 faites, 38 partielles, 20 à faire. Huit écarts graves relevés.
@@ -489,13 +490,34 @@ Le module M08 de la spec, livré en trois parties.
 - **Correctifs** : l'alerte d'un encaissement refusé disparaissait ; la trésorerie ne voyait aucune caisse ; la gérante de l'Atelier n'ouvrait pas ses écrans ; une réconciliation sans solde de relevé aurait été validée sans écart.
 - **Vérifications** : 426 tests PHP, 53 contrôles dans Edge (15 + 24 + 14).
 
+### Lot F2 — Clôture journalière, REPORTING CAISSE, inventaires (20/10, §57)
+Les modules M09 et M10 de la spec, par caisse.
+- **Clôture journalière** :
+  - le gérant clôture la journée de sa caisse ; à défaut, la plateforme la clôture à 23 h 45 ;
+  - une journée close n'accepte plus aucune opération (paiement, encaissement, réception) ;
+  - aucune clôture après coup des journées antérieures à la mise en service.
+- **Rapport « REPORTING CAISSE »**, au format de Neemba, une feuille par jour et par caisse :
+  - contrôle avec la veille, écart en rouge, synthèse ;
+  - encaissements et décaissements (libellé = motif du bon, pièce = n° du bon) ;
+  - onglet « Détail » avec les valideurs et les délais de chaque étape ;
+  - PDF et Excel, téléchargeables à l'écran ;
+  - envoyé à 7 h aux destinataires de chaque caisse (à défaut, gestionnaire et trésorerie).
+- **Inventaires** : inventaire de fin de mois rappelé le dernier jour ouvré, alerte au Chef comptable et au DAF s'il manque.
+- **Contrôles inopinés** :
+  - un par mois, ou par trimestre pour Conakry, Boké et Sangarédi (réglable par caisse) ;
+  - faits par la trésorerie ou le Chef comptable, jamais par le gérant ;
+  - rappelés au seul Chef comptable, pour rester inopinés ;
+  - suivi réservé aux rôles transverses.
+- **Décisions** : Q99 à Q102 (clôture automatique, pas d'envoi sans opération, définition de l'inventaire et du contrôle, rapport par site du socle).
+- **Correctifs** : un écart nul s'affichait vide dans l'Excel ; la première clôture automatique aurait clôturé après coup les semaines passées.
+- **Vérifications** : 435 tests PHP, 21 contrôles dans Edge.
+
 ---
 
 ## 8. Ce qui reste à faire
 
 | Lot | Contenu | Durée estimée |
 |---|---|---|
-| **F2** | Clôture journalière par caisse, rapport « REPORTING CAISSE » par caisse, envoi avant 8 h, inventaires obligatoires et contrôles inopinés | ≈ 3 j |
 | **G** | **Gouvernance** : | ≈ 3 j |
 | | – domaine @neemba.com, assistant trésorier | |
 | | – date d'effet des autres paramètres, second validateur paramétrable | |
@@ -515,6 +537,7 @@ L'échéance de la spec est le 16/12/2026.
 - **Caisses** :
   - gestionnaire et suppléant de chaque caisse ;
   - membres du CODIR (rôle à attribuer) ;
+  - destinataires du rapport journalier de chaque caisse, et un compte pour Mor CISS (DAF adjoint) ;
   - un relevé Orange Money exporté, pour confirmer l'import de la réconciliation ;
   - sites servis à vérifier ;
   - numéros de départ des carnets papier.
