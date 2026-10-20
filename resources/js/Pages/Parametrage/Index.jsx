@@ -43,7 +43,8 @@ function ParametrageTable({ items, columns, onAdd, onEdit, onToggle, addLabel })
                 </Button>
             </div>
 
-            <div className="border rounded-lg overflow-hidden">
+            {/* Tableau plus large que l'écran (caisses : une dizaine de colonnes) : il défile horizontalement */}
+            <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b">
                         <tr>
