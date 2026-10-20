@@ -5507,3 +5507,72 @@ php artisan migrate        # 2026_10_30_000001, 2026_10_31_000001
 - Le planificateur exécute `caisse:cloturer-journees` à 23 h 45, `rapports:envoyer-quotidien` à 7 h et `caisse:verifier-inventaires` à 8 h 15.
 - Vérifier les destinataires du rapport de chaque caisse. Pour Conakry, la spec cite aussi Mor CISS (DAF adjoint), qui n'a pas encore de compte.
 - Le serveur email (PO-23) est nécessaire à l'envoi ; en son absence, les rapports restent téléchargeables à l'écran.
+
+---
+
+## 58. Version v58 — Lot T : trésorerie et rôles métier visibles (20 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Demande de l'utilisateur du 20/10 : « à aucun moment je ne vois un rôle de trésorier ou de trésorerie ».
+
+### 58.1 Constat
+
+Le rôle « Trésorerie » existait, et ses validations aussi (réapprovisionnements, PV d'arrêté, réconciliation OM, taux du jour, alertes) ; deux comptes l'avaient. Mais il était invisible :
+- le rôle principal ne pouvait prendre que les 7 valeurs du socle (énumération en base) ; la trésorerie n'était qu'une case parmi les rôles complémentaires ;
+- la liste des utilisateurs, le bandeau et le profil n'affichaient que le rôle principal : Mariamagbè CAMARA apparaissait « Demandeur », Mamadou Alpha BAH aussi ;
+- le filtre par rôle ne cherchait que le rôle principal.
+
+Même défaut pour le Chef comptable, le DAF adjoint, le DP adjoint et la Comptabilité.
+
+### 58.2 Ce qui a changé
+
+- **Rôle principal** (Q103) : `users.role` devient une chaîne contrôlée par l'application (`User::ROLES_PRINCIPAUX`). On peut choisir Trésorerie, Chef comptable, DAF adjoint, DP adjoint, Comptabilité, Assistant trésorier, chef d'atelier, RH ou Logistique. Seuls le gestionnaire des référentiels et le membre du CODIR, qui s'ajoutent à un métier, restent complémentaires. Le champ s'appelle « Rôle principal » à l'écran.
+- **Reprise** (migration `2026_11_01_000001_lot_t_roles_principaux`) : un compte « Demandeur » qui a un rôle métier le prend comme rôle principal (ordre `User::PRIORITE_PRINCIPAL`, aussi utilisé par l'import des référentiels). En dev : Mariamagbè CAMARA → Trésorerie, Mamadou Alpha BAH → Chef comptable ; Youssouf TOURE reste Caissier. « Demandeur » reste parmi leurs rôles. Le retour arrière rend l'énumération et remet « Demandeur ».
+- **Assistant trésorier** (spec v2.4, chapitre 3 « Caissier / assistant trésorier », Q75) : nouveau rôle, avec les droits du caissier (`User::ROLES_EQUIVALENTS` : `listeRoles()` et `avecRoleDans()` le comptent comme caissier).
+- **Affichage de tous les rôles** : liste des utilisateurs (badges, rôle principal d'abord), bandeau et menu (« Caissier · Trésorerie »), profil ; libellés partagés avec tous les écrans (`auth.roles_libelles`), délégations et notifications comprises. « Demandeur » n'est montré que s'il est le seul rôle.
+- **Filtre** : `parRole` cherche le rôle principal et les rôles complémentaires.
+- **Changer de rôle principal ne fait plus perdre de rôle** :
+  - l'ancien rôle principal reste coché parmi les rôles complémentaires ; on le décoche pour le retirer (avec la double validation) ;
+  - le crochet du modèle ne supprime plus l'ancien rôle d'office ;
+  - à la validation du rôle principal, les rôles complémentaires du même formulaire, déjà validés, sont réappliqués : l'ordre des deux validations ne change plus le résultat ;
+  - avant, un passage Demandeur → Trésorerie pouvait faire perdre « demandeur » (et le droit de créer un bon).
+- **Délégations** : le délégué ne reçoit plus le rôle principal du titulaire quelle que soit la délégation, mais seulement ses rôles qui ont une fonctionnalité déléguée (`Delegation::FONCTIONNALITES_PAR_ROLE`). Une délégation d'initiation d'une trésorière ne donne pas accès aux écrans de trésorerie.
+- **Contrôles qui ne lisaient que le rôle principal**, passés à tous les rôles :
+  - tableau de bord ;
+  - visa DAF du rapport (DAF adjoint compris) ;
+  - notifications DAF / DP ;
+  - escalade SMS ;
+  - alertes d'archives ;
+  - accès aux données OCR (même règle que la fiche du bon) ;
+  - destinataires des rapports ;
+  - bouton de validation rapide de la liste des bons (le Chef comptable tient l'étape Finance).
+- **Bloc « À traiter »** sur le tableau de bord (`TachesCaisse`) : réapprovisionnements, PV d'arrêté à signer, réconciliations OM, ajustements d'inventaire, taux du jour, caisses sous leur seuil, journée de caisse à clôturer (à partir de 17 h). Chacun n'y voit que ce qu'il peut faire.
+
+### 58.3 Vérifications
+
+- `tests/Feature/LotT/RolesTresorerieTest.php` (8) :
+  - création d'un compte Trésorerie ;
+  - affichage de tous les rôles et filtre ;
+  - passage en Trésorerie sans perdre « demandeur » ;
+  - ordre des validations sans effet ;
+  - ancien rôle conservé s'il reste coché ;
+  - assistant trésorier ;
+  - délégation qui ne transmet pas la trésorerie ;
+  - bloc « À traiter ».
+
+  `Socle/RolesTest` est adapté à la nouvelle règle (l'ancien rôle principal reste).
+- **Total** : 443 tests PHP et 75 tests JavaScript passent. Migration vérifiée sur une copie de la base de dev (aller, retour, aller), puis appliquée en dev.
+- Parcours dans Edge sur une copie de la base, avec les comptes réels : 16 vérifications, sans erreur JavaScript.
+  - Mariamagbè CAMARA s'affiche « Trésorerie » et voit son bloc « À traiter » (PV à signer, taux du jour, caisses sous le seuil) ;
+  - Mamadou Alpha BAH s'affiche « Chef comptable » ;
+  - l'administrateur voit « Caissier · Trésorerie » pour Youssouf TOURE, filtre sur la trésorerie (2 comptes) ;
+  - « Trésorerie » et « Assistant trésorier » sont proposés comme rôle principal ;
+  - en changeant de rôle principal, « Demandeur » reste coché ;
+  - téléphone.
+
+### 58.4 Déploiement
+
+```bash
+php artisan migrate        # 2026_11_01_000001
+```
+
+Vérifier ensuite le rôle principal de chaque compte dans Utilisateurs. La spec désigne Youssouf TOURE comme assistant trésorier (et non trésorerie) : à confirmer avec Neemba avant de changer ses rôles.

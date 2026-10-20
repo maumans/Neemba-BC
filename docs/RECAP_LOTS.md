@@ -1,13 +1,13 @@
 # NEEMBA — Récapitulatif des lots réalisés
 
-*Mis à jour le 20/10/2026. Sources : le devBook (§12 à §57), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
+*Mis à jour le 20/10/2026. Sources : le devBook (§12 à §58), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
 
 Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NEEMBA : bons de caisse et ordres de mission de Neemba Guinée, réalisés par Addvalis. Pour chaque lot, il donne l'objectif, ce qui a été fait, les décisions prises et les vérifications. Le détail technique de chaque lot se trouve au paragraphe indiqué du devBook.
 
 **État au 20/10/2026**
 - Branche de travail `v23-conformite`. Tout le travail d'octobre est en commits locaux : rien n'est poussé ni déployé depuis la mise en production de juin (branche `main`).
-- 435 tests PHP et 75 tests JavaScript passent.
-- Spec v2.4 : 131 règles RG faites sur 165, 25 partielles, 9 à faire.
+- 443 tests PHP et 75 tests JavaScript passent.
+- Spec v2.4 : 132 règles RG faites sur 165, 24 partielles, 9 à faire.
 
 ---
 
@@ -56,6 +56,7 @@ Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NE
 | 19/10 | Lot F0 | PV d'arrêté de caisse (Annexe 2) | `v23-conformite` | 412 / 75 | 14 | §55 |
 | 19/10 | Lot F1 | Caisses : alertes, encaissement client, réapprovisionnement, réconciliation OM | `v23-conformite` | 426 / 75 | 15 + 24 + 14 | §56 |
 | 20/10 | Lot F2 | Clôture journalière par caisse, REPORTING CAISSE, inventaires et contrôles inopinés | `v23-conformite` | 435 / 75 | 21 | §57 |
+| 20/10 | Lot T | Trésorerie et rôles métier visibles, bloc « À traiter » | `v23-conformite` | 443 / 75 | 16 | §58 |
 
 Les branches sont en chaîne : chacune part de la précédente.
 
@@ -512,6 +513,19 @@ Les modules M09 et M10 de la spec, par caisse.
 - **Correctifs** : un écart nul s'affichait vide dans l'Excel ; la première clôture automatique aurait clôturé après coup les semaines passées.
 - **Vérifications** : 435 tests PHP, 21 contrôles dans Edge.
 
+### Lot T — Trésorerie et rôles métier visibles (20/10, §58)
+Fait à la demande de l'utilisateur : le rôle Trésorerie existait, avec toutes ses validations, mais restait caché parmi les rôles complémentaires ; la trésorière s'affichait « Demandeur ».
+- **Rôle principal** : Trésorerie, Chef comptable, DAF adjoint, DP adjoint, Comptabilité, Assistant trésorier… peuvent être choisis. Mariamagbè CAMARA passe en Trésorerie et Mamadou Alpha BAH en Chef comptable (reprise automatique).
+- **Assistant trésorier** : nouveau rôle, avec les droits du caissier, comme le prévoit la spec.
+- **Affichage** : tous les rôles de chacun dans la liste des utilisateurs, le bandeau et le profil ; filtre sur tous les rôles.
+- **Sûreté** :
+  - changer de rôle principal ne fait plus perdre de rôle (notamment « Demandeur ») ;
+  - une délégation ne transmet que des rôles délégables ;
+  - une quinzaine de contrôles lisent désormais tous les rôles.
+- **Tableau de bord** : bloc « À traiter » (réapprovisionnements, PV à signer, réconciliation OM, taux du jour, caisses sous le seuil…).
+- **Décision** : Q103.
+- **Vérifications** : 443 tests PHP, 16 contrôles dans Edge.
+
 ---
 
 ## 8. Ce qui reste à faire
@@ -519,7 +533,7 @@ Les modules M09 et M10 de la spec, par caisse.
 | Lot | Contenu | Durée estimée |
 |---|---|---|
 | **G** | **Gouvernance** : | ≈ 3 j |
-| | – domaine @neemba.com, assistant trésorier | |
+| | – domaine @neemba.com | |
 | | – date d'effet des autres paramètres, second validateur paramétrable | |
 | | – signataires habilités, délégations, brouillons abandonnés | |
 | | – journal protégé, archivage | |

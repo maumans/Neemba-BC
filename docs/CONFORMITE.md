@@ -172,7 +172,7 @@ M12 v2.4 (O) et M13 (H) relèvent de P2. Le hors ligne et la reprise relèvent d
 |---|---|:-:|---|:-:|:-:|
 | RG-M01-01 | Comptes au domaine neemba.com uniquement | ❌ | Aucun contrôle (Q70) | O | G |
 | RG-M01-02 | Entité transverse : utilisateurs, caisses, bons, ODM, référentiels, paramètres ; Neemba Guinée active, Mining inactive **[v2.4]** | ✅ | Lot E1 : table `entites`, `entite_id` partout | | |
-| RG-M01-03 | Nouveaux rôles (dont assistant trésorier) | 🟡 | Pas de rôle « assistant trésorier » (Q75) | O | G |
+| RG-M01-03 | Nouveaux rôles (dont assistant trésorier) | ✅ | Lot T : assistant trésorier (droits du caissier) ; tous les rôles métier peuvent être rôle principal (Q103) | | |
 | RG-M01-04 | Incompatibilités | ✅ | — | | |
 | RG-M01-05 | Second validateur avant l'effet d'un changement sensible | 🟡 | Effet immédiat pour les codes analytiques, l'activation d'un compte, la caisse de rattachement, les sites, les services et les motifs | O | G |
 | RG-M01-06 | Interface adaptative ; hors ligne en P3 | 🟡 | Hors ligne | P3 | P3 |
@@ -561,7 +561,8 @@ Décision du 16/10 sur les données existantes : on garde l'historique et on blo
 
 ### Lot G — Gouvernance (reste après le bloc E) (≈ 3 j)
 
-- [ ] Domaine @neemba.com (Q70) ; rôle « assistant trésorier » (Q75)
+- [ ] Domaine @neemba.com (Q70)
+- [x] Rôle « assistant trésorier » (Q75), fait au lot T
 - [ ] Date d'effet et historique pour les autres paramètres ; valeurs du bon figées à la soumission (RG-M02-01)
 - [ ] Valeurs codées en dur passées en paramètres (§1.4)
 - [ ] Second validateur paramétrable ; double validation étendue (RG-M01-05, RG-M02-08)
@@ -634,7 +635,7 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | Q72 | DP adjoint : à tout moment ou en l'absence du DP ? | En l'absence du DP | G |
 | Q73 | Commentaire de rejet obligatoire ? | Toujours, 10 caractères minimum (codé au lot R) | R |
 | Q74 | Relance BP : destinataires, BP non échus ? | Chef de service ; tous les BP en attente | I |
-| Q75 | Assistant trésorier : rôle à part ? | Oui, avec les droits du caissier | G |
+| Q75 | Assistant trésorier : rôle à part ? | Oui, avec les droits du caissier (appliqué, lot T) | T |
 | Q76 **[v2.4]** | Urgence sur l'ODM, pour l'OTP de visa ? | Oui : mêmes niveaux et motifs que le bon (appliqué, lot E2) | E2 |
 | Q77 **[v2.4]** | L'OTP de visa porte-t-il sur le rejet ? | Non : seulement sur l'approbation (appliqué, lot E2) | E2 |
 | Q82 **[v2.4]** | Qui active ou désactive la double authentification, avec quel circuit ? | L'administrateur, effet immédiat sans second validateur, tracé, administrateurs prévenus ; commande de secours sur le serveur (appliqué, lot E2) | E2 |
@@ -685,3 +686,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 19/10/2026 | F0 | (ce commit) | Décision : billetage et PV d'abord (Q88), rôle « Membre du CODIR » pour F1 (Q89). PV d'arrêté par caisse (Annexe 2) : billetage de 20 000 à 50 ou solde lu (OM), solde comptable, écart, trois signatures par trois personnes, PDF ; écart → ajustement d'inventaire validé par le DAF avec motif (boîte de validation avec motif). Le gérant est le caissier rattaché, le gestionnaire ou le suppléant — pas tout compte rattaché à la caisse. 412 tests PHP (+4 F0), 75 JS ; parcours Edge (14 vérifications). 165 règles : 114 faites, 32 partielles, 19 à faire. devBook §55 |
 | 19/10/2026 | F1 | (ce commit) | F1a : alerte de seuil au franchissement puis rappel quotidien (gérant, trésorerie, Chef comptable), encaissement client à Conakry avec reçu PDF et blocage au plafond, visibilité par caisse, plus de retrait libre. F1b : demande de réapprovisionnement (PV du jour signé, rapprochement, montant proposé, plafond, habilitation du DP), circuit trésorerie → Finance → DP ou deux membres du CODIR (Q89, Q91), exécution avec l'origine des fonds et transfert activable, crédit à la réception, écart au DAF ; plus de mouvement manuel ; gérant sans rôle caissier. F1c : réconciliation hebdomadaire OM (import du relevé, rapprochement automatique, écart, trois validations, rappel du lundi). 426 tests PHP, 75 JS ; parcours Edge (15 + 24 + 14 vérifications). 165 règles : 125 faites, 29 partielles, 11 à faire. devBook §56 |
 | 20/10/2026 | F2 | (ce commit) | Clôture journalière par caisse (gérant, à défaut automatique à 23 h 45, jamais avant la mise en service), journée close verrouillée dans le registre ; rapport « REPORTING CAISSE » par caisse et par jour (contrôle avec la veille, écart en rouge, synthèse, encaissements, décaissements, onglet « Détail » avec valideurs et délais), PDF et Excel, envoi à 7 h aux destinataires de la caisse (défaut PO-18) ; inventaire de fin de mois et contrôles inopinés par période (trimestrielle pour Conakry, Boké, Sangarédi), rappels et alertes au Chef comptable, contrôle interdit au gérant, suivi réservé aux rôles transverses. 435 tests PHP, 75 JS ; parcours Edge (21 vérifications). 165 règles : 131 faites, 25 partielles, 9 à faire. devBook §57 |
+| 20/10/2026 | T | (ce commit) | Demande de l'utilisateur : la trésorerie était invisible. Trésorerie, Chef comptable, DAF adjoint, DP adjoint, Comptabilité, Assistant trésorier… peuvent être rôle principal (Q103) ; reprise des comptes « Demandeur » ayant un rôle métier ; tous les rôles affichés (liste, bandeau, profil) et filtrés ; changer de rôle principal ne fait plus perdre de rôle ; délégation limitée aux rôles délégables ; contrôles « rôle principal seul » passés à tous les rôles ; bloc « À traiter » au tableau de bord. 443 tests PHP, 75 JS ; parcours Edge (16 vérifications). 165 règles : 132 faites, 24 partielles, 9 à faire. devBook §58 |
