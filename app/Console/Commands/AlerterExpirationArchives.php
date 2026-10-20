@@ -72,7 +72,7 @@ class AlerterExpirationArchives extends Command
     {
         /* Destinataires : DAF + administrateurs */
         $destinataires = User::actifs()
-            ->whereIn('role', ['daf', 'administrateur'])
+            ->avecRoleDans(['daf', 'administrateur'])
             ->get();
 
         $urgenceLabel = match (true) {

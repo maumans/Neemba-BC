@@ -257,6 +257,9 @@ export default function AuthenticatedLayout({ header, children }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+    /* Lot T : tous les rôles de la personne (« Trésorerie », « Chef comptable · Membre du CODIR »…), pas le seul rôle principal */
+    const rolesAffiches = (user.roles_affiches?.length ? user.roles_affiches : [rolesLabels[user.role] || user.role || "Utilisateur"]).join(" · ");
+
     /* Filtrer les éléments de navigation selon les rôles effectifs de l'utilisateur */
     const rolesUtilisateur = user.roles_effectifs || [user.role || "demandeur"];
     const menuItems = navigationItems.filter((item) =>
@@ -349,10 +352,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                         ? `${user.prenom} ${user.name}`
                                         : user.name}
                                 </p>
-                                <p className="text-xs text-gray-400 truncate">
-                                    {rolesLabels[user.role] ||
-                                        user.role ||
-                                        "Utilisateur"}
+                                <p className="text-xs text-gray-400 truncate" title={rolesAffiches} data-testid="roles-affiches">
+                                    {rolesAffiches}
                                 </p>
                             </div>
                         </div>
@@ -481,9 +482,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                                     ? `${user.prenom} ${user.name}`
                                                     : user.name}
                                             </p>
-                                            <p className="text-xs text-gray-400">
-                                                {rolesLabels[user.role] ||
-                                                    "Utilisateur"}
+                                            <p className="text-xs text-gray-400 truncate" title={rolesAffiches}>
+                                                {rolesAffiches}
                                             </p>
                                         </div>
                                     </div>
@@ -537,8 +537,8 @@ export default function AuthenticatedLayout({ header, children }) {
                                         ? `${user.prenom} ${user.name}`
                                         : user.name}
                                 </p>
-                                <p className="text-xs text-gray-500">
-                                    {rolesLabels[user.role] || "Utilisateur"}
+                                <p className="max-w-[16rem] truncate text-xs text-gray-500" title={rolesAffiches}>
+                                    {rolesAffiches}
                                 </p>
                             </div>
                             <div className="relative">

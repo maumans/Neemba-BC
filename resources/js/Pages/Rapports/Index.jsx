@@ -100,8 +100,10 @@ export default function Index({
     soldeCaisseSite = null,
     siteUtilisateur = '',
     roleUtilisateur = '',
+    estCaissier: estCaissierServeur,
 }) {
-    const estCaissier = roleUtilisateur === 'caissier';
+    /* Lot T : caissier par l'un de ses rôles */
+    const estCaissier = estCaissierServeur ?? roleUtilisateur === 'caissier';
     const { flash } = usePage().props;
     const [envoyerEnCours, setEnvoyerEnCours] = useState(false);
     const [lignesExpansees, setLignesExpansees] = useState({});

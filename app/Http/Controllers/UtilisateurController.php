@@ -24,13 +24,22 @@ class UtilisateurController extends Controller
         'numero_om.regex' => 'Le n° Orange Money est au format guinéen (9 chiffres commençant par 6).',
     ];
 
-    /** Rôles attribués en plus du rôle principal, triés */
-    private static function rolesComplementaires(User $utilisateur): array
+    /**
+     * Rôles enregistrés en plus du rôle principal donné (par défaut le rôle principal actuel), triés. Lot T : on lit les
+     * rôles enregistrés, toutes entités, et non les droits déduits (l'assistant trésorier n'a pas de rôle caissier à cocher).
+     */
+    private static function rolesComplementaires(User $utilisateur, ?string $principal = null): array
     {
-        $roles = array_values(array_diff($utilisateur->listeRoles(), [$utilisateur->role]));
+        $roles = array_values(array_unique(array_diff($utilisateur->roles()->pluck('role')->all(), [$principal ?? $utilisateur->role])));
         sort($roles);
 
         return $roles;
+    }
+
+    /** Lot T : rôles qu'on peut choisir comme rôle principal, avec leur libellé */
+    private static function rolesPrincipaux(): array
+    {
+        return array_intersect_key(User::ROLES, array_flip(User::ROLES_PRINCIPAUX));
     }
 
     /**
@@ -38,7 +47,7 @@ class UtilisateurController extends Controller
      */
     public function index(Request $request)
     {
-        $query = User::query()->latest();
+        $query = User::query()->with('roles')->latest();
 
         /* Recherche par nom, prénom ou matricule */
         if ($request->filled('recherche')) {
@@ -61,20 +70,19 @@ class UtilisateurController extends Controller
             $query->where('site', $request->site);
         }
 
-        $utilisateurs = $query->paginate(15)->withQueryString();
+        /* Lot T : chaque compte affiche tous ses rôles (rôle principal d'abord, « demandeur » seulement s'il est seul) */
+        $utilisateurs = $query->paginate(15)->withQueryString()->through(function (User $u) {
+            $u->setAttribute('roles_affiches', User::libellesRoles($u));
+            $u->setRelation('roles', collect());
+
+            return $u;
+        });
 
         return Inertia::render('Utilisateurs/Index', [
             'utilisateurs' => $utilisateurs,
             'filtres' => $request->only(['recherche', 'role', 'site']),
-            'roles' => [
-                'demandeur' => 'Demandeur',
-                'responsable_service' => 'Responsable Service',
-                'controle_gestion' => 'Contrôle de Gestion',
-                'daf' => 'DAF',
-                'directeur_pays' => 'Directeur Pays',
-                'caissier' => 'Caissier',
-                'administrateur' => 'Administrateur',
-            ],
+            /* Le filtre cherche le rôle principal et les rôles complémentaires */
+            'roles' => User::ROLES,
         ]);
     }
 
@@ -88,6 +96,7 @@ class UtilisateurController extends Controller
             'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
             'caisses' => self::caisses(),
             'entites' => \App\Models\Entite::actives()->orderBy('id')->get(['id', 'code', 'nom']),
+            'rolesPrincipaux' => self::rolesPrincipaux(),
         ]);
     }
 
@@ -142,6 +151,7 @@ class UtilisateurController extends Controller
             'utilisateur' => $utilisateur,
             'rolesComplementaires' => self::rolesComplementaires($utilisateur),
             'roles' => User::ROLES,
+            'rolesPrincipaux' => self::rolesPrincipaux(),
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
             'services' => Service::actifs()->orderBy('nom')->pluck('nom'),
             'caisses' => self::caisses(),
@@ -180,7 +190,8 @@ class UtilisateurController extends Controller
         /* Rôles complémentaires (chef d'atelier, DP adjoint, Trésorerie…) : double validation, comme le rôle principal */
         $rolesDemandes = null;
         if ($request->has('roles_complementaires')) {
-            $actuels = self::rolesComplementaires($utilisateur);
+            /* Lot T : comparés au nouveau rôle principal (l'ancien, resté coché à l'écran, demeure un rôle de la personne) */
+            $actuels = self::rolesComplementaires($utilisateur, $validated['role']);
             $demandes = array_values(array_unique(array_diff($validated['roles_complementaires'] ?? [], [$validated['role']])));
             sort($demandes);
             if ($demandes !== $actuels) {

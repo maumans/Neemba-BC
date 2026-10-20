@@ -108,9 +108,9 @@ class DashboardController extends Controller
 
         /* Derniers rapports de caisse (pour les caissiers et DAF, filtrés par site pour le caissier) */
         $derniersRapports = [];
-        if (in_array($utilisateur->role, ['caissier', 'daf', 'directeur_pays'])) {
+        if ($utilisateur->aLeRole(['caissier', 'daf', 'daf_adjoint', 'directeur_pays', 'dp_adjoint'])) {
             $derniersRapports = RapportCaisse::with('caissier')
-                ->when($utilisateur->role === 'caissier' && $utilisateur->site, fn($q) => $q->parSite($utilisateur->site))
+                ->when($utilisateur->aLeRole('caissier') && $utilisateur->site, fn($q) => $q->parSite($utilisateur->site))
                 ->latest('date_rapport')
                 ->take(5)
                 ->get();
@@ -118,7 +118,7 @@ class DashboardController extends Controller
 
         /* Bons à payer (pour le caissier — filtrés par son site) */
         $bonsAPayer = [];
-        if ($utilisateur->role === 'caissier') {
+        if ($utilisateur->aLeRole('caissier')) {
             $bonsAPayer = BonCaisse::with('demandeur')
                 ->where('statut', 'APPROUVE')
                 ->when($utilisateur->site, fn($q) => $q->parSite($utilisateur->site))
@@ -132,7 +132,7 @@ class DashboardController extends Controller
             ->where('statut', 'EN_ATTENTE_REGULARISATION')
             ->whereNotNull('date_limite_regularisation')
             ->where('date_limite_regularisation', '<', now())
-            ->when($utilisateur->role === 'caissier' && $utilisateur->site, fn($q) => $q->parSite($utilisateur->site))
+            ->when($utilisateur->aLeRole('caissier') && $utilisateur->site, fn($q) => $q->parSite($utilisateur->site))
             ->latest('date_limite_regularisation')
             ->take(5)
             ->get();
@@ -149,7 +149,7 @@ class DashboardController extends Controller
         /* Activité récente (filtrée par site pour le caissier) */
         $activiteRecente = HistoriqueAction::with(['bonCaisse', 'utilisateur'])
             ->when(
-                $utilisateur->role === 'caissier' && $utilisateur->site,
+                $utilisateur->aLeRole('caissier') && $utilisateur->site,
                 fn($q) => $q->whereHas('bonCaisse', fn($bq) => $bq->parSite($utilisateur->site))
             )
             ->latest()
@@ -222,7 +222,7 @@ class DashboardController extends Controller
         $delaiMoyen = BonCaisse::where('statut', 'PAYE')
             ->whereNotNull('date_soumission')
             ->whereNotNull('date_paiement')
-            ->when($utilisateur->role === 'caissier' && $utilisateur->site, fn($q) => $q->parSite($utilisateur->site))
+            ->when($utilisateur->aLeRole('caissier') && $utilisateur->site, fn($q) => $q->parSite($utilisateur->site))
             ->selectRaw('AVG(DATEDIFF(date_paiement, date_soumission)) as delai')
             ->value('delai');
 
@@ -251,7 +251,7 @@ class DashboardController extends Controller
 
         /* Mouvements de caisse en attente (pour DAF/DP) */
         $mouvementsEnAttente = [];
-        if (in_array($utilisateur->role, ['daf', 'directeur_pays'])) {
+        if ($utilisateur->aLeRole(['daf', 'daf_adjoint', 'directeur_pays', 'dp_adjoint'])) {
             $mouvementsEnAttente = MouvementCaisse::with('effectuePar')
                 ->enAttente()
                 ->latest('date_mouvement')
@@ -273,7 +273,7 @@ class DashboardController extends Controller
 
         /* Graphique de Performance SLA (Chefs de service) pour la Direction */
         $performancesN1 = [];
-        if (in_array($utilisateur->role, ['daf', 'directeur_pays', 'administrateur'])) {
+        if ($utilisateur->aLeRole(['daf', 'daf_adjoint', 'directeur_pays', 'dp_adjoint', 'administrateur'])) {
             $performancesN1 = Validation::with('validateur')
                 ->where('role', 'responsable_service')
                 ->where('statut', 'approuve')
@@ -323,6 +323,8 @@ class DashboardController extends Controller
             'delaiMoyen' => $delaiMoyen ? round($delaiMoyen, 1) : null,
             /* Caisse par site */
             'soldesCaisses' => $soldesCaisses,
+            /* Travail en attente côté caisses et trésorerie (réapprovisionnements, PV, réconciliation OM, taux du jour…) */
+            'tachesCaisse' => \App\Services\Caisse\TachesCaisse::pour($utilisateur),
             'mouvementsEnAttente' => $mouvementsEnAttente,
             'delegationsActives' => $delegationsActives,
             'performancesN1' => $performancesN1,

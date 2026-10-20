@@ -27,8 +27,8 @@ class OcrController extends Controller
         /** @var \App\Models\User $utilisateur */
         $utilisateur = Auth::user();
 
-        /* Vérifier l'accès : le demandeur ne voit que ses bons */
-        if ($utilisateur->role === 'demandeur' && $bonCaisse->demandeur_id !== $utilisateur->id) {
+        /* Vérifier l'accès : mêmes droits que la fiche du bon (lot T : plus selon le seul rôle principal) */
+        if (!\App\Services\BonCaisse\VisibiliteBon::peutVoir($bonCaisse, $utilisateur)) {
             abort(403);
         }
 

@@ -21,7 +21,7 @@ import {
 } from '@/Components/ui/select';
 import { Combobox } from '@/Components/ui/combobox';
 
-export default function Edit({ utilisateur, sites = [], services = [], caisses = [], entites = [], roles = {}, rolesComplementaires = [] }) {
+export default function Edit({ utilisateur, sites = [], services = [], caisses = [], entites = [], roles = {}, rolesComplementaires = [], rolesPrincipaux = {} }) {
     const { data, setData, put, processing, errors } = useForm({
         name: utilisateur.name || '',
         prenom: utilisateur.prenom || '',
@@ -44,6 +44,17 @@ export default function Edit({ utilisateur, sites = [], services = [], caisses =
     const handleSubmit = (e) => {
         e.preventDefault();
         put(route('utilisateurs.update', utilisateur.id));
+    };
+
+    /* Lot T : en changeant de rôle principal, l'ancien reste coché parmi les rôles complémentaires (on le décoche pour le
+     * retirer) : la personne ne perd pas en route son rôle « Demandeur » ou celui qu'elle exerçait. */
+    const changerRolePrincipal = (nouveau) => {
+        const ancien = data.role;
+        const complementaires = data.roles_complementaires.filter((r) => r !== nouveau);
+        if (ancien && ancien !== nouveau && !complementaires.includes(ancien)) {
+            complementaires.push(ancien);
+        }
+        setData((d) => ({ ...d, role: nouveau, roles_complementaires: complementaires }));
     };
 
     /* Rôles complémentaires : tous les rôles sauf le rôle principal choisi */
@@ -206,22 +217,19 @@ export default function Edit({ utilisateur, sites = [], services = [], caisses =
                                         {errors.matricule && <p className="text-sm text-red-500 mt-1">{errors.matricule}</p>}
                                     </div>
                                     <div>
-                                        <Label htmlFor="role">Rôle *</Label>
+                                        <Label htmlFor="role">Rôle principal *</Label>
                                         <Select
                                             value={data.role}
-                                            onValueChange={(val) => setData('role', val)}
+                                            onValueChange={changerRolePrincipal}
                                         >
-                                            <SelectTrigger className="mt-1">
+                                            <SelectTrigger id="role" className="mt-1">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="demandeur">Demandeur</SelectItem>
-                                                <SelectItem value="responsable_service">Responsable Service</SelectItem>
-                                                <SelectItem value="controle_gestion">Contrôle de Gestion</SelectItem>
-                                                <SelectItem value="daf">DAF</SelectItem>
-                                                <SelectItem value="directeur_pays">Directeur Pays</SelectItem>
-                                                <SelectItem value="caissier">Caissier</SelectItem>
-                                                <SelectItem value="administrateur">Administrateur</SelectItem>
+                                                {/* Lot T : trésorerie, Chef comptable, DAF adjoint, DP adjoint, Comptabilité, assistant trésorier… */}
+                                                {Object.entries(rolesPrincipaux).map(([role, libelle]) => (
+                                                    <SelectItem key={role} value={role}>{libelle}</SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         {errors.role && <p className="text-sm text-red-500 mt-1">{errors.role}</p>}

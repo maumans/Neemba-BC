@@ -44,7 +44,11 @@ class HandleInertiaRequests extends Middleware
                         \App\Services\Caisse\AccesCaisse::gereUneCaisse($request->user()) ? ['gerant_caisse'] : [],
                     ))),
                     'peut_initier_bon' => $request->user()->peutInitierBon(),
+                    /* Lot T : tous les rôles de la personne, pour le bandeau et le menu (« Trésorerie », « Chef comptable »…) */
+                    'roles_affiches' => \App\Models\User::libellesRoles($request->user()),
                 ]) : null,
+                /* Lot T : libellé de chaque rôle (écrans des utilisateurs, délégations, profil) */
+                'roles_libelles' => \App\Models\User::ROLES,
                 /* Spec v2.4, RG-M01-08 : entité courante, entités accessibles, vue consolidée */
                 'entite' => $request->user() ? \App\Support\EntiteCourante::pourEcran($request->user()) : null,
             ],

@@ -35,10 +35,15 @@ class VerifierRole
             ->with('delegant')
             ->get();
 
+        /* Lot T : le délégué reçoit les rôles du titulaire qui ont une fonctionnalité déléguée (validation, paiement…), et non
+         * plus son seul rôle principal quelle que soit la délégation : un rôle sans fonctionnalité délégable (trésorerie,
+         * Chef comptable hors visa d'ODM…) ne se transmet pas. */
         foreach ($delegants as $delegation) {
-            $roleDelegant = $delegation->delegant->role ?? null;
-            if ($roleDelegant && !in_array($roleDelegant, $rolesPossedes)) {
-                $rolesPossedes[] = $roleDelegant;
+            foreach ($delegation->delegant?->listeRoles() ?? [] as $roleDelegant) {
+                $fonctions = \App\Models\Delegation::FONCTIONNALITES_PAR_ROLE[$roleDelegant] ?? [];
+                if (!in_array($roleDelegant, $rolesPossedes, true) && collect($fonctions)->contains(fn (string $f) => $delegation->autorise($f))) {
+                    $rolesPossedes[] = $roleDelegant;
+                }
             }
         }
 

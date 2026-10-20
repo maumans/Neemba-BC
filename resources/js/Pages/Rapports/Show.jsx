@@ -48,7 +48,8 @@ import { useState } from 'react';
 
 export default function Show({ rapport, bonsPaye = [], detailsBons = [], soldeCaisseSite = null }) {
     const { flash, auth } = usePage().props;
-    const userRole = auth?.user?.role;
+    /* Lot T : visa du DAF, du DAF adjoint ou de l'administrateur, quel que soit le rôle principal */
+    const rolesUtilisateur = auth?.user?.roles_effectifs || [auth?.user?.role];
     const [showViserDialog, setShowViserDialog] = useState(false);
 
     const handleViserDaf = () => {
@@ -400,7 +401,7 @@ export default function Show({ rapport, bonsPaye = [], detailsBons = [], soldeCa
                                 <Separator />
 
                                 {/* Actions */}
-                                {!rapport.visa_daf_id && ['daf', 'administrateur'].includes(userRole) && (
+                                {!rapport.visa_daf_id && ['daf', 'daf_adjoint', 'administrateur'].some((r) => rolesUtilisateur.includes(r)) && (
                                     <Dialog open={showViserDialog} onOpenChange={setShowViserDialog}>
                                         <DialogTrigger asChild>
                                             <Button className="w-full" variant="outline">

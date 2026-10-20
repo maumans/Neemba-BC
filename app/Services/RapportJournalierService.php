@@ -145,7 +145,7 @@ class RapportJournalierService
         $sortiesOm = $m['sorties_om'];
 
         $caissier = $site
-            ? User::where('actif', true)->where('role', 'caissier')->where('site', $site)->first()
+            ? User::where('actif', true)->avecRoleDans(['caissier'])->where('site', $site)->first()
             : null;
 
         $rapport = new RapportCaisse([

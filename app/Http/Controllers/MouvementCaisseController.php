@@ -173,7 +173,7 @@ class MouvementCaisseController extends Controller
             if (!$site) {
                 $delegation = \App\Models\Delegation::actives()
                     ->where('delegue_id', $utilisateur->id)
-                    ->whereHas('delegant', fn ($q) => $q->where('role', 'caissier'))
+                    ->whereHas('delegant', fn ($q) => $q->avecRoleDans(['caissier']))
                     ->with('delegant')
                     ->first();
                 $site = $delegation?->delegant?->site;

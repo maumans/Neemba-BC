@@ -91,6 +91,8 @@ function formaterTempsEcoule(dateStr) {
 
 export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutValider = false, roleUtilisateur = '', statsIndex = {}, niveauxUrgence = {}, peutExporter = false }) {
     const { auth } = usePage().props;
+    /* Lot T : statuts que l'utilisateur peut valider, d'après tous ses rôles (Chef comptable → étape Finance…) */
+    const statutsAValider = (auth.user.roles_effectifs || [roleUtilisateur]).map((r) => ROLE_STATUT_MAP[r]).filter(Boolean);
     const [recherche, setRecherche] = useState(filtres.recherche || '');
     const [, forceUpdate] = useState(0);
 
@@ -375,7 +377,7 @@ export default function Index({ bonsCaisse, filtres = {}, statuts = {}, peutVali
                                                 </TableCell>
                                                 <TableCell className="text-right py-2">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        {peutValider && bon.statut === ROLE_STATUT_MAP[roleUtilisateur] && (
+                                                        {peutValider && statutsAValider.includes(bon.statut) && (
                                                             <Link href={route('bons-caisse.show', bon.id)}>
                                                                 <Button
                                                                     variant="outline"

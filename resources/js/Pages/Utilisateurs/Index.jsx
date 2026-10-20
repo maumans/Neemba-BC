@@ -166,7 +166,7 @@ export default function Index({ utilisateurs, filtres = {}, roles = {} }) {
                                                         ? `${utilisateur.prenom} ${utilisateur.name}`
                                                         : utilisateur.name}
                                                     <div className="sm:hidden text-[10px] text-gray-400 mt-0.5">
-                                                        {utilisateur.actif ? '✅' : '❌'} {rolesLabels[utilisateur.role] || utilisateur.role}
+                                                        {utilisateur.actif ? '✅' : '❌'} {(utilisateur.roles_affiches || [rolesLabels[utilisateur.role] || utilisateur.role]).join(' · ')}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-xs text-gray-500 hidden md:table-cell py-2">
@@ -176,9 +176,12 @@ export default function Index({ utilisateurs, filtres = {}, roles = {} }) {
                                                     {utilisateur.matricule || '-'}
                                                 </TableCell>
                                                 <TableCell className="py-2">
-                                                    <Badge variant="outline" className="text-[10px]">
-                                                        {rolesLabels[utilisateur.role] || utilisateur.role || 'N/A'}
-                                                    </Badge>
+                                                    {/* Lot T : tous les rôles, rôle principal d'abord */}
+                                                    <div className="flex flex-wrap gap-1" data-testid={`roles-${utilisateur.id}`}>
+                                                        {(utilisateur.roles_affiches || [rolesLabels[utilisateur.role] || utilisateur.role || 'N/A']).map((libelle, i) => (
+                                                            <Badge key={libelle} variant={i === 0 ? 'default' : 'outline'} className="text-[10px]">{libelle}</Badge>
+                                                        ))}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-sm hidden lg:table-cell py-2">{utilisateur.service || '-'}</TableCell>
                                                 <TableCell className="text-sm hidden md:table-cell py-2">{utilisateur.site || '-'}</TableCell>

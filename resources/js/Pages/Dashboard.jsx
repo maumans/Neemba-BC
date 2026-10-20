@@ -132,6 +132,7 @@ export default function Dashboard({
     mouvementsEnAttente = [],
     delegationsActives = [],
     performancesN1 = [],
+    tachesCaisse = [],
 }) {
     const { auth } = usePage().props;
     const user = auth.user;
@@ -165,6 +166,24 @@ export default function Dashboard({
                     Voici un résumé de l'activité de la caisse.
                 </p>
             </div>
+
+            {/* Lot T : travail en attente côté caisses et trésorerie */}
+            {tachesCaisse.length > 0 && (
+                <Card className="mb-5 border-l-4 border-l-neemba-500" data-testid="a-traiter">
+                    <CardContent className="p-4">
+                        <p className="mb-2 text-sm font-semibold text-gray-900">À traiter</p>
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {tachesCaisse.map((t) => (
+                                <Link key={t.cle} href={t.lien}
+                                    className="flex items-center justify-between gap-3 rounded-md border bg-white px-3 py-2 text-sm hover:bg-neemba-50">
+                                    <span>{t.libelle}</span>
+                                    <span className="rounded-full bg-neemba-500 px-2 py-0.5 text-xs font-bold text-marine-950">{t.nombre}</span>
+                                </Link>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* ============================================================ */}
             {/*  KPIs principaux                                             */}

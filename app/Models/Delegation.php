@@ -190,9 +190,7 @@ class Delegation extends Model
         $query = static::actives()->where('delegue_id', $delegueId);
 
         if ($roleDelegant) {
-            $query->whereHas('delegant', function ($q) use ($roleDelegant) {
-                $q->where('role', $roleDelegant);
-            });
+            $query->whereHas('delegant', fn ($q) => $q->avecRoleDans([$roleDelegant]));
         }
 
         $delegation = $query->first();

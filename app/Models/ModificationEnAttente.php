@@ -131,6 +131,17 @@ class ModificationEnAttente extends Model
                     $champ = $this->champ;
                     $user->$champ = $this->nouvelle_valeur;
                     $user->save();
+                    /* Lot T : rôles complémentaires demandés dans le même formulaire et déjà validés : ils s'appliquent au
+                     * nouveau rôle principal (l'ancien rôle principal ne reste que s'il y figure). Encore en attente : ils
+                     * s'appliqueront à leur validation. */
+                    $memeDemande = static::where('type_entite', 'utilisateur_roles')->where('entite_id', $user->id)->where('statut', 'approuvee')
+                        ->where('demandeur_id', $this->demandeur_id)
+                        ->whereBetween('created_at', [$this->created_at->copy()->subSeconds(5), $this->created_at->copy()->addSeconds(5)])
+                        ->latest('id')->first();
+                    if ($memeDemande) {
+                        $complementaires = array_filter(array_map('trim', explode(',', (string) $memeDemande->nouvelle_valeur)));
+                        $user->definirRoles([$user->role, ...$complementaires]);
+                    }
                 }
             }
 

@@ -439,7 +439,7 @@ class NotificationService
         $montantFormat = Format::montant($mouvement->montant);
 
         $destinataires = User::actifs()
-            ->whereIn('role', ['daf', 'directeur_pays'])
+            ->avecRoleDans(['daf', 'directeur_pays'])
             ->get();
 
         foreach ($destinataires as $dest) {
@@ -712,7 +712,7 @@ class NotificationService
             ->whereHas('delegationsRecues', function ($q) use ($role, $serviceRequis) {
                 $q->actives()
                   ->whereHas('delegant', function ($qDelegant) use ($role, $serviceRequis) {
-                      $qDelegant->where('role', $role);
+                      $qDelegant->avecRoleDans([$role]);
                       if ($serviceRequis) {
                           $qDelegant->where('service', $serviceRequis);
                       }
@@ -787,7 +787,8 @@ class NotificationService
             'daf' => 'le DAF',
             'directeur_pays' => 'le Directeur Pays',
             'caissier' => 'le Caissier',
-            default => $role,
+            /* Lot T : trésorerie, Chef comptable, DAF adjoint… */
+            default => User::ROLES[$role] ?? $role,
         };
     }
 

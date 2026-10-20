@@ -22,12 +22,19 @@ class RolesTest extends TestCase
         $this->assertTrue($daf->peutInitierBon());
     }
 
-    public function test_changer_le_role_principal_remplace_l_ancien(): void
+    /**
+     * Lot T : changer de rôle principal ne retire plus l'ancien rôle (il se retire en décochant le rôle complémentaire, avec
+     * la double validation) ; avant, il disparaissait d'office, et un passage Demandeur → Trésorerie pouvait faire perdre
+     * « demandeur ».
+     */
+    public function test_changer_le_role_principal_garde_l_ancien(): void
     {
         $utilisateur = User::factory()->role('controle_gestion')->create();
 
         $utilisateur->update(['role' => 'daf']);
 
+        $this->assertEqualsCanonicalizing(['controle_gestion', 'daf', 'demandeur'], $utilisateur->fresh()->listeRoles());
+        $utilisateur->definirRoles(['daf', 'demandeur']);
         $this->assertEqualsCanonicalizing(['daf', 'demandeur'], $utilisateur->fresh()->listeRoles());
     }
 

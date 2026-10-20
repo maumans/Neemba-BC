@@ -5,7 +5,7 @@
  * Permet d'accepter, refuser ou terminer une délégation.
  */
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import {
     UserCheck,
@@ -41,6 +41,7 @@ const STATUTS_CONFIG = {
 };
 
 function DelegationCard({ delegation, type, onAction, fonctionnalitesLabels = {} }) {
+    const libelles = usePage().props.auth.roles_libelles || {};
     const config = STATUTS_CONFIG[delegation.statut] || STATUTS_CONFIG.en_attente;
     const StatusIcon = config.icone;
     const estActive = delegation.statut === 'acceptee' && new Date(delegation.date_fin) >= new Date();
@@ -72,7 +73,7 @@ function DelegationCard({ delegation, type, onAction, fonctionnalitesLabels = {}
                             {new Date(delegation.date_debut).toLocaleDateString('fr-FR')} → {new Date(delegation.date_fin).toLocaleDateString('fr-FR')}
                         </span>
                         {delegation.delegant?.role && (
-                            <span>Rôle : {delegation.delegant.role}</span>
+                            <span>Rôle : {libelles[delegation.delegant.role] || delegation.delegant.role}</span>
                         )}
                     </div>
                     {/* Fonctionnalités déléguées */}

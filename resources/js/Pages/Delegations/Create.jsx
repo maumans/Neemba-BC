@@ -4,7 +4,7 @@
  * Formulaire pour déléguer ses pouvoirs de validation à un autre utilisateur.
  */
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Send, UserCheck, Calendar, Loader2, Shield } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import { Combobox } from '@/Components/ui/combobox';
 
 export default function Create({ deleguesPotentiels = [], fonctionnalitesDisponibles = [], fonctionnalitesLabels = {} }) {
+    const libelles = usePage().props.auth.roles_libelles || {};
     const { data, setData, post, processing, errors } = useForm({
         delegue_id: '',
         date_debut: '',
@@ -74,7 +75,7 @@ export default function Create({ deleguesPotentiels = [], fonctionnalitesDisponi
                                     <Combobox
                                         options={deleguesPotentiels.map((u) => ({
                                             value: String(u.id),
-                                            label: `${u.prenom} ${u.name} — ${u.role} (${u.service})`
+                                            label: `${u.prenom} ${u.name} — ${libelles[u.role] || u.role} (${u.service})`
                                         }))}
                                         value={data.delegue_id ? String(data.delegue_id) : ''}
                                         onChange={(val) => setData('delegue_id', val)}

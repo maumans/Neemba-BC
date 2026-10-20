@@ -175,6 +175,8 @@ class RapportCaisseController extends Controller
             'soldeCaisseSite' => $soldeCaisseSite,
             'siteUtilisateur' => $utilisateur->site,
             'roleUtilisateur' => $utilisateur->role,
+            /* Lot T : le caissier se reconnaît à l'un de ses rôles */
+            'estCaissier' => $utilisateur->aLeRole('caissier'),
         ]);
     }
 
@@ -187,7 +189,7 @@ class RapportCaisseController extends Controller
     {
         /* Auto-filtrage par site pour le caissier */
         $utilisateur = Auth::user();
-        if ($utilisateur->role === 'caissier' && $utilisateur->site && !$request->filled('site')) {
+        if ($utilisateur->aLeRole('caissier') && !\App\Services\Caisse\AccesCaisse::estTransverse($utilisateur) && $utilisateur->site && !$request->filled('site')) {
             $request->merge(['site' => $utilisateur->site]);
         }
 
@@ -231,7 +233,7 @@ class RapportCaisseController extends Controller
     {
         /* Auto-filtrage par site pour le caissier */
         $utilisateur = Auth::user();
-        if ($utilisateur->role === 'caissier' && $utilisateur->site && !$request->filled('site')) {
+        if ($utilisateur->aLeRole('caissier') && !\App\Services\Caisse\AccesCaisse::estTransverse($utilisateur) && $utilisateur->site && !$request->filled('site')) {
             $request->merge(['site' => $utilisateur->site]);
         }
 
@@ -774,7 +776,7 @@ class RapportCaisseController extends Controller
     {
         $utilisateur = Auth::user();
 
-        if (!in_array($utilisateur->role, ['daf', 'administrateur'])) {
+        if (!$utilisateur->aLeRole(['daf', 'daf_adjoint', 'administrateur'])) {
             abort(403, 'Seul le DAF peut viser un rapport.');
         }
 
@@ -882,9 +884,9 @@ class RapportCaisseController extends Controller
         /* Destinataires : DAF + contrôle de gestion + administrateurs + caissier du site */
         $destinataires = \App\Models\User::where('actif', true)
             ->where(function ($q) use ($site) {
-                $q->whereIn('role', ['daf', 'controle_gestion', 'administrateur'])
+                $q->avecRoleDans(['daf', 'controle_gestion', 'administrateur'])
                   ->orWhere(function ($q2) use ($site) {
-                      $q2->where('role', 'caissier')->where('site', $site);
+                      $q2->avecRoleDans(['caissier'])->where('site', $site);
                   });
             })
             ->whereNotNull('email')

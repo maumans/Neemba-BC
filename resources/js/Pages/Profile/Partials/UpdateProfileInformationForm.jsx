@@ -59,8 +59,8 @@ export default function UpdateProfileInformation({ mustVerifyEmail, status }) {
                         <p className="text-sm font-mono mt-0.5">{user.matricule}</p>
                     </div>
                     <div>
-                        <Label className="text-gray-400 text-xs">Rôle</Label>
-                        <p className="text-sm mt-0.5 capitalize">{user.role?.replace('_', ' ')}</p>
+                        <Label className="text-gray-400 text-xs">Rôles</Label>
+                        <p className="text-sm mt-0.5">{(user.roles_affiches || [user.role]).join(' · ')}</p>
                     </div>
                     <div>
                         <Label className="text-gray-400 text-xs">Service</Label>

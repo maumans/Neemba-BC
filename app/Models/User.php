@@ -75,6 +75,8 @@ class User extends Authenticatable
         /* Spec v2.4, RG-M08-07 (Q89) : deux membres du CODIR approuvent ensemble un réapprovisionnement en l'absence
          * du DP et de son adjoint */
         'membre_codir' => 'Membre du CODIR',
+        /* Spec v2.4, chapitre 3 : « Caissier / assistant trésorier », mêmes droits que le caissier (Q75) */
+        'assistant_tresorier' => 'Assistant trésorier',
     ];
 
     public const ROLES_DECLARES = ['daf_adjoint', 'chef_comptable', 'tresorerie', 'rh', 'logistique', 'comptable'];
@@ -97,7 +99,23 @@ class User extends Authenticatable
         return array_keys(array_filter(self::ROLES_ETAPES_BON, fn (array $tenants) => array_intersect($tenants, $roles)));
     }
 
-    public const ROLES_PRINCIPAUX = ['demandeur', 'responsable_service', 'controle_gestion', 'daf', 'directeur_pays', 'caissier', 'administrateur'];
+    /**
+     * Rôles qu'on peut choisir comme rôle principal (celui qu'affichent les écrans). Seuls le gestionnaire des référentiels
+     * et le membre du CODIR, qui s'ajoutent à un métier, restent des rôles complémentaires (Q103).
+     */
+    public const ROLES_PRINCIPAUX = [
+        'demandeur', 'responsable_service', 'controle_gestion', 'daf', 'daf_adjoint', 'chef_comptable', 'comptable', 'tresorerie',
+        'directeur_pays', 'dp_adjoint', 'caissier', 'assistant_tresorier', 'chef_atelier', 'rh', 'logistique', 'administrateur',
+    ];
+
+    /** Rôle principal retenu quand un compte en a plusieurs (import des référentiels, reprise du lot T) */
+    public const PRIORITE_PRINCIPAL = [
+        'administrateur', 'directeur_pays', 'dp_adjoint', 'daf', 'daf_adjoint', 'chef_comptable', 'controle_gestion', 'comptable',
+        'responsable_service', 'assistant_tresorier', 'caissier', 'tresorerie', 'chef_atelier', 'rh', 'logistique', 'demandeur',
+    ];
+
+    /** Rôles qui donnent les droits d'un autre rôle (l'assistant trésorier a ceux du caissier) */
+    public const ROLES_EQUIVALENTS = ['assistant_tresorier' => ['caissier']];
 
     /** RG-M02-05 : n° Orange Money au format guinéen, 9 chiffres commençant par 6 */
     public const FORMAT_NUMERO_OM = '/^6\d{8}$/';
@@ -219,16 +237,12 @@ class User extends Authenticatable
             $utilisateur->ajouterRoles([$utilisateur->role, 'demandeur']);
         });
 
-        /* « updated » (et non « saved ») : wasRecentlyCreated reste vrai sur l'instance créée */
+        /* « updated » (et non « saved ») : wasRecentlyCreated reste vrai sur l'instance créée. Lot T : l'ancien rôle principal
+         * n'est plus retiré d'office (il reste un rôle de la personne) ; on le retire en décochant le rôle complémentaire. */
         static::updated(function (User $utilisateur) {
-            if (!$utilisateur->wasChanged('role')) {
-                return;
+            if ($utilisateur->wasChanged('role')) {
+                $utilisateur->ajouterRoles([$utilisateur->role]);
             }
-            $ancien = $utilisateur->getOriginal('role');
-            if ($ancien && $ancien !== 'demandeur') {
-                $utilisateur->roles()->where('role', $ancien)->delete();
-            }
-            $utilisateur->ajouterRoles([$utilisateur->role]);
         });
     }
 
@@ -258,8 +272,15 @@ class User extends Authenticatable
      * RG-M01-08 : comptes qui ont l'un des rôles dans l'entité donnée (rôle principal dans l'entité du compte ; rôle
      * attribué dans cette entité ou sans entité). Sans entité : tous les comptes qui ont le rôle.
      */
-    public function scopeAvecRoleDans($query, array $roles, ?int $entite)
+    public function scopeAvecRoleDans($query, array $roles, ?int $entite = null)
     {
+        /* L'assistant trésorier compte comme caissier */
+        foreach (self::ROLES_EQUIVALENTS as $role => $equivalents) {
+            if (array_intersect($equivalents, $roles)) {
+                $roles[] = $role;
+            }
+        }
+
         return $query->where(fn ($q) => $q
             ->where(fn ($p) => $p->whereIn('role', $roles)->when($entite, fn ($e) => $e->where('entite_id', $entite)))
             ->orWhereHas('roles', fn ($r) => $r->whereIn('role', $roles)
@@ -310,7 +331,8 @@ class User extends Authenticatable
      */
     public function scopeParRole($query, string $role)
     {
-        return $query->where('role', $role);
+        /* Lot T : rôle principal ou complémentaire */
+        return $query->avecRoleDans([$role]);
     }
 
     /**
@@ -351,10 +373,32 @@ class User extends Authenticatable
                 ? $this->roles()->when($entite, fn ($q) => $q->where(fn ($w) => $w->whereNull('entite_id')->orWhere('entite_id', $entite)))->pluck('role')->all()
                 : [];
             $principal = $entite === null || $entite === $this->entite_id ? $this->role : null;
-            $this->rolesCharges = array_values(array_unique(array_filter([$principal, ...$attribues])));
+            $roles = array_values(array_unique(array_filter([$principal, ...$attribues])));
+            foreach (self::ROLES_EQUIVALENTS as $role => $equivalents) {
+                if (in_array($role, $roles, true)) {
+                    $roles = array_values(array_unique([...$roles, ...$equivalents]));
+                }
+            }
+            $this->rolesCharges = $roles;
         }
 
         return $this->rolesCharges;
+    }
+
+    /**
+     * Lot T : libellés des rôles du compte, rôle principal d'abord ; « Demandeur » n'est montré que s'il est le seul rôle
+     * (tout le monde l'a). Rôles enregistrés, toutes entités.
+     *
+     * @return string[]
+     */
+    public static function libellesRoles(self $u): array
+    {
+        $roles = array_values(array_unique(array_filter([$u->role, ...$u->roles->pluck('role')->all()])));
+        if (count($roles) > 1) {
+            $roles = array_values(array_diff($roles, ['demandeur'])) ?: ['demandeur'];
+        }
+
+        return array_map(fn (string $r) => self::ROLES[$r] ?? $r, $roles);
     }
 
     /** Tous les rôles du compte, toutes entités confondues (vue consolidée, sélecteur d'entité) */
@@ -427,9 +471,7 @@ class User extends Authenticatable
     {
         return Delegation::actives()
             ->where('delegue_id', $this->id)
-            ->whereHas('delegant', function ($q) use ($role) {
-                $q->where('role', $role);
-            })
+            ->whereHas('delegant', fn ($q) => $q->avecRoleDans([$role]))
             ->exists();
     }
 
@@ -446,9 +488,7 @@ class User extends Authenticatable
         /* Vérifier les délégations actives avec la fonctionnalité 'paiement' */
         return Delegation::actives()
             ->where('delegue_id', $this->id)
-            ->whereHas('delegant', function ($q) {
-                $q->where('role', 'caissier');
-            })
+            ->whereHas('delegant', fn ($q) => $q->avecRoleDans(['caissier']))
             ->get()
             ->contains(fn ($d) => $d->autorise('paiement'));
     }

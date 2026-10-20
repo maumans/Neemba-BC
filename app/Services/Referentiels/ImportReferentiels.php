@@ -30,8 +30,8 @@ class ImportReferentiels
     /** Rôles qui donnent des droits de validation, de paiement ou d'administration */
     private const ROLES_PRIVILEGIES = ['administrateur', 'directeur_pays', 'dp_adjoint', 'daf', 'controle_gestion', 'responsable_service', 'chef_atelier', 'caissier'];
 
-    /** Rôle principal (users.role) d'un compte créé : le plus élevé de ses rôles */
-    private const PRIORITE = ['administrateur', 'directeur_pays', 'daf', 'controle_gestion', 'responsable_service', 'caissier', 'demandeur'];
+    /** Rôle principal (users.role) d'un compte créé : le plus élevé de ses rôles (lot T : liste commune, trésorerie comprise) */
+    private const PRIORITE = User::PRIORITE_PRINCIPAL;
 
     private RapportImport $rapport;
 

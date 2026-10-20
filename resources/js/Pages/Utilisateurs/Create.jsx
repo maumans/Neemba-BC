@@ -20,7 +20,7 @@ import {
 } from '@/Components/ui/select';
 import { Combobox } from '@/Components/ui/combobox';
 
-export default function Create({ sites = [], services = [], caisses = [], entites = [] }) {
+export default function Create({ sites = [], services = [], caisses = [], entites = [], rolesPrincipaux = {} }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         prenom: '',
@@ -210,22 +210,19 @@ export default function Create({ sites = [], services = [], caisses = [], entite
                                         {errors.matricule && <p className="text-sm text-red-500 mt-1">{errors.matricule}</p>}
                                     </div>
                                     <div>
-                                        <Label htmlFor="role">Rôle *</Label>
+                                        <Label htmlFor="role">Rôle principal *</Label>
                                         <Select
                                             value={data.role}
                                             onValueChange={(val) => setData('role', val)}
                                         >
-                                            <SelectTrigger className="mt-1">
+                                            <SelectTrigger id="role" className="mt-1">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="demandeur">Demandeur</SelectItem>
-                                                <SelectItem value="responsable_service">Responsable Service</SelectItem>
-                                                <SelectItem value="controle_gestion">Contrôle de Gestion</SelectItem>
-                                                <SelectItem value="daf">DAF</SelectItem>
-                                                <SelectItem value="directeur_pays">Directeur Pays</SelectItem>
-                                                <SelectItem value="caissier">Caissier</SelectItem>
-                                                <SelectItem value="administrateur">Administrateur</SelectItem>
+                                                {/* Lot T : trésorerie, Chef comptable, DAF adjoint, DP adjoint, Comptabilité, assistant trésorier… */}
+                                                {Object.entries(rolesPrincipaux).map(([role, libelle]) => (
+                                                    <SelectItem key={role} value={role}>{libelle}</SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         {errors.role && <p className="text-sm text-red-500 mt-1">{errors.role}</p>}
