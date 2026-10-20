@@ -1,13 +1,13 @@
 # NEEMBA — Récapitulatif des lots réalisés
 
-*Mis à jour le 20/10/2026. Sources : le devBook (§12 à §58), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
+*Mis à jour le 20/10/2026. Sources : le devBook (§12 à §59), `docs/CONFORMITE.md`, `docs/questions.md` et l'historique git.*
 
 Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NEEMBA : bons de caisse et ordres de mission de Neemba Guinée, réalisés par Addvalis. Pour chaque lot, il donne l'objectif, ce qui a été fait, les décisions prises et les vérifications. Le détail technique de chaque lot se trouve au paragraphe indiqué du devBook.
 
 **État au 20/10/2026**
 - Branche de travail `v23-conformite`. Tout le travail d'octobre est en commits locaux : rien n'est poussé ni déployé depuis la mise en production de juin (branche `main`).
-- 443 tests PHP et 75 tests JavaScript passent.
-- Spec v2.4 : 132 règles RG faites sur 165, 24 partielles, 9 à faire.
+- 439 tests PHP et 75 tests JavaScript passent.
+- Spec v2.4 : 131 règles RG faites sur 165, 25 partielles, 9 à faire (le code SMS de visa retiré à la demande de l'utilisateur, Q104).
 
 ---
 
@@ -57,6 +57,7 @@ Ce document reprend, lot par lot, ce qui a été construit dans la plateforme NE
 | 19/10 | Lot F1 | Caisses : alertes, encaissement client, réapprovisionnement, réconciliation OM | `v23-conformite` | 426 / 75 | 15 + 24 + 14 | §56 |
 | 20/10 | Lot F2 | Clôture journalière par caisse, REPORTING CAISSE, inventaires et contrôles inopinés | `v23-conformite` | 435 / 75 | 21 | §57 |
 | 20/10 | Lot T | Trésorerie et rôles métier visibles, bloc « À traiter » | `v23-conformite` | 443 / 75 | 16 | §58 |
+| 20/10 | Urgences | Visa urgent sans code SMS, alerte SMS des ODM urgents (Q104) | `v23-conformite` | 439 / 75 | 9 | §59 |
 
 Les branches sont en chaîne : chacune part de la précédente.
 
@@ -525,6 +526,13 @@ Fait à la demande de l'utilisateur : le rôle Trésorerie existait, avec toutes
 - **Tableau de bord** : bloc « À traiter » (réapprovisionnements, PV à signer, réconciliation OM, taux du jour, caisses sous le seuil…).
 - **Décision** : Q103.
 - **Vérifications** : 443 tests PHP, 16 contrôles dans Edge.
+
+### Demandes urgentes : visa sans code, alerte SMS des ODM (20/10, §59)
+Décision de l'utilisateur (Q104), écart à la spec à faire valider par Neemba.
+- **Code SMS de visa supprimé** : le valideur est déjà authentifié par le code de connexion. Un bon ou un ODM urgent se vise désormais comme une demande normale. Le code de connexion par email reste.
+- **Alerte SMS des ODM urgents et très urgents** : les valideurs sont prévenus par SMS à chaque étape (soumission, puis chaque visa), en plus de la notification. Les bons très urgents le faisaient déjà.
+- **Onglet Sécurité** : l'encart du code de visa devient « Alertes SMS des demandes urgentes » (fournisseur SMS, valideurs sans numéro).
+- **Vérifications** : 439 tests PHP, 9 contrôles dans Edge.
 
 ---
 

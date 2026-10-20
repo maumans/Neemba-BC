@@ -5576,3 +5576,62 @@ php artisan migrate        # 2026_11_01_000001
 ```
 
 Vérifier ensuite le rôle principal de chaque compte dans Utilisateurs. La spec désigne Youssouf TOURE comme assistant trésorier (et non trésorerie) : à confirmer avec Neemba avant de changer ses rôles.
+
+---
+
+## 59. Version v59 — Demandes urgentes : visa sans code, alerte SMS des ODM (20 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Décision de l'utilisateur du 20/10 (Q104).
+
+### 59.1 Contexte
+
+La spec v2.4 (RG-M01-07, comité du 14/10) demande deux codes :
+- un code par email à la connexion ;
+- un code par SMS au valideur pour viser une demande urgente ou très urgente (BD, BP, ODM).
+
+Le second a été fait au lot E2 : le valideur, déjà sur la demande, cliquait pour recevoir le code et le saisissait pour viser. L'utilisateur a relevé que ce code ne prévient personne et que le valideur est déjà authentifié par le code de connexion. Il ne couvre que des cas rares (session laissée ouverte, poste partagé), au prix d'une étape de plus quand il faut aller vite et d'une dépendance au fournisseur SMS. Décision : le supprimer, et prévenir à la place les valideurs des ODM urgents par SMS.
+
+### 59.2 Code SMS de visa retiré
+
+- Le visa d'un bon ou d'un ODM urgent se fait comme celui d'une demande normale.
+- Retirés :
+  - `DoubleAuthentification::exigeCodeVisa` et `envoyerCodeVisa` ;
+  - le contrôle dans `ValidationController::approuver` et `OrdreMissionController::viser` ;
+  - les routes `validations.code-visa` et `odm.code-visa` ;
+  - le composant `CodeVisa` et ses trois écrans (validation d'un bon, fiche du bon, fiche de l'ODM) ;
+  - les réglages `otp_visa_urgent_actif` et `otp_visa_duree` (migration `2026_11_02_000001_retrait_code_visa_urgent`, que le retour arrière remet) ;
+  - l'option `--visa` de la commande de secours ;
+  - les messages MSG-APP-081 à 083.
+- **Inchangés** : le code de connexion par email (durée, essais, interrupteur de secours, commande `securite:double-authentification`), et l'OTP de paiement au bénéficiaire (RG-M06-02).
+- Les codes de visa déjà émis restent dans `codes_otp`, pour l'historique.
+
+### 59.3 Alerte SMS des ODM urgents
+
+- `NotificationsOdm::aViser`, appelé à la soumission puis à chaque visa, envoie en plus de la notification un SMS à chaque valideur possible de l'étape qui s'ouvre (titulaires et suppléants), si l'ODM est urgent ou très urgent. Exemple :
+  `NEEMBA [URGENT] - L'ordre de mission N°5/DIR/26 de … (du … au …) attend votre visa (DAF). Merci d'agir rapidement.` (très urgent : « immédiatement »).
+- Un valideur sans téléphone, ou un SMS qui ne part pas, n'arrête pas le circuit : la notification dans l'application reste, et le cas est écrit au journal.
+- Les bons gardent la règle de la spec (RG-M03, §6.2) : SMS pour un bon très urgent, email pour un bon urgent.
+- L'onglet Sécurité remplace l'encart du code de visa par « Alertes SMS des demandes urgentes » : état du fournisseur SMS et valideurs sans numéro de téléphone.
+
+### 59.4 Vérifications
+
+- `tests/Feature/LotE2/UrgenceVisaTest.php` (4) remplace `CodeVisaUrgentTest` :
+  - un bon très urgent se vise sans code ; plus de routes ni de réglages de code de visa ;
+  - un ODM urgent exige son motif, prévient le chef d'atelier par SMS à la soumission, se vise sans code, puis prévient le DAF ;
+  - très urgent (« immédiatement »), normal (aucun SMS), valideur sans téléphone ;
+  - motif d'urgence effacé quand l'ODM repasse en normal.
+
+  `ReglagesSecuriteTest` est adapté.
+- **Total** : 439 tests PHP et 75 tests JavaScript passent. Migration vérifiée sur une copie de la base de dev (aller, retour, aller), puis appliquée en dev.
+- Parcours dans Edge sur une copie de la base : 9 vérifications, sans erreur JavaScript.
+  - Mohamed DIAKITE (DAF) vise l'ODM très urgent N°5/DIR/26 sans code ;
+  - l'alerte SMS de l'étape suivante est tentée (consignée au journal, pas de fournisseur SMS en test) ;
+  - l'onglet Sécurité n'a plus qu'un interrupteur, celui du code de connexion.
+
+### 59.5 Déploiement
+
+```bash
+php artisan migrate        # 2026_11_02_000001
+```
+
+Les alertes SMS ne partent qu'une fois le fournisseur SMS configuré (PO-23) et les numéros des valideurs saisis (l'onglet Sécurité liste ceux qui manquent).
