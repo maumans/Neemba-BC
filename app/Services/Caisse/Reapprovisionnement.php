@@ -214,7 +214,7 @@ final class Reapprovisionnement
             if (!$source || $source->id === $caisse->id || !$source->actif || !$source->peutPayer($montant)) {
                 throw new ErreurMetier('REAPPRO_SOURCE', 'MSG-APP-097', [], 'RG-M08-08', 'caisse_source_id');
             }
-            $source->debiter($montant, 'transfert_emis', ['utilisateur_id' => $u->id,
+            $source->debiter($montant, 'transfert_emis', ['utilisateur_id' => $u->id, 'piece' => $d->numero,
                 'libelle' => "Transfert vers la {$caisse->libelle} (réapprovisionnement {$d->numero})"]);
         }
         $d->update([
@@ -234,7 +234,7 @@ final class Reapprovisionnement
             throw new ErreurMetier('REAPPRO_RECEPTION', 'MSG-APP-098', [], 'RG-M08-09', $recu <= 0 ? 'montant_recu' : 'piece');
         }
         $caisse = $d->caisse;
-        $caisse->crediter($recu, 'approvisionnement', ['utilisateur_id' => $u->id,
+        $caisse->crediter($recu, 'approvisionnement', ['utilisateur_id' => $u->id, 'piece' => $d->numero,
             'libelle' => "Réapprovisionnement {$d->numero} reçu (" . (Demande::ORIGINES[$d->origine_fonds] ?? $d->origine_fonds) . ')']);
         $d->update(['statut' => 'recue', 'montant_recu' => $recu, 'piece_reception' => $donnees['piece']->store('reapprovisionnements', 'public'),
             'recu_par' => $u->id, 'recu_le' => now()]);

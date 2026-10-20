@@ -58,6 +58,10 @@ final class ArreteCaisse
         if (!self::peutEtablir($auteur, $caisse)) {
             throw new ErreurMetier('PV_INTERDIT', 'MSG-APP-088', [], 'RG-M10-02', null, 403);
         }
+        /* RG-M10-01 : le contrôle inopiné est fait par la trésorerie ou le Chef comptable, pas par le gérant */
+        if ($motif === 'controle_inopine' && self::estGerant($auteur, $caisse)) {
+            throw new ErreurMetier('CONTROLE_PAR_LE_GERANT', 'MSG-APP-109', [], 'RG-M10-01', 'motif');
+        }
 
         return DB::transaction(function () use ($auteur, $caisse, $motif, $billetage, $soldeLu, $observations) {
             $caisse = Caisse::whereKey($caisse->id)->lockForUpdate()->firstOrFail();

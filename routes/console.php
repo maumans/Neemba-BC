@@ -17,8 +17,13 @@ Schedule::command('bons:transmettre-bp-rh')->dailyAt('08:15');
 /* RG-M07-07 : rapport mensuel des BP non régularisés au Directeur Pays */
 Schedule::command('bons:rapport-bp-mensuel')->monthlyOn(1, '08:00');
 
-/* Génération et envoi automatique du rapport journalier de caisse (J+0 avant 8h) */
-Schedule::command('rapports:envoyer-quotidien')->dailyAt('07:30');
+/* Spec v2.4, RG-M09-03, RG-M09-04 : clôture des journées de caisse restées ouvertes à 23 h 45, puis envoi du rapport
+ * « REPORTING CAISSE » de la veille, par caisse, avant 8 h */
+Schedule::command('caisse:cloturer-journees')->dailyAt('23:45');
+Schedule::command('rapports:envoyer-quotidien')->dailyAt('07:00');
+
+/* Spec v2.4, RG-M10-01 : inventaires de fin de mois et contrôles inopinés (rappels et alertes au Chef comptable) */
+Schedule::command('caisse:verifier-inventaires')->dailyAt('08:15');
 
 /* Vérification SLA validations : relances et escalades automatiques (toutes les heures) */
 Schedule::command('validations:relancer-sla')->hourly();

@@ -63,6 +63,7 @@ final class EncaisserClient
                 $ecriture = $caisse->crediter($montant, 'encaissement_client', [
                     'utilisateur_id' => $auteur->id,
                     'libelle' => "Encaissement client {$encaissement->numero} — {$client->raison_sociale} ({$encaissement->numero_piece})",
+                    'piece' => $encaissement->numero,
                 ]);
                 $encaissement->update(['ecriture_caisse_id' => $ecriture->id]);
             }

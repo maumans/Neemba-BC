@@ -45,6 +45,7 @@ final class RegulariserTropPercu
                 $caisse->crediter($montant, 'reversement_odm', [
                     'utilisateur_id' => $utilisateur->id,
                     'libelle' => "Reversement du trop-perçu de {$participant->nom} — ODM {$odm->numero}",
+                    'piece' => $odm->numero,
                 ]);
                 $detail = 'reversé en caisse (' . $caisse->libelle . ')';
             } else {

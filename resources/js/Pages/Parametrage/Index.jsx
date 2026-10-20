@@ -375,7 +375,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
     const caisseForm = useForm({
         code: '', libelle: '', site_ids: [], type: 'especes', mode: 'standard',
         montant_avance: '', plafond_retrait: '', seuil_alerte: '', plafond_caisse: '', solde: '',
-        gestionnaire_id: '', suppleant_id: '', encaissements_clients: false, reapprovisionnement: '', reappro_par_transfert: false,
+        gestionnaire_id: '', suppleant_id: '', encaissements_clients: false, reapprovisionnement: '', reappro_par_transfert: false, frequence_controle: '',
         code_numerotation: '', numero_depart: '', chiffres_numero: '',
     });
     const nomUtilisateur = (id) => utilisateursActifs.find((u) => u.id === id)?.libelle ?? '';
@@ -404,7 +404,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
             seuil_alerte: item.seuil_alerte ?? '', plafond_caisse: item.plafond_caisse ?? '', solde: item.solde ?? '',
             gestionnaire_id: item.gestionnaire_id ?? '', suppleant_id: item.suppleant_id ?? '',
             encaissements_clients: Boolean(item.encaissements_clients), reapprovisionnement: item.reapprovisionnement ?? '',
-            reappro_par_transfert: Boolean(item.reappro_par_transfert),
+            reappro_par_transfert: Boolean(item.reappro_par_transfert), frequence_controle: item.frequence_controle ?? '',
             code_numerotation: item.code_numerotation ?? '', numero_depart: item.numero_depart ?? '', chiffres_numero: item.chiffres_numero ?? '',
         });
         setCaisseDialog({ open: true, item });
@@ -422,6 +422,7 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
             gestionnaire_id: d.gestionnaire_id === '' ? null : d.gestionnaire_id,
             suppleant_id: d.suppleant_id === '' ? null : d.suppleant_id,
             reapprovisionnement: d.reapprovisionnement === '' ? null : d.reapprovisionnement,
+            frequence_controle: d.frequence_controle === '' ? null : d.frequence_controle,
             code_numerotation: d.code_numerotation === '' ? null : d.code_numerotation,
             numero_depart: d.numero_depart === '' ? null : d.numero_depart,
             chiffres_numero: d.chiffres_numero === '' ? null : d.chiffres_numero,
@@ -1147,6 +1148,15 @@ export default function Index({ sites, services, codesAnalytiques, typesDocument
                         <input type="checkbox" className="rounded border-gray-300" checked={caisseForm.data.reappro_par_transfert} onChange={(e) => caisseForm.setData('reappro_par_transfert', e.target.checked)} />
                         Réapprovisionnée par transfert depuis une autre caisse
                     </label>
+                    <div>
+                        <Label htmlFor="caisse-frequence">Contrôles inopinés</Label>
+                        <select id="caisse-frequence" className="mt-1 h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
+                            value={caisseForm.data.frequence_controle} onChange={(e) => caisseForm.setData('frequence_controle', e.target.value)}>
+                            <option value="">Fréquence générale (paramètre)</option>
+                            <option value="mensuelle">Mensuelle</option>
+                            <option value="trimestrielle">Trimestrielle</option>
+                        </select>
+                    </div>
                     {caisseDialog.item?.destinataires_rapport?.length > 0 && (
                         <p className="text-xs text-gray-500">
                             Destinataires du rapport journalier : {caisseDialog.item.destinataires_rapport.map(nomUtilisateur).filter(Boolean).join(', ')}

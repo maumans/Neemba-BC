@@ -2,176 +2,32 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\RapportCaisseQuotidien;
-use App\Models\Notification;
-use App\Models\Site;
-use App\Models\User;
-use App\Services\RapportJournalierService;
+use App\Services\Caisse\ClotureJournaliere;
+use App\Services\Caisse\RapportsCaisse;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 /**
- * Commande Artisan : Envoi automatique du Rapport Journalier de Caisse
- * 
- * Pour chaque site actif :
- * 1. Calcule les données en temps réel (bons payés, soldes) sans créer de rapport en base
- * 2. Consolide les flux entrants/sortants
- * 3. Envoie le rapport par e-mail (Excel + PDF) aux destinataires définis :
- *    DAF, Contrôle de gestion, Caissier du site, Administrateurs
- * 4. Alerte si aucun mouvement détecté pour un site
- * 
- * Usage : php artisan rapports:envoyer-quotidien
- * Planification : quotidienne à 07:30 via le scheduler Laravel
+ * Spec v2.4, RG-M09-04 : envoi, avant 8 h, du rapport « REPORTING CAISSE » de la veille, par caisse, en PDF et en Excel,
+ * aux destinataires de chaque caisse. Une journée restée ouverte (planificateur arrêté à 23 h 45) est d'abord clôturée.
+ *
+ * Remplace l'envoi par site du socle (spec v2.4 : rapport par caisse).
  */
 class EnvoyerRapportCaisseQuotidien extends Command
 {
     protected $signature = 'rapports:envoyer-quotidien
-                            {--date= : Date du rapport (YYYY-MM-DD), défaut = veille}
-                            {--site= : Limiter à un site spécifique}';
+                            {--date= : Journée du rapport (AAAA-MM-JJ), défaut : la veille}
+                            {--caisse= : Limiter à une caisse (identifiant)}';
 
-    protected $description = 'Générer et envoyer automatiquement les rapports journaliers de caisse par e-mail';
+    protected $description = 'Envoie le rapport REPORTING CAISSE de la veille, par caisse';
 
     public function handle(): int
     {
-        
-        $dateRapport = $this->option('date')
-            ? \Carbon\Carbon::parse($this->option('date'))
-            : now()->subDay();
+        $jour = $this->option('date') ? \Carbon\Carbon::parse($this->option('date')) : now()->subDay();
+        ClotureJournaliere::cloturerEnAttente($jour);
+        $compte = RapportsCaisse::envoyer($jour, $this->option('caisse') ? (int) $this->option('caisse') : null);
+        $this->info("Journée du {$jour->format('d/m/Y')} : {$compte['envoyes']} rapport(s) envoyé(s), {$compte['sans_operation']} caisse(s) sans opération, "
+            . "{$compte['sans_destinataire']} sans destinataire.");
 
-        $this->info("Envoi des rapports journaliers pour le {$dateRapport->format('d/m/Y')}...");
-
-        /* Récupérer les sites à traiter */
-        $sites = $this->option('site')
-            ? collect([$this->option('site')])
-            : Site::actifs()->pluck('nom');
-
-        if ($sites->isEmpty()) {
-            $this->warn('Aucun site actif trouvé.');
-            return self::SUCCESS;
-        }
-
-        /* Destinataires : DAF + contrôle de gestion + administrateurs */
-        $destinataires = User::where('actif', true)
-            ->whereIn('role', ['daf', 'controle_gestion', 'administrateur'])
-            ->whereNotNull('email')
-            ->get();
-
-        $nbEnvoyes = 0;
-        $nbErreurs = 0;
-
-        foreach ($sites as $site) {
-            $this->line("  → Site : {$site}");
-
-            try {
-                /* Calculer les données en temps réel (sans créer de rapport en base) */
-                $donnees = $this->calculerDonneesJournalieres($dateRapport, $site);
-
-                if (!$donnees) {
-                    $this->alerterDonneesIncompletes($site, $dateRapport);
-                    $nbErreurs++;
-                    continue;
-                }
-
-                $rapport = $donnees['rapport'];
-                $bonsPaye = $donnees['bonsPaye'];
-
-                /* Ajouter le caissier du site aux destinataires */
-                $destinatairesSite = $destinataires->merge(
-                    User::where('actif', true)
-                        ->where('role', 'caissier')
-                        ->where('site', $site)
-                        ->whereNotNull('email')
-                        ->get()
-                );
-
-                if ($destinatairesSite->isEmpty()) {
-                    $this->warn("    Aucun destinataire trouvé pour le site {$site}.");
-                    continue;
-                }
-
-                /* Envoyer l'e-mail */
-                Mail::to($destinatairesSite->pluck('email')->unique()->toArray())
-                    ->send(new RapportCaisseQuotidien($rapport, $bonsPaye));
-
-                $nbEnvoyes++;
-                $this->info("    ✓ Rapport envoyé à {$destinatairesSite->count()} destinataire(s).");
-
-            } catch (\Exception $e) {
-                $nbErreurs++;
-                $this->error("    ✗ Erreur pour {$site} : {$e->getMessage()}");
-                Log::error("Erreur envoi rapport caisse {$site}", [
-                    'date' => $dateRapport->toDateString(),
-                    'site' => $site,
-                    'error' => $e->getMessage(),
-                ]);
-
-                $this->alerterDonneesIncompletes($site, $dateRapport, $e->getMessage());
-            }
-        }
-
-        $this->newLine();
-        $this->info("Terminé : {$nbEnvoyes} rapport(s) envoyé(s), {$nbErreurs} erreur(s).");
-
-        return $nbErreurs > 0 ? self::FAILURE : self::SUCCESS;
-    }
-
-    /**
-     * Calculer les données journalières en temps réel pour un site
-     * (sans créer ni modifier de rapport en base de données)
-     */
-    protected function calculerDonneesJournalieres(\Carbon\Carbon $date, string $site): ?array
-    {
-        /* Même calcul que l'envoi manuel depuis l'écran Rapports */
-        $donnees = RapportJournalierService::construire($date, $site);
-        $rapport = $donnees['rapport'];
-
-        /* Si aucun mouvement ce jour, ne pas envoyer */
-        if (!RapportJournalierService::aDesMouvements($rapport, $donnees['bonsPaye'])) {
-            return null;
-        }
-
-        $rapport->observations = 'Rapport journalier calculé en temps réel.';
-
-        $this->line("    Données calculées : {$donnees['bonsPaye']->count()} bon(s), sorties = {$rapport->total_sorties} GNF");
-
-        return $donnees;
-    }
-
-    /**
-     * Envoyer une alerte si le rapport ne peut être généré
-     */
-    protected function alerterDonneesIncompletes(string $site, \Carbon\Carbon $date, ?string $raison = null): void
-    {
-        $message = $raison
-            ? "Rapport caisse {$site} du {$date->format('d/m/Y')} : {$raison}"
-            : "Aucun mouvement de caisse pour {$site} le {$date->format('d/m/Y')} — rapport non généré.";
-
-        $this->warn("    ⚠ {$message}");
-
-        Log::warning('Rapport caisse non généré', [
-            'site' => $site,
-            'date' => $date->toDateString(),
-            'raison' => $raison ?? 'Aucun mouvement',
-        ]);
-
-        /* Notifier les caissiers du site */
-        $caissiers = User::where('actif', true)
-            ->where('role', 'caissier')
-            ->where('site', $site)
-            ->get();
-
-        foreach ($caissiers as $caissier) {
-            Notification::create([
-                'destinataire_id' => $caissier->id,
-                'type' => 'alerte_rapport',
-                'titre' => 'Rapport de caisse non généré',
-                'message' => $message,
-                'metadata' => [
-                    'site' => $site,
-                    'date' => $date->toDateString(),
-                ],
-            ]);
-        }
+        return self::SUCCESS;
     }
 }

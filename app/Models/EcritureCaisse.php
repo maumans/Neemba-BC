@@ -30,7 +30,7 @@ class EcritureCaisse extends Model
 
     protected $fillable = [
         'caisse_id', 'date_ecriture', 'sens', 'nature', 'montant', 'solde_avant', 'solde_apres',
-        'libelle', 'bon_caisse_id', 'mouvement_caisse_id', 'utilisateur_id',
+        'libelle', 'piece', 'bon_caisse_id', 'mouvement_caisse_id', 'utilisateur_id',
     ];
 
     protected $casts = [

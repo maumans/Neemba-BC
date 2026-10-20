@@ -14,6 +14,7 @@ import {
     HandCoins,
     RefreshCcw,
     Scale,
+    LockKeyhole,
     LayoutDashboard,
     FileText,
     CheckSquare,
@@ -134,6 +135,13 @@ const navigationItems = [
         href: "encaissements-clients.index",
         icon: HandCoins,
         roles: ["caissier", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
+    },
+    {
+        /* Spec v2.4, RG-M09-01 à 05 : clôture journalière par caisse et rapport « REPORTING CAISSE » */
+        label: "Clôtures de caisse",
+        href: "clotures-caisse.index",
+        icon: LockKeyhole,
+        roles: ["caissier", "gerant_caisse", "tresorerie", "chef_comptable", "daf", "daf_adjoint", "directeur_pays", "dp_adjoint", "administrateur"],
     },
     {
         /* Spec v2.4, RG-M10-02 : PV d'arrêté de caisse (Annexe 2) */

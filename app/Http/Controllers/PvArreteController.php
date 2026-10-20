@@ -32,6 +32,8 @@ class PvArreteController extends Controller
             'caisses' => $caisses->map(fn (Caisse $c) => ['id' => $c->id, 'libelle' => $c->libelle])->values(),
             'filtres' => ['caisse' => $request->input('caisse')],
             'peutEtablir' => $caisses->contains(fn (Caisse $c) => ArreteCaisse::peutEtablir($utilisateur, $c)),
+            /* RG-M10-01 : suivi des inventaires et des contrôles inopinés, pour les rôles transverses seulement */
+            'suivi' => \App\Services\Caisse\AccesCaisse::estTransverse($utilisateur) ? \App\Services\Caisse\InventairesCaisse::suivi($caisses) : null,
         ]);
     }
 

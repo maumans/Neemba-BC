@@ -311,6 +311,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/caisses/reconciliations-om/{reconciliation}/releve', [\App\Http\Controllers\ReconciliationOmController::class, 'releve'])->name('reconciliations-om.releve');
     });
 
+    /* --- Spec v2.4, RG-M09-01 à 05 : clôture journalière par caisse, rapport « REPORTING CAISSE » --- */
+    Route::middleware('role:caissier,gerant_caisse,tresorerie,chef_comptable,daf,daf_adjoint,directeur_pays,dp_adjoint,administrateur')->group(function () {
+        Route::get('/caisses/clotures', [\App\Http\Controllers\ClotureCaisseController::class, 'index'])->name('clotures-caisse.index');
+        Route::post('/caisses/clotures', [\App\Http\Controllers\ClotureCaisseController::class, 'store'])->name('clotures-caisse.store');
+        Route::get('/caisses/clotures/reporting/{format}', [\App\Http\Controllers\ClotureCaisseController::class, 'reporting'])->name('clotures-caisse.reporting');
+    });
+
     /* --- Trésorerie : taux de change FCFA → GNF du jour (M12-0, spec v2.2 §6.6) --- */
     Route::middleware('role:tresorerie,daf,daf_adjoint,chef_comptable,directeur_pays,caissier,administrateur')->group(function () {
         Route::get('/tresorerie/taux-du-jour', [TauxChangeController::class, 'index'])->name('tresorerie.taux.index');

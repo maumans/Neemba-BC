@@ -59,6 +59,7 @@ export default function Create({ caisses = [], caisseChoisie = null, coupures = 
                                 <select id="pv-motif" className={SELECT} value={form.data.motif} onChange={(e) => form.setData('motif', e.target.value)}>
                                     {Object.entries(motifs).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                                 </select>
+                                {form.errors.motif && <p className="mt-1 text-xs text-red-600" role="alert">{form.errors.motif}</p>}
                             </div>
                         </div>
 

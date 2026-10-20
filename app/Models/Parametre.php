@@ -67,6 +67,8 @@ class Parametre extends Model
             'prorata' => 'Au prorata des parts',
             'neemba' => 'À 100 % sur Neemba',
         ],
+        /* Spec v2.4, RG-M10-01 */
+        'frequence_controle_inopine' => \App\Services\Caisse\InventairesCaisse::FREQUENCES,
     ];
 
     /**

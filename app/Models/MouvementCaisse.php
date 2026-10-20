@@ -165,6 +165,7 @@ class MouvementCaisse extends Model
                 'mouvement_caisse_id' => $this->id,
                 'utilisateur_id' => $valideur->id,
                 'libelle' => "{$this->type_label} {$this->reference} — {$this->motif}",
+                'piece' => $this->reference,
             ];
             /* Ajustement d'inventaire : entrée (excédent) ou sortie (manquant) selon l'écart du PV */
             $sortie = $this->type === 'retrait' || ($this->type === 'ajustement_inventaire' && ($this->metadata['sens'] ?? null) === 'sortie');

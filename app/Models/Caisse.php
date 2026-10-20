@@ -48,6 +48,8 @@ class Caisse extends Model
         'reapprovisionnement', 'destinataires_rapport',
         /* Spec v2.4, RG-M08-08 : réapprovisionnement possible par transfert depuis une autre caisse (caisse Atelier) */
         'reappro_par_transfert',
+        /* Spec v2.4, RG-M10-01 : fréquence des contrôles inopinés (vide : paramètre général) */
+        'frequence_controle',
     ];
 
     protected $casts = [
@@ -262,6 +264,12 @@ class Caisse extends Model
             throw new InvalidArgumentException('Le montant d\'une écriture de caisse doit être positif.');
         }
 
+        /* Spec v2.4, RG-M09-03 : aucune opération sur une journée clôturée */
+        $jour = \Carbon\Carbon::parse($contexte['date_ecriture'] ?? now());
+        if (ClotureCaisse::estClose($this->id, $jour)) {
+            throw new \App\Exceptions\ErreurMetier('JOURNEE_CLOTUREE', 'MSG-APP-105', ['caisse' => $this->libelle, 'date' => $jour], 'RG-M09-03', null, 409);
+        }
+
         return DB::transaction(function () use ($sens, $montant, $nature, $contexte) {
             /* Verrou : deux mouvements simultanés sur la même caisse ne se marchent pas dessus */
             $soldeAvant = (float) static::whereKey($this->id)->lockForUpdate()->value('solde');
@@ -281,6 +289,7 @@ class Caisse extends Model
                 'solde_avant' => $soldeAvant,
                 'solde_apres' => $soldeApres,
                 'libelle' => $contexte['libelle'] ?? null,
+                'piece' => $contexte['piece'] ?? null,
                 'bon_caisse_id' => $contexte['bon_caisse_id'] ?? null,
                 'mouvement_caisse_id' => $contexte['mouvement_caisse_id'] ?? null,
                 'utilisateur_id' => $contexte['utilisateur_id'] ?? auth()->id(),

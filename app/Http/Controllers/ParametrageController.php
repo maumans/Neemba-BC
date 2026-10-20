@@ -223,7 +223,7 @@ class ParametrageController extends Controller
         /* Code, libellé, gestionnaire, suppléant, encaissements et réapprovisionnement : modifiés tout de suite */
         $caisse->update(array_intersect_key($validated, array_flip([
             'code', 'libelle', 'gestionnaire_id', 'suppleant_id', 'encaissements_clients', 'reapprovisionnement',
-            'reappro_par_transfert', 'code_numerotation', 'numero_depart', 'chiffres_numero',
+            'reappro_par_transfert', 'frequence_controle', 'code_numerotation', 'numero_depart', 'chiffres_numero',
         ])));
 
         return back()->with('success', $enAttente
@@ -253,6 +253,7 @@ class ParametrageController extends Controller
             'encaissements_clients' => ['boolean'],
             'reapprovisionnement'   => ['nullable', 'string', 'max:255'],
             'reappro_par_transfert' => ['boolean'],
+            'frequence_controle'    => ['nullable', 'in:mensuelle,trimestrielle'],
         ];
     }
 

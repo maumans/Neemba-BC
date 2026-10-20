@@ -167,5 +167,10 @@
     "MSG-APP-101": "La semaine choisie n'a pas encore commencé.",
     "MSG-APP-102": "La réconciliation de cette semaine est déjà validée.",
     "MSG-APP-103": "Relevé illisible : l'en-tête doit comporter une colonne « Date » et une colonne « Montant » (ou « Débit » et « Crédit »).",
-    "MSG-APP-104": "Le relevé n'a pas de colonne « Solde » : saisissez le solde de fin du relevé."
+    "MSG-APP-104": "Le relevé n'a pas de colonne « Solde » : saisissez le solde de fin du relevé.",
+    "MSG-APP-105": "La journée du :date de la :caisse est clôturée : aucune opération n'est plus possible sur cette journée.",
+    "MSG-APP-106": "Seul le gérant de la caisse clôture sa journée.",
+    "MSG-APP-107": "La journée du :date est déjà clôturée.",
+    "MSG-APP-108": "On ne clôture pas une journée à venir.",
+    "MSG-APP-109": "Un contrôle inopiné est fait par la trésorerie ou le Chef comptable, pas par le gérant de la caisse."
 }

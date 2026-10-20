@@ -8,7 +8,7 @@ import { ClipboardCheck, Plus } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 
-export default function Index({ pvs, caisses = [], filtres = {}, peutEtablir = false }) {
+export default function Index({ pvs, caisses = [], filtres = {}, peutEtablir = false, suivi = null }) {
     const filtrer = (caisse) => router.get(route('pv-arrete.index'), caisse ? { caisse } : {}, { preserveState: true, replace: true });
 
     return (
@@ -82,6 +82,49 @@ export default function Index({ pvs, caisses = [], filtres = {}, peutEtablir = f
                         )}
                     </CardContent>
                 </Card>
+
+                {suivi && (
+                    <Card data-testid="suivi-inventaires">
+                        <CardHeader>
+                            <CardTitle className="text-base">Inventaires et contrôles inopinés</CardTitle>
+                            <CardDescription>
+                                Inventaire obligatoire à la fin de chaque mois ; contrôle inopiné par la trésorerie ou le Chef comptable (garant), à la
+                                fréquence de la caisse. Ce suivi n'est pas montré aux gérants.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto rounded-md border bg-white">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+                                            <th className="px-3 py-2">Caisse</th>
+                                            <th className="px-3 py-2">Inventaire du mois</th>
+                                            <th className="px-3 py-2">Mois précédent</th>
+                                            <th className="px-3 py-2">Contrôle inopiné</th>
+                                            <th className="px-3 py-2">Période en cours</th>
+                                            <th className="px-3 py-2">Dernier contrôle</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {suivi.map((s) => (
+                                            <tr key={s.id} className="border-b last:border-0">
+                                                <td className="px-3 py-2">{s.caisse}</td>
+                                                <td className="px-3 py-2">{s.inventaire_mois ?? <span className="text-amber-700">À faire</span>}</td>
+                                                <td className="px-3 py-2">{s.inventaire_mois_precedent ?? <span className="text-red-700">Manquant</span>}</td>
+                                                <td className="px-3 py-2">{s.frequence}</td>
+                                                <td className="px-3 py-2 text-xs">
+                                                    {s.periode}<br />
+                                                    {s.controle_periode ? <span className="text-green-700">Fait le {s.controle_periode}</span> : <span className="text-amber-700">À faire</span>}
+                                                </td>
+                                                <td className="px-3 py-2">{s.dernier_controle ?? '—'}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </AuthenticatedLayout>
     );
