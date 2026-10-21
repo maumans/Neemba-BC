@@ -181,7 +181,9 @@ class ImputationComptableTest extends TestCase
         $bon = $this->bonOdmPaye();
         $this->assertEquals(3282500, (float) $bon->montant_verse);   // 3 250 000 + 1 % de frais OM
 
-        $this->actingAs($this->comptable)->get(route('comptabilite.imputation', $bon))->assertOk();
+        /* L'écran reçoit le détail de l'ODM (identifiant pour le lien), pas un simple indicateur */
+        $this->actingAs($this->comptable)->get(route('comptabilite.imputation', $bon))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('bon.odm.id', $bon->odm_id)->has('bon.odm.libelle'));
         $lignes = $bon->fresh()->imputation->lignes;
         $this->assertSame([
             ['625610', 1250000.0, 'neemba', null],
@@ -208,6 +210,15 @@ class ImputationComptableTest extends TestCase
     }
 
     /** RG-M16-03, RG-M16-06 : l'export emporte les imputations validées, qui ne se modifient plus */
+    /** Bon marqué « issu d'un ODM » sans ODM rattaché (données anciennes) : l'écran s'ouvre, sans lien vers l'ODM */
+    public function test_bon_odm_sans_odm_rattache(): void
+    {
+        $bon = $this->bonOdmPaye();
+        $bon->update(['odm_id' => null]);
+        $this->actingAs($this->comptable)->get(route('comptabilite.imputation', $bon))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('bon.odm', null));
+    }
+
     public function test_export_des_ecritures(): void
     {
         $bon = $this->bonPaye();

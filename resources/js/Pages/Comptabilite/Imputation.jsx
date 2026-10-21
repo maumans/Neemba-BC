@@ -70,7 +70,7 @@ export default function Imputation({ bon, imputation, lignesFrais = [], ordres =
                         <div className="sm:col-span-3 lg:col-span-6">
                             <p className="text-xs text-gray-500">Motif</p>
                             <p className="text-sm text-gray-800">{bon.motif}</p>
-                            {bon.odm && (
+                            {bon.odm?.id && (
                                 <p className="mt-1 text-xs">Ordre de mission <Link href={route('odm.show', bon.odm.id)} className="text-neemba-700 hover:underline">{bon.odm.libelle}</Link></p>
                             )}
                         </div>

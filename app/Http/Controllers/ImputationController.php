@@ -96,11 +96,13 @@ class ImputationController extends Controller
         $lignesFrais = ImputationBon::partsOdm($bonCaisse)->map(fn ($p) => $p->ligne)->unique('id')->values();
 
         return Inertia::render('Comptabilite/Imputation', [
-            'bon' => self::ligneBon($bonCaisse) + [
+            /* array_merge et non « + » : le détail de l'ODM remplace l'indicateur « bon d'ODM » de la ligne (le « + » gardait
+             * true, et l'écran plantait en cherchant l'identifiant de l'ODM) */
+            'bon' => array_merge(self::ligneBon($bonCaisse), [
                 'montant' => (float) $bonCaisse->montant,
                 'frais_om' => $bonCaisse->frais_om !== null ? (float) $bonCaisse->frais_om : null,
                 'odm' => $odm ? ['id' => $odm->id, 'libelle' => $odm->libelle, 'code_analytique' => $odm->code_analytique] : null,
-            ],
+            ]),
             'imputation' => [
                 'statut' => $imputation->statut,
                 'statut_label' => Imputation::STATUTS[$imputation->statut],
