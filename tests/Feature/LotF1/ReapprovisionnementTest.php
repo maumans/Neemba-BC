@@ -133,6 +133,12 @@ class ReapprovisionnementTest extends TestCase
         $this->demander($this->caissier, $this->conakry, 210000000);
         $d = Demande::sole();
 
+        /* Actions de la ligne dans la liste : la trésorière valide ou refuse ; le gérant, auteur, n'a rien à faire */
+        $this->actingAs($this->tresoriere)->get(route('reapprovisionnements.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('demandes.data.0.actions', ['valider_tresorerie', 'refuser']));
+        $this->actingAs($this->caissier)->get(route('reapprovisionnements.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('demandes.data.0.actions', []));
+
         /* Pas d'étape sautée ; la trésorerie réduit avec motif */
         $this->agir($this->chefComptable, $d, 'viser_finance')->assertSessionHasErrors('general');
         $this->agir($this->tresoriere, $d, 'valider_tresorerie', ['montant_valide' => 200000000])->assertSessionHasErrors('motif_reduction');

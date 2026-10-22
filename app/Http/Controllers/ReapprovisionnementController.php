@@ -28,7 +28,12 @@ class ReapprovisionnementController extends Controller
             ->whereIn('caisse_id', $caisses->pluck('id'))
             ->when($request->filled('statut'), fn ($q) => $q->where('statut', $request->input('statut')))
             ->latest()->paginate(20)->withQueryString()
-            ->through(fn (Demande $d) => self::ligne($d) + ['a_traiter' => Reapprovisionnement::actions($utilisateur, $d) !== []]);
+            ->through(function (Demande $d) use ($utilisateur) {
+                $actions = Reapprovisionnement::actions($utilisateur, $d);
+
+                /* Actions de la ligne : visas et refus depuis la liste ; exécution et réception sur la fiche (pièces à joindre) */
+                return self::ligne($d) + ['a_traiter' => $actions !== [], 'actions' => $actions];
+            });
 
         return Inertia::render('Caisses/Reapprovisionnements/Index', [
             'demandes' => $demandes,
