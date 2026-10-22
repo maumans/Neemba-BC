@@ -253,4 +253,43 @@ class ReapprovisionnementTest extends TestCase
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('mouvements-caisse.store'));
         $this->assertFalse(\Illuminate\Support\Facades\Route::has('mouvements-caisse.create'));
     }
+
+    /**
+     * Revue du 22/10 : montant émis plafonné au montant approuvé et au plafond (solde du moment) ; caisse OM par virement
+     * seulement ; à la réception, un solde monté au-dessus du plafond entre-temps alerte la trésorerie (remise en banque).
+     */
+    public function test_execution_et_reception_tiennent_le_plafond(): void
+    {
+        $dp = User::factory()->role('directeur_pays')->create();
+        $this->pvDuJour($this->conakry, $this->caissier);
+        $this->demander($this->caissier, $this->conakry, 150000000, ['motif_baisse' => 'Besoin limité au mois en cours'])->assertSessionHasNoErrors();
+        $d = Demande::sole();
+        $this->agir($this->tresoriere, $d, 'valider_tresorerie')->assertSessionHasNoErrors();
+        $this->agir($this->chefComptable, $d, 'viser_finance')->assertSessionHasNoErrors();
+        $this->agir($dp, $d, 'approuver_dp')->assertSessionHasNoErrors();
+
+        /* Pas plus que le montant approuvé ; pas de virement pour une caisse en espèces */
+        $this->agir($this->tresoriere, $d, 'executer', ['origine_fonds' => 'cheque', 'montant_emis' => 160000000])->assertSessionHasErrors('montant_emis');
+        $this->agir($this->tresoriere, $d, 'executer', ['origine_fonds' => 'virement', 'montant_emis' => 150000000])->assertSessionHasErrors('origine_fonds');
+
+        /* Le solde a monté depuis la demande (40 M → 110 M) : 150 M dépasserait le plafond de 250 M */
+        $this->conakry->crediter(70000000, 'solde_initial');
+        $this->agir($this->tresoriere, $d, 'executer', ['origine_fonds' => 'cheque', 'montant_emis' => 150000000])->assertSessionHasErrors('montant_emis');
+        $this->agir($this->tresoriere, $d, 'executer', ['origine_fonds' => 'cheque', 'montant_emis' => 140000000])->assertSessionHasNoErrors();
+        $this->assertSame('en_cours', $d->fresh()->statut);
+
+        /* Avant la réception, le solde monte encore : les fonds sont crédités, la trésorerie est alertée */
+        $this->conakry->crediter(5000000, 'solde_initial');
+        $this->agir($this->caissier, $d, 'confirmer_reception', ['montant_recu' => 140000000, 'piece' => UploadedFile::fake()->image('bordereau.jpg')])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('255000000.00', $this->conakry->fresh()->solde);
+        $alerte = Notification::where('destinataire_id', $this->tresoriere->id)->where('titre', 'Plafond de caisse dépassé')->sole();
+        $this->assertSame("Réapprovisionnement {$d->numero} reçu : le solde de la Caisse principale Conakry atteint 255 000 000 GNF, au-dessus du plafond de caisse (250 000 000 GNF). Remise en banque nécessaire.",
+            str_replace(["\u{202F}", "\u{00A0}"], ' ', $alerte->message));
+
+        /* Caisse Orange Money : virement bancaire seulement (RG-M08-08) */
+        $om = Caisse::factory()->create(['code' => 'CKY-OM', 'type' => 'orange_money', 'solde' => 0, 'plafond_caisse' => 500000000]);
+        $this->assertSame(['virement'], \App\Services\Caisse\Reapprovisionnement::origines($om));
+        $this->assertSame(['cheque', 'mise_a_disposition', 'orange_money'], \App\Services\Caisse\Reapprovisionnement::origines($this->conakry));
+    }
 }

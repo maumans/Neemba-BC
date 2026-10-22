@@ -26,10 +26,12 @@ use Illuminate\Support\Facades\DB;
  * - RG-M08-07 : circuit caissier → trésorerie → Chef comptable / DAF → DP ou DP adjoint ; rien au-delà de l'habilitation
  *   du DP ; en l'absence du DP et de son adjoint (délai de l'étape écoulé, ou aucun titulaire actif), deux membres du
  *   CODIR approuvent ensemble (Q89). Personne ne vise une demande qu'il a faite.
- * - RG-M08-08 : exécution par la trésorerie, avec l'origine des fonds ; transfert depuis une autre caisse si la caisse
- *   l'autorise.
+ * - RG-M08-08 : exécution par la trésorerie, avec l'origine des fonds ; la caisse Orange Money ne reçoit que des
+ *   virements bancaires ; transfert depuis une autre caisse si la caisse l'autorise. Le montant émis ne dépasse ni le
+ *   montant approuvé (MSG-APP-110) ni le plafond, revérifié avec le solde du moment (RG-M08-04).
  * - RG-M08-09 : la caisse n'est créditée qu'à la confirmation de réception ; un écart entre émis et reçu alerte le DAF
- *   (MSG-M08-04).
+ *   (MSG-M08-04). Les fonds reçus sont crédités même si, entre-temps, le solde a monté au-dessus du plafond : la
+ *   trésorerie est alors alertée pour une remise en banque (MSG-APP-111).
  */
 final class Reapprovisionnement
 {
@@ -203,11 +205,14 @@ final class Reapprovisionnement
     {
         $origine = (string) ($donnees['origine_fonds'] ?? '');
         $caisse = $d->caisse;
-        if (!array_key_exists($origine, Demande::ORIGINES) || ($origine === 'transfert' && !$caisse->reappro_par_transfert)
-            || ($origine === 'virement' && $caisse->type !== 'orange_money')) {
+        if (!in_array($origine, self::origines($caisse), true)) {
             throw new ErreurMetier('REAPPRO_ORIGINE', 'MSG-APP-096', [], 'RG-M08-08', 'origine_fonds');
         }
         $montant = (float) ($donnees['montant_emis'] ?? $d->montantRetenu());
+        if ($montant > (float) $d->montantRetenu() + 0.004) {
+            throw new ErreurMetier('REAPPRO_EMIS', 'MSG-APP-110', ['max' => (float) $d->montantRetenu()], 'RG-M08-07', 'montant_emis');
+        }
+        self::controlerPlafond($caisse, $montant, 'montant_emis');
         $source = null;
         if ($origine === 'transfert') {
             $source = Caisse::find($donnees['caisse_source_id'] ?? null);
@@ -243,14 +248,40 @@ final class Reapprovisionnement
             $message = \App\Exceptions\ErreurMetier::texte('MSG-M08-04', ['numero' => $d->numero, 'x' => (float) $d->montant_emis, 'y' => $recu]);
             self::notifier($d, User::actifs()->avecRoleDans(['daf', 'daf_adjoint'], $d->entite_id)->get(), $u, 'Écart de réception', $message);
         }
+
+        /* RG-M08-04 : les fonds sont là ; si le solde a monté entre-temps au-dessus du plafond, remise en banque */
+        $plafond = self::plafond($caisse);
+        $solde = (float) $caisse->fresh()->solde;
+        if ($plafond !== null && $solde > $plafond + 0.004) {
+            $message = \App\Exceptions\ErreurMetier::texte('MSG-APP-111', ['numero' => $d->numero, 'caisse' => $caisse->libelle, 'x' => $solde, 'plafond' => $plafond]);
+            self::notifier($d, User::actifs()->avecRoleDans(['tresorerie'], $d->entite_id)->get(), $u, 'Plafond de caisse dépassé', $message);
+        }
     }
 
-    private static function controlerPlafond(Caisse $caisse, float $montant): void
+    /** RG-M08-08 : origines des fonds admises pour la caisse (Orange Money : virement bancaire seulement) */
+    public static function origines(Caisse $caisse): array
+    {
+        if ($caisse->type === 'orange_money') {
+            return ['virement'];
+        }
+
+        return array_values(array_filter(array_keys(Demande::ORIGINES),
+            fn (string $cle) => $cle !== 'virement' && ($cle !== 'transfert' || $caisse->reappro_par_transfert)));
+    }
+
+    private static function plafond(Caisse $caisse): ?float
+    {
+        $plafond = $caisse->mode === 'avance_fixe' ? $caisse->montant_avance : $caisse->plafond_caisse;
+
+        return $plafond === null ? null : (float) $plafond;
+    }
+
+    private static function controlerPlafond(Caisse $caisse, float $montant, string $champ = 'montant'): void
     {
         $apres = (float) $caisse->fresh()->solde + $montant;
-        $plafond = $caisse->mode === 'avance_fixe' ? (float) $caisse->montant_avance : $caisse->plafond_caisse;
-        if ($plafond !== null && $apres > (float) $plafond) {
-            throw new ErreurMetier('REAPPRO_PLAFOND', 'MSG-M08-02', ['x' => $apres, 'plafond' => (float) $plafond], 'RG-M08-04', 'montant');
+        $plafond = self::plafond($caisse);
+        if ($plafond !== null && $apres > $plafond) {
+            throw new ErreurMetier('REAPPRO_PLAFOND', 'MSG-M08-02', ['x' => $apres, 'plafond' => $plafond], 'RG-M08-04', $champ);
         }
     }
 

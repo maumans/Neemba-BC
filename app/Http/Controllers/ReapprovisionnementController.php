@@ -88,10 +88,7 @@ class ReapprovisionnementController extends Controller
         return Inertia::render('Caisses/Reapprovisionnements/Show', [
             'demande' => self::detail($demande),
             'actions' => $actions,
-            'origines' => collect(Demande::ORIGINES)
-                ->filter(fn (string $l, string $cle) => ($cle !== 'transfert' || $demande->caisse->reappro_par_transfert)
-                    && ($cle !== 'virement' || $demande->caisse->type === 'orange_money'))
-                ->all(),
+            'origines' => collect(Demande::ORIGINES)->only(Reapprovisionnement::origines($demande->caisse))->all(),
             'caissesSources' => in_array('executer', $actions, true) && $demande->caisse->reappro_par_transfert
                 ? Caisse::actives()->where('id', '!=', $demande->caisse_id)->orderBy('libelle')->get()
                     ->map(fn (Caisse $c) => ['id' => $c->id, 'libelle' => $c->libelle, 'solde' => (float) $c->solde])->values()

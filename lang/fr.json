@@ -169,5 +169,7 @@
     "MSG-APP-106": "Seul le gérant de la caisse clôture sa journée.",
     "MSG-APP-107": "La journée du :date est déjà clôturée.",
     "MSG-APP-108": "On ne clôture pas une journée à venir.",
-    "MSG-APP-109": "Un contrôle inopiné est fait par la trésorerie ou le Chef comptable, pas par le gérant de la caisse."
+    "MSG-APP-109": "Un contrôle inopiné est fait par la trésorerie ou le Chef comptable, pas par le gérant de la caisse.",
+    "MSG-APP-110": "Le montant émis ne peut pas dépasser le montant approuvé (:max GNF).",
+    "MSG-APP-111": "Réapprovisionnement :numero reçu : le solde de la :caisse atteint :x GNF, au-dessus du plafond de caisse (:plafond GNF). Remise en banque nécessaire."
 }

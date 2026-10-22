@@ -163,7 +163,9 @@ export default function Show({ demande: d, actions = [], origines = {}, caissesS
                                     )}
                                     <div>
                                         <Label htmlFor="reappro-emis">Montant émis (GNF)</Label>
-                                        <Input id="reappro-emis" type="number" min="1" className="mt-1" value={form.data.montant_emis} onChange={(e) => form.setData('montant_emis', e.target.value)} />
+                                        <Input id="reappro-emis" type="number" min="1" max={d.montant_retenu_brut} className="mt-1" value={form.data.montant_emis} onChange={(e) => form.setData('montant_emis', e.target.value)} />
+                                        <p className="mt-0.5 text-[11px] text-gray-500">Au plus le montant approuvé.</p>
+                                        <Erreur message={form.errors.montant_emis} />
                                     </div>
                                     <div>
                                         <Label htmlFor="reappro-reference">Référence (n° de chèque, de bordereau…)</Label>
