@@ -5680,3 +5680,52 @@ Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Signalem
 ### 60.4 À faire en dev
 
 La demande n° 5 (gestionnaire des référentiels pour Thierno DIALLO) attend toujours : un autre administrateur (Baba DIAKITE ou Amadou Bailo Diallo) doit l'approuver dans « Modifications Admin ».
+
+---
+
+## 61. Version v61 — Mot de passe initial (22 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Signalement de l'utilisateur du 22/10 : « certains utilisateurs n'ont pas pour mot de passe par défaut Neemba@2026 ».
+
+### 61.1 Constat
+
+- 12 comptes importés du référentiel le 07/10 (n° 8 à 19 : Mamadou Alpha BAH, Saliou BOIRO, Mariamagbè CAMARA, Kadiatou SOUMAH, Raby TOUNKARA, Thomas BANGOURA, Philippe KOLIE, Mariama BARRY, Astou CAMARA, Baba DIAKITE, Yacouba BARRY, Abdoul-Rahim BARRY) avaient un mot de passe aléatoire.
+- À cette date, `ImportReferentiels::creerCompte` donnait `Str::random(40)`. Le passage à `Neemba@2026` (commit f9c1c88 du 09/10) ne valait que pour les comptes créés ensuite.
+- Le rapport d'import disait encore « Aucun mot de passe n'est communiqué ».
+
+### 61.2 Décision (Q108)
+
+Remettre `Neemba@2026` sur ces comptes, et imposer à chaque titulaire de choisir son mot de passe à la première connexion : sans cela, en production, tout le monde connaîtrait le mot de passe de tout le monde.
+
+### 61.3 Réalisation
+
+- **Migration** `2026_11_03_000001_mot_de_passe_initial` : `users.mot_de_passe_a_changer` (faux par défaut ; les comptes existants ne sont pas marqués) et réglage `changement_mot_de_passe_initial` (actif).
+- **`User::MOT_DE_PASSE_INITIAL`** = `Neemba@2026`.
+- **Comptes marqués « à changer »** :
+  - créés par l'import (le rapport donne le mot de passe initial) ;
+  - créés par l'administrateur ;
+  - dont un administrateur a saisi le mot de passe sur la fiche (pas sur la sienne).
+- **Démarqués** quand le titulaire choisit son mot de passe : écran imposé, « Mot de passe oublié », profil.
+- **Écran imposé** :
+  - middleware `ExigerChangementMotDePasse` (groupe `web`) : après le code de connexion, tout écran mène à « Choisissez votre mot de passe » (`/mot-de-passe-initial`) ; seule la déconnexion reste ouverte ; requête JSON : 409 ;
+  - le mot de passe initial et l'ancien sont refusés ; 8 caractères au moins ;
+  - page `Auth/MotDePasseInitial.jsx`.
+- **Paramétrage > Sécurité** : interrupteur « Mot de passe initial à changer », appliqué au clic, tracé, autres administrateurs prévenus. Coupé, le mot de passe initial reste utilisable (recette).
+- **Commande** `utilisateurs:mot-de-passe-initial {ids*} {--tous}` : remet le mot de passe initial (ids donnés, ou tous les comptes actifs qui ne l'ont pas) et marque les comptes.
+- **Dev** : migration appliquée, commande lancée sur les comptes 8 à 19 ; les 21 comptes acceptent `Neemba@2026`.
+
+### 61.4 Vérifications
+
+- `tests/Feature/Securite/MotDePasseInitialTest.php` (5) :
+  - écran imposé, 409 en JSON, mot de passe initial refusé, puis accès libre ;
+  - réglage coupé : pas d'écran imposé ;
+  - création et réinitialisation par l'administrateur marquent le compte ; sa propre fiche, non ;
+  - « Mot de passe oublié » démarque ;
+  - commande (ids, `--tous`, sans argument : refus).
+- **Total** : 448 tests PHP et 75 tests JavaScript passent.
+- Migration vérifiée sur une copie (montée, retour, remontée).
+- Parcours dans Edge sur une copie de la base (7 vérifications) : Baba DIAKITE se connecte avec `Neemba@2026`, saisit le code, arrive sur l'écran imposé ; `Neemba@2026` est refusé ; son mot de passe est enregistré ; à la reconnexion, tableau de bord direct ; l'interrupteur est dans l'onglet Sécurité.
+
+### 61.5 À savoir en recette
+
+Avec l'interrupteur actif, chacun des 12 comptes choisira son mot de passe à sa première connexion. Pour tester librement avec `Neemba@2026`, couper l'interrupteur dans Paramétrage > Sécurité, et le rallumer avant la mise en production.
