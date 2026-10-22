@@ -27,7 +27,8 @@ class ReconciliationOmController extends Controller
 
         return Inertia::render('Caisses/ReconciliationOm/Index', [
             'reconciliations' => ReconciliationOm::with('caisse')->latest('periode_debut')->latest('id')->paginate(20)
-                ->through(fn (ReconciliationOm $r) => self::ligne($r)),
+                /* Actions de la ligne : valider depuis la liste quand l'utilisateur le peut */
+                ->through(fn (ReconciliationOm $r) => self::ligne($r) + ['signatures_possibles' => ReconciliationOrangeMoney::signaturesPossibles($utilisateur, $r)]),
             'caisses' => ReconciliationOrangeMoney::caissesOm()->map(fn (Caisse $c) => ['id' => $c->id, 'libelle' => $c->libelle])->values(),
             'semaineProposee' => $semaine->toDateString(),
             'peutEtablir' => $utilisateur->aLeRole('tresorerie'),
@@ -106,6 +107,7 @@ class ReconciliationOmController extends Controller
             'ecart_format' => $r->ecart !== null ? Format::montant($r->ecart) : '—',
             'non_rapprochees' => collect($r->lignes_releve)->whereNull('ecriture_id')->count() + count($r->ecritures_non_rapprochees ?? []),
             'signatures' => $r->nombreSignatures(),
+            'manquantes' => collect(ReconciliationOm::SIGNATURES)->filter(fn (string $libelle, string $cle) => $r->{"{$cle}_le"} === null)->values()->all(),
         ];
     }
 

@@ -93,6 +93,10 @@ class ReconciliationOmTest extends TestCase
     {
         $this->etablir($this->tresoriere);
         $r = ReconciliationOm::sole();
+        /* Actions de la ligne dans la liste : le Chef comptable peut valider ; validations manquantes affichées */
+        $this->actingAs($this->chefComptable)->get(route('reconciliations-om.index'))->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
+            ->where('reconciliations.data.0.signatures_possibles', ['chef_comptable'])
+            ->where('reconciliations.data.0.manquantes', ['Trésorière', 'Chef comptable', 'DAF']));
         $this->actingAs($this->chefComptable)->post(route('reconciliations-om.signer', $r), ['signature' => 'tresorerie'])->assertSessionHasErrors('signature');
         $this->actingAs($this->chefComptable)->post(route('reconciliations-om.signer', $r), ['signature' => 'chef_comptable'])->assertSessionHasNoErrors();
 
