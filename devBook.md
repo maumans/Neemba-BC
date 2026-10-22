@@ -5635,3 +5635,48 @@ php artisan migrate        # 2026_11_02_000001
 ```
 
 Les alertes SMS ne partent qu'une fois le fournisseur SMS configuré (PO-23) et les numéros des valideurs saisis (l'onglet Sécurité liste ceux qui manquent).
+
+---
+
+## 60. Version v60 — Rôles en attente et justifications de BP à viser, visibles (22 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Signalement de l'utilisateur du 22/10.
+
+### 60.1 Constats
+
+- **Gestionnaire des référentiels « invisible »** : le rôle n'était pas attribué. La demande (modification n° 5, 21/10) attendait la double validation d'un autre administrateur. L'auteur ne valide pas sa propre demande, et rien ne la signalait : pas de notification aux autres administrateurs, pas de compteur, rien sur la fiche de l'utilisateur.
+- **Visa « Comptabilité » d'une justification de BP** : le droit existait (`JustificationBp::ROLES_ETAPES['comptabilite']` = Comptabilité et Chef comptable ; Gando Diallo et Mamadou Alpha BAH en étaient valideurs). Mais le bouton « Viser » n'est que dans la carte « Justification du BP » de la fiche du bon, et aucun écran ne listait les justifications à viser. Seule la notification envoyée à l'ouverture de l'étape y menait ; Gando Diallo, créé après, ne l'a pas reçue.
+- **DAF** : la spec (RG-M07-03) ne lui donne pas ce visa. Décision du 22/10 : conforme à la spec (Q106).
+
+### 60.2 Corrections
+
+- **Demandes en attente** (Q107) :
+  - événement `created` de `ModificationEnAttente` : chaque modification en attente notifie les autres administrateurs actifs (type `modification_a_valider`, description lisible, par exemple « Rôles de Thierno DIALLO : Demandeur, Gestionnaire des référentiels »). Tous les écrans et l'import sont couverts ;
+  - compteur sur « Modifications Admin » (`auth.compteurs`, demandes des autres seulement) et ligne « Modifications à valider » dans « À traiter » ;
+  - demande affichée sur la ligne de l'utilisateur et en bandeau sur sa fiche ;
+  - message après enregistrement : il nomme les administrateurs prévenus, ou signale qu'il n'y en a aucun autre.
+- **Justifications de BP à viser** :
+  - `JustifierBp::aViserPar()` ;
+  - section « Justifications de BP à viser » dans « Validations » (BP, bénéficiaire, avance, justifié, étape, date, bouton « Examiner » vers la carte `#justification` de la fiche du bon) ;
+  - ligne dans « À traiter » ;
+  - menu et route « Validations » ouverts à la Comptabilité.
+- **Libellé** : « Validations » affiche le libellé du rôle (« Chef comptable ») au lieu du code.
+- **Test des barèmes ODM** (lot E3) rendu indépendant de la date de création de la base de test : les barèmes repris sont datés du jour de la migration.
+
+### 60.3 Vérifications
+
+- `tests/Feature/LotT/DemandesEtJustificationsTest.php` (2) :
+  - demande de rôle notifiée à l'autre administrateur et pas à l'auteur ; visible dans la liste, la fiche, le compteur et « À traiter » ;
+  - après validation, onglets des référentiels ouverts ;
+  - justification à l'étape Comptabilité visible pour un Chef comptable nommé après l'ouverture de l'étape, et pour la Comptabilité ; pas pour le DAF ni un demandeur.
+- **Total** : 444 tests PHP et 75 tests JavaScript passent.
+- Parcours dans Edge sur une copie de la base, avec les comptes réels : 11 vérifications, sans erreur JavaScript.
+  - Thierno DIALLO voit sa demande en attente ;
+  - Baba DIAKITE a le compteur et la ligne « À traiter », puis approuve ; Thierno a alors les onglets des référentiels ;
+  - Gando Diallo retrouve la justification du BP BC-CKY-2026-00006 dans « Validations » et ouvre sa carte ;
+  - le DAF n'a pas de justification à viser.
+- **Build** : non régénéré, la machine manque de mémoire ; `npm run dev` sert les sources.
+
+### 60.4 À faire en dev
+
+La demande n° 5 (gestionnaire des référentiels pour Thierno DIALLO) attend toujours : un autre administrateur (Baba DIAKITE ou Amadou Bailo Diallo) doit l'approuver dans « Modifications Admin ».
