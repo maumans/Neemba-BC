@@ -3,13 +3,25 @@
  * Chef comptable signent chaque PV ; un écart crée un ajustement validé par le DAF.
  */
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
-import { ClipboardCheck, Plus } from 'lucide-react';
+import { ClipboardCheck, Eye, FileText, PenLine, Plus } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
+
+const LIBELLES_SIGNATURES = { gerant: 'Gérant de la caisse', tresorerie: 'Trésorerie', chef_comptable: 'Chef comptable' };
 
 export default function Index({ pvs, caisses = [], filtres = {}, peutEtablir = false, suivi = null }) {
     const filtrer = (caisse) => router.get(route('pv-arrete.index'), caisse ? { caisse } : {}, { preserveState: true, replace: true });
+    /* Signature depuis la liste : confirmée après rappel des soldes et de l'écart */
+    const [aSigner, setASigner] = useState(null);
+    const [enCours, setEnCours] = useState(false);
+    const signer = () => router.post(route('pv-arrete.signer', aSigner.pv.id), { signature: aSigner.signature }, {
+        preserveScroll: true,
+        onStart: () => setEnCours(true),
+        onFinish: () => { setEnCours(false); setASigner(null); },
+    });
 
     return (
         <AuthenticatedLayout header="PV d'arrêté de caisse">
@@ -51,22 +63,42 @@ export default function Index({ pvs, caisses = [], filtres = {}, peutEtablir = f
                                         <th className="px-3 py-2 text-right">Solde physique</th>
                                         <th className="px-3 py-2 text-right">Écart</th>
                                         <th className="px-3 py-2">Signatures</th>
+                                        <th className="px-3 py-2 text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {pvs.data.map((pv) => (
                                         <tr key={pv.id} className="border-b last:border-0">
-                                            <td className="px-3 py-2"><Link href={route('pv-arrete.show', pv.id)} className="font-medium text-neemba-700 hover:underline">{pv.numero}</Link></td>
+                                            <td className="whitespace-nowrap px-3 py-2"><Link href={route('pv-arrete.show', pv.id)} className="font-medium text-neemba-700 hover:underline">{pv.numero}</Link></td>
                                             <td className="px-3 py-2">{pv.caisse}</td>
                                             <td className="whitespace-nowrap px-3 py-2">{pv.arrete_le}</td>
                                             <td className="px-3 py-2 text-xs">{pv.motif}</td>
                                             <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{pv.solde_physique}</td>
                                             <td className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${pv.ecart !== 0 ? 'font-semibold text-red-700' : 'text-gray-500'}`}>{pv.ecart_format}</td>
-                                            <td className="px-3 py-2">{pv.signatures} / 3</td>
+                                            <td className="px-3 py-2">
+                                                <span className={pv.signatures === 3 ? 'font-medium text-green-700' : ''}>{pv.signatures} / 3</span>
+                                                {pv.manquantes?.length > 0 && <p className="text-[11px] text-gray-500">Manque : {pv.manquantes.join(', ')}</p>}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                <div className="flex flex-wrap justify-end gap-1">
+                                                    {(pv.signatures_possibles ?? []).map((signature) => (
+                                                        <Button key={signature} size="sm" className="h-8" data-testid={`signer-${pv.id}-${signature}`}
+                                                            onClick={() => setASigner({ pv, signature })}>
+                                                            <PenLine className="mr-1 h-3.5 w-3.5" /> Signer{pv.signatures_possibles.length > 1 ? ` (${LIBELLES_SIGNATURES[signature]})` : ''}
+                                                        </Button>
+                                                    ))}
+                                                    <Link href={route('pv-arrete.show', pv.id)}>
+                                                        <Button size="sm" variant="outline" className="h-8" title="Voir le PV" aria-label={`Voir ${pv.numero}`}><Eye className="h-3.5 w-3.5" /></Button>
+                                                    </Link>
+                                                    <a href={route('pv-arrete.pdf', pv.id)} target="_blank" rel="noreferrer">
+                                                        <Button size="sm" variant="outline" className="h-8" title="Imprimer (Annexe 2)" aria-label={`Imprimer ${pv.numero}`}><FileText className="h-3.5 w-3.5" /></Button>
+                                                    </a>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                     {pvs.data.length === 0 && (
-                                        <tr><td colSpan={7} className="px-3 py-8 text-center text-gray-400">Aucun PV d'arrêté.</td></tr>
+                                        <tr><td colSpan={8} className="px-3 py-8 text-center text-gray-400">Aucun PV d'arrêté.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -126,6 +158,29 @@ export default function Index({ pvs, caisses = [], filtres = {}, peutEtablir = f
                     </Card>
                 )}
             </div>
+
+            <Dialog open={aSigner !== null} onOpenChange={(ouvert) => !ouvert && !enCours && setASigner(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Signer le PV {aSigner?.pv.numero}</DialogTitle>
+                        <DialogDescription>
+                            Vous signez en tant que <strong>{aSigner && LIBELLES_SIGNATURES[aSigner.signature]}</strong>. Une signature ne se retire pas.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {aSigner && (
+                        <dl className="grid grid-cols-3 gap-2 rounded-md bg-gray-50 p-3 text-sm">
+                            <div><dt className="text-xs text-gray-500">Solde physique</dt><dd className="font-medium tabular-nums">{aSigner.pv.solde_physique}</dd></div>
+                            <div><dt className="text-xs text-gray-500">Solde comptable</dt><dd className="font-medium tabular-nums">{aSigner.pv.solde_comptable}</dd></div>
+                            <div><dt className="text-xs text-gray-500">Écart</dt><dd className={`font-medium tabular-nums ${aSigner.pv.ecart !== 0 ? 'text-red-700' : 'text-green-700'}`}>{aSigner.pv.ecart_format}</dd></div>
+                        </dl>
+                    )}
+                    <p className="text-xs text-gray-500">{aSigner?.pv.caisse} — arrêté le {aSigner?.pv.arrete_le}. Pour vérifier le billetage, ouvrez le PV.</p>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setASigner(null)} disabled={enCours}>Annuler</Button>
+                        <Button onClick={signer} disabled={enCours}><PenLine className="mr-1 h-4 w-4" /> Signer</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AuthenticatedLayout>
     );
 }

@@ -25,7 +25,8 @@ class PvArreteController extends Controller
             ->whereIn('caisse_id', $caisses->pluck('id'))
             ->when($request->filled('caisse'), fn ($q) => $q->where('caisse_id', (int) $request->input('caisse')))
             ->latest('arrete_le')->paginate(20)->withQueryString()
-            ->through(fn (PvArrete $pv) => self::ligne($pv));
+            /* Actions de la ligne : signer depuis la liste quand l'utilisateur le peut */
+            ->through(fn (PvArrete $pv) => self::ligne($pv) + ['signatures_possibles' => ArreteCaisse::signaturesPossibles($utilisateur, $pv)]);
 
         return Inertia::render('Caisses/PvArrete/Index', [
             'pvs' => $pvs,
@@ -113,9 +114,11 @@ class PvArreteController extends Controller
             'arrete_le' => Format::dateHeure($pv->arrete_le),
             'motif' => PvArrete::MOTIFS[$pv->motif] ?? $pv->motif,
             'solde_physique' => Format::montant($pv->solde_physique),
+            'solde_comptable' => Format::montant($pv->solde_comptable),
             'ecart' => (float) $pv->ecart,
             'ecart_format' => Format::montant($pv->ecart),
             'signatures' => $pv->nombreSignatures(),
+            'manquantes' => collect(PvArrete::SIGNATURES)->filter(fn (string $libelle, string $cle) => !$pv->{"{$cle}_le"})->values()->all(),
             'etabli_par' => $pv->etabliPar?->nom_complet,
         ];
     }

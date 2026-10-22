@@ -63,7 +63,10 @@ class PvArreteTest extends TestCase
             'solde_physique' => 300000, 'solde_comptable' => 300000, 'ecart' => 0, 'etabli_par' => $this->tresoriere->id]);
         $this->actingAs($this->caissier)->get(route('pv-arrete.index'))->assertInertia(fn (Assert $page) => $page->has('pvs.data', 1)->where('pvs.data.0.numero', $pv->numero));
         $this->actingAs($this->caissier)->get(route('pv-arrete.show', $pvBoke))->assertForbidden();
-        $this->actingAs($this->tresoriere)->get(route('pv-arrete.index'))->assertInertia(fn (Assert $page) => $page->has('pvs.data', 2));
+        $this->actingAs($this->tresoriere)->get(route('pv-arrete.index'))->assertInertia(fn (Assert $page) => $page->has('pvs.data', 2)
+            /* Actions de la ligne : la trésorière peut signer ; signatures manquantes affichées */
+            ->where('pvs.data.0.signatures_possibles', ['tresorerie'])
+            ->where('pvs.data.0.manquantes', ['Gérant de la caisse', 'Trésorerie', 'Chef comptable']));
         $this->actingAs($this->caissier)->get(route('pv-arrete.pdf', $pv))->assertOk();
     }
 
