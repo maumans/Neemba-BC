@@ -5729,3 +5729,19 @@ Remettre `Neemba@2026` sur ces comptes, et imposer à chaque titulaire de choisi
 ### 61.5 À savoir en recette
 
 Avec l'interrupteur actif, chacun des 12 comptes choisira son mot de passe à sa première connexion. Pour tester librement avec `Neemba@2026`, couper l'interrupteur dans Paramétrage > Sécurité, et le rallumer avant la mise en production.
+
+---
+
+## 62. Version v62 — Actions sur la liste des PV d'arrêté (22 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Demande de l'utilisateur du 22/10 : « ajoute les boutons d'actions qu'il faut sur les lignes du tableau ».
+
+- **Colonne « Actions »** de la liste des PV d'arrêté (`Caisses/PvArrete/Index.jsx`) :
+  - **Signer** : seulement si l'utilisateur peut encore signer ce PV (`ArreteCaisse::signaturesPossibles`, transmis par ligne) ; avec deux signatures possibles, le rôle est précisé sur chaque bouton ;
+  - une confirmation rappelle le rôle signé, le solde physique, le solde comptable et l'écart ; pour le billetage, ouvrir le PV ;
+  - **Voir** (fiche du PV) et **Imprimer** (PDF Annexe 2).
+- **Colonne « Signatures »** : les signatures manquantes s'affichent sous le compteur (« Manque : Trésorerie, Chef comptable »).
+- Règle inchangée (§55.1) : un compte ne signe qu'une des trois places ; un gérant qui a signé ne voit pas « Signer » pour la trésorerie.
+- **Vérifications** :
+  - `PvArreteTest` complété (signatures possibles et manquantes dans la liste) ; 448 tests PHP ;
+  - parcours Edge sur une copie de la base (10 vérifications) : Youssouf TOURE voit Voir et Imprimer, pas Signer ; Mariamagbè CAMARA signe pour la trésorerie depuis la liste et la ligne passe à 2 / 3.
