@@ -5745,3 +5745,41 @@ Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Demande 
 - **Vérifications** :
   - `PvArreteTest` complété (signatures possibles et manquantes dans la liste) ; 448 tests PHP ;
   - parcours Edge sur une copie de la base (10 vérifications) : Youssouf TOURE voit Voir et Imprimer, pas Signer ; Mariamagbè CAMARA signe pour la trésorerie depuis la liste et la ligne passe à 2 / 3.
+
+---
+
+## 63. Version v63 — Revue du réapprovisionnement et des activités de caisse (22 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Question de l'utilisateur du 22/10 : le réapprovisionnement et les activités de caisse respectent-ils la dernière spec ?
+
+### 63.1 Revue (spec v2.4, M08, M09, M10)
+
+Code relu règle par règle. RG-M08-01 à 13, RG-M09-01 à 05 et RG-M10-01 à 03 sont en place, avec trois écarts dans l'exécution et la réception d'un réapprovisionnement :
+- le montant émis par la trésorerie n'était comparé ni au montant approuvé ni au plafond ;
+- la réception ne revérifiait pas le plafond (RG-M08-04) quand le solde avait monté entre-temps ;
+- la caisse Orange Money pouvait recevoir un chèque ou une mise à disposition (RG-M08-08 : virement bancaire).
+
+Rappel : le message « Aucun PV d'arrêté du jour signé par le gérant » est voulu (RG-M08-05, Q92) ; le PV doit dater du jour de la demande.
+
+### 63.2 Corrections
+
+- **Exécution** : montant émis au plus le montant approuvé (MSG-APP-110) ; plafond revérifié avec le solde du moment (MSG-M08-02, sur le champ « Montant émis »). L'écran affiche l'erreur sous le champ.
+- **Origines des fonds** : `Reapprovisionnement::origines()` sert au contrôle et à l'écran ; caisse Orange Money : virement bancaire seulement ; autres caisses : chèque, mise à disposition, Orange Money, et transfert si la caisse l'autorise.
+- **Réception** : les fonds reçus sont crédités ; si le solde dépasse alors le plafond, la trésorerie est alertée pour une remise en banque (MSG-APP-111), comme pour un encaissement client.
+
+### 63.3 Vérifications
+
+- `ReapprovisionnementTest::test_execution_et_reception_tiennent_le_plafond` ; 449 tests PHP.
+- **Parcours Edge** sur une copie de la base, avec les comptes réels :
+  - Youssouf TOURE établit et signe le PV du jour (écart nul), puis demande 187 045 000 ;
+  - Mariamagbè CAMARA valide, Mamadou Alpha BAH vise, Mamadou LO approuve ;
+  - à l'exécution : pas de virement proposé, 200 000 000 refusé, 187 045 000 émis, caisse pas encore créditée ;
+  - Youssouf confirme la réception : solde 250 000 000, au plafond.
+  - Le parcours a été repris à l'exécution après un manque de mémoire de Windows (« fichier de pagination insuffisant ») pendant une connexion, sans lien avec l'application.
+
+### 63.4 Points ouverts (données et décisions)
+
+- **Caisse Atelier** : inactive en dev, solde 0 ; à activer avec son solde réel pour tester l'avance fixe.
+- **Gérants** : aucune caisse, sauf l'Atelier, n'a de gestionnaire désigné ; le gérant est le caissier rattaché. À renseigner dans Paramétrage > Caisses.
+- **Transfert entre caisses** : enregistré au registre, sans bon de caisse (Q93) ; la spec parle de « transfert par bon de caisse ». À confirmer par Neemba.
+- **Compte de Mor CISS** à créer (PO-23) ; format réel du relevé Orange Money à confirmer (Q96).
