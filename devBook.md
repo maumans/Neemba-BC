@@ -5783,3 +5783,23 @@ Rappel : le message « Aucun PV d'arrêté du jour signé par le gérant » est 
 - **Gérants** : aucune caisse, sauf l'Atelier, n'a de gestionnaire désigné ; le gérant est le caissier rattaché. À renseigner dans Paramétrage > Caisses.
 - **Transfert entre caisses** : enregistré au registre, sans bon de caisse (Q93) ; la spec parle de « transfert par bon de caisse ». À confirmer par Neemba.
 - **Compte de Mor CISS** à créer (PO-23) ; format réel du relevé Orange Money à confirmer (Q96).
+
+---
+
+## 64. Version v64 — Actions sur les listes des réapprovisionnements et des réconciliations OM (22 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Demande de l'utilisateur du 22/10 : « ici aussi il n'y a pas de bouton d'action » (liste des réapprovisionnements). Les autres listes de caisse ont été passées en revue : clôtures (PDF, Excel), encaissements (reçu) et mouvements (valider, rejeter) avaient déjà leurs actions ; la réconciliation OM n'en avait pas.
+
+- **Réapprovisionnements** (`Caisses/Reapprovisionnements/Index.jsx`), colonne « Actions » selon `Reapprovisionnement::actions()`, transmis par ligne :
+  - visas (trésorerie, Finance, Directeur Pays, membre du CODIR) depuis la liste, après confirmation ; la validation de la trésorerie porte sur le montant demandé (pour le réduire, ouvrir la demande) ;
+  - **Refuser** : motif de 10 caractères au moins, saisi dans la boîte ; l'erreur s'y affiche ;
+  - **Exécuter** et **Réceptionner** ouvrent la fiche sur « À vous d'agir » (`#agir`), car elles demandent des pièces et des montants ;
+  - **Voir** sur chaque ligne.
+- **Réconciliations OM** (`Caisses/ReconciliationOm/Index.jsx`) :
+  - **Valider** depuis la liste quand l'utilisateur le peut (`ReconciliationOrangeMoney::signaturesPossibles`) ; la confirmation rappelle l'écart et les lignes non rapprochées ;
+  - **Voir** et **Relevé** (fichier importé) ;
+  - validations manquantes affichées sous le compteur.
+- **Vérifications** :
+  - `ReapprovisionnementTest` et `ReconciliationOmTest` complétés (actions par ligne) ; 449 tests PHP ;
+  - parcours Edge sur une copie de la base : sur DRA-CKY-2026-0001, Mamadou Alpha BAH voit Viser et Refuser ; un refus au motif trop court est bloqué dans la boîte ; il vise depuis la liste, puis Mamadou LO approuve ; « Exécuter » ouvre la fiche de Mariamagbè CAMARA sur le formulaire ;
+  - pour la réconciliation OM, Mariamagbè en établit une, puis elle et Mamadou Alpha BAH la valident depuis la liste (2 / 3).
