@@ -176,6 +176,7 @@ class ImpressionTableauOdmTest extends TestCase
             && $export->sheets()[0]->array()[1][0] === 'N°1/AT/26');
 
         /* Une mission clôturée n'est plus en cours ; elle reste à refacturer */
+        Carbon::setTestNow('2026-10-03 08:00');
         $this->actingAs($this->demandeur)->post(route('odm.cloturer', $client), ['date_retour_reelle' => '2026-10-02'])->assertSessionHas('success');
         $this->actingAs($this->daf)->get(route('odm.tableau-de-bord'))
             ->assertInertia(fn (Assert $page) => $page->where('indicateurs.missions_en_cours', 1)->where('indicateurs.a_refacturer', 1));

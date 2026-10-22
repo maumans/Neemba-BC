@@ -125,5 +125,9 @@ final class ValiderOdm
         HistoriqueOdm::enregistrer($odm, 'validation', $statutAvant, 'VALIDE', $valideur->id,
             "Visa {$niveau} : ordre de mission validé ; calcul et répartition figés." . (filled($commentaire) ? ' ' . trim($commentaire) : ''),
             ['total' => $odm->fresh()->total, 'baremes' => $figes['baremes'], 'repartition' => RepartitionOdm::photographie($odm)]);
+        /* RG-M12-17 : la mission se poursuit ; les BP déjà émis attendent le nouveau retour prévu */
+        if ($odm->segment_precedent_id) {
+            GenererBonsOdm::recalerBp($odm, $odm->date_retour_prevue, $valideur, "Prolongation {$odm->numero} validée");
+        }
     }
 }

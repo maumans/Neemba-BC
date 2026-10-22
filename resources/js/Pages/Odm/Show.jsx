@@ -465,8 +465,11 @@ function Mission({ mission }) {
 /** RG-M12-20 : clôture, retour réel ; retour anticipé : trop-perçu à reverser ou à retenir ; extérieur : factures payées au retour */
 function Cloturer({ odm, regularisationsPossibles }) {
     const [ouvert, setOuvert] = useState(false);
+    /* Retour réel au plus tard aujourd'hui (MSG-APP-112) */
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const retourMax = odm.date_retour_prevue < aujourdhui ? odm.date_retour_prevue : aujourdhui;
     const form = useForm({
-        date_retour_reelle: odm.date_retour_prevue,
+        date_retour_reelle: retourMax,
         regularisations: Object.fromEntries(odm.participants.map((p) => [p.user_id, 'reversement'])),
         factures_retour: {},
         factures_retour_pieces: {},
@@ -488,8 +491,14 @@ function Cloturer({ odm, regularisationsPossibles }) {
                     <div className="space-y-3">
                         <div>
                             <label htmlFor="retour-reel" className="text-sm font-medium">Date de retour réelle</label>
-                            <Input id="retour-reel" type="date" className="mt-1" max={odm.date_retour_prevue} min={odm.date_depart}
+                            <Input id="retour-reel" type="date" className="mt-1" max={retourMax} min={odm.prolongation ? undefined : odm.date_depart}
                                 value={form.data.date_retour_reelle} onChange={(e) => form.setData('date_retour_reelle', e.target.value)} />
+                            <p className="mt-1 text-xs text-gray-500">Au plus tard aujourd'hui.</p>
+                            {odm.prolongation && (
+                                <p className="mt-1 text-xs text-gray-500" data-testid="aide-retour-prolongation">
+                                    Mission terminée avant le {odm.prolongation.depart} ? Annulez cette prolongation, puis clôturez le segment {odm.prolongation.precedent}.
+                                </p>
+                            )}
                             {(form.errors.date_retour_reelle || form.errors.general || form.errors.factures_retour) && (
                                 <p className="mt-1 text-sm text-red-600">{form.errors.date_retour_reelle ?? form.errors.general ?? form.errors.factures_retour}</p>
                             )}

@@ -21,7 +21,11 @@ use Illuminate\Support\Facades\DB;
  * - retour anticipé : calcul refait au réel ; pour chaque participant déjà payé, le trop-perçu est calculé
  *   (MSG-M12-09) et sera reversé en caisse ou retenu sur salaire ; un bon non encore payé est annulé et régénéré
  *   au montant réel (Q26) ;
- * - retour tardif : refusé, la mission doit d'abord être prolongée (MSG-APP-036).
+ * - retour tardif : refusé, la mission doit d'abord être prolongée (MSG-APP-036) ;
+ * - retour réel au plus tard aujourd'hui (MSG-APP-112) ; sur une prolongation, un retour antérieur à son départ
+ *   demande d'annuler la prolongation, puis de clôturer le segment précédent (MSG-APP-113).
+ * La clôture vaut pour toute la mission : les segments précédents passent aussi à « Clôturé » ; la date de retour des
+ * BP de la mission devient le retour réel (échéance de régularisation, RG-M07-02).
  * ODM extérieur, hébergement payé au retour : un bon complémentaire est préparé en brouillon pour chaque facture,
  * à compléter avec la facture puis à soumettre (justificatif obligatoire, Q24).
  */
@@ -46,10 +50,20 @@ final class CloturerOdm
             if (!self::peutCloturer($odm, $auteur)) {
                 throw new ErreurMetier('CLOTURE_IMPOSSIBLE', 'MSG-APP-035', [], 'RG-M12-20', null, 409);
             }
-            if (!$dateRetourReelle || Carbon::parse($dateRetourReelle)->lessThan($odm->date_depart)) {
+            if (!$dateRetourReelle) {
                 throw new ErreurMetier('RETOUR_AVANT_DEPART', 'MSG-M12-02', [], 'RG-M12-06', 'date_retour_reelle');
             }
             $retour = Carbon::parse($dateRetourReelle)->startOfDay();
+            if ($retour->greaterThan(today())) {
+                throw new ErreurMetier('RETOUR_FUTUR', 'MSG-APP-112', [], 'RG-M12-20', 'date_retour_reelle');
+            }
+            if ($retour->lessThan($odm->date_depart)) {
+                if ($odm->segment_precedent_id) {
+                    throw new ErreurMetier('RETOUR_AVANT_PROLONGATION', 'MSG-APP-113', ['retour' => Format::date($retour),
+                        'depart' => Format::date($odm->date_depart), 'precedent' => $odm->segmentPrecedent?->numero], 'RG-M12-20', 'date_retour_reelle');
+                }
+                throw new ErreurMetier('RETOUR_AVANT_DEPART', 'MSG-M12-02', [], 'RG-M12-06', 'date_retour_reelle');
+            }
             if ($retour->greaterThan($odm->date_retour_prevue)) {
                 throw new ErreurMetier('RETOUR_TARDIF', 'MSG-APP-036', [], 'RG-M12-20', 'date_retour_reelle');
             }
@@ -75,6 +89,29 @@ final class CloturerOdm
 
             if ($odm->type === 'exterieur' && $odm->hebergement_exterieur === 'au_retour') {
                 $messages = array_merge($messages, self::bonsComplementaires($odm, $auteur, $facturesRetour, $piecesRetour));
+            }
+
+            /* La clôture vaut pour toute la mission : segments précédents clôturés, après génération de leurs bons manquants */
+            foreach ($odm->segmentsDeLaMission() as $segment) {
+                if ($segment->id === $odm->id || !in_array($segment->statut, ProlongerOdm::STATUTS_PROLONGEABLES, true)) {
+                    continue;
+                }
+                if (!GenererBonsOdm::sansBon($segment)) {
+                    $nouveaux = GenererBonsOdm::bonsManquants($segment, $auteur);
+                    if ($nouveaux->isNotEmpty()) {
+                        $messages[] = "Segment {$segment->numero} : bon(s) généré(s) "
+                            . $nouveaux->map(fn (BonCaisse $b) => "{$b->numero} (" . Format::montant($b->montant) . ')')->implode(', ') . '.';
+                    }
+                }
+                $avant = $segment->statut;
+                $segment->update(['statut' => 'CLOTURE', 'date_cloture' => now()]);
+                HistoriqueOdm::enregistrer($segment, 'cloture', $avant, 'CLOTURE', $auteur->id,
+                    "Mission clôturée avec le segment {$odm->numero} : retour réel le " . Format::date($retour) . '.');
+            }
+
+            /* RG-M07-02 : l'échéance des BP de la mission part du retour réel */
+            if (GenererBonsOdm::recalerBp($odm, $retour, $auteur, "Mission {$odm->numero} clôturée") > 0) {
+                $messages[] = 'Échéance de régularisation des bons provisoires de la mission recalculée sur le retour réel.';
             }
 
             $odm->update(['statut' => 'CLOTURE', 'date_cloture' => now()]);

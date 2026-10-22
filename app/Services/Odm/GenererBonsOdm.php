@@ -133,6 +133,35 @@ final class GenererBonsOdm
     }
 
     /** Bons de l'ODM encore actifs (non annulés) */
+    /**
+     * RG-M07-02, RG-M12-17, RG-M12-20 : la date de retour des BP de la mission (et l'échéance d'un BP déjà payé) suit la
+     * prolongation validée, puis le retour réel ; sinon un BP paraîtrait en retard pendant la prolongation, ou trop tard
+     * après un retour anticipé. Renvoie le nombre de BP recalés.
+     */
+    public static function recalerBp(OrdreMission $odm, \Carbon\CarbonInterface $retour, ?User $auteur, string $raison): int
+    {
+        $bps = BonCaisse::whereIn('odm_id', $odm->segmentsDeLaMission()->pluck('id'))
+            ->where('type_bon', 'BP')->where('lie_mission', true)
+            ->whereNotIn('statut', ['REGULARISE', 'ARCHIVE', 'ANNULE', 'REJETE'])->get();
+        $recales = 0;
+        foreach ($bps as $bp) {
+            if ($bp->date_retour_mission?->isSameDay($retour)) {
+                continue;
+            }
+            $bp->date_retour_mission = $retour->toDateString();
+            if ($bp->statut === 'EN_ATTENTE_REGULARISATION' && $bp->date_paiement) {
+                $bp->date_limite_regularisation = $bp->dateLimiteRegularisation($bp->date_paiement)->toDateString();
+            }
+            $bp->save();
+            \App\Models\HistoriqueAction::enregistrer($bp, \App\Models\HistoriqueAction::ACTION_MODIFICATION, $bp->statut, $bp->statut, $auteur?->id,
+                "{$raison} : retour de mission au " . \App\Support\Format::date($retour)
+                . ($bp->date_limite_regularisation ? ', régularisation attendue au plus tard le ' . \App\Support\Format::date($bp->date_limite_regularisation) : '') . '.');
+            $recales++;
+        }
+
+        return $recales;
+    }
+
     public static function bonsActifs(OrdreMission $odm): Collection
     {
         return $odm->bons()->where('genere_par_odm', true)->whereNotIn('statut', self::STATUTS_INACTIFS)->get();

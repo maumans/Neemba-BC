@@ -311,6 +311,7 @@ class RepartitionV23Test extends TestCase
         ]]]));
         $this->actingAs($this->demandeur)->post(route('odm.generer-bons', $odm))->assertSessionHas('success');
 
+        Carbon::setTestNow('2026-09-25 08:00');
         $this->actingAs($this->demandeur)->post(route('odm.cloturer', $odm), ['date_retour_reelle' => '2026-09-24'])->assertSessionHas('success');
         $this->assertEquals(750000, (float) $odm->fresh()->montant_a_refacturer);   // 3 jours d'indemnité
     }

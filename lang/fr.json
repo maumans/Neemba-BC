@@ -171,5 +171,7 @@
     "MSG-APP-108": "On ne clôture pas une journée à venir.",
     "MSG-APP-109": "Un contrôle inopiné est fait par la trésorerie ou le Chef comptable, pas par le gérant de la caisse.",
     "MSG-APP-110": "Le montant émis ne peut pas dépasser le montant approuvé (:max GNF).",
-    "MSG-APP-111": "Réapprovisionnement :numero reçu : le solde de la :caisse atteint :x GNF, au-dessus du plafond de caisse (:plafond GNF). Remise en banque nécessaire."
+    "MSG-APP-111": "Réapprovisionnement :numero reçu : le solde de la :caisse atteint :x GNF, au-dessus du plafond de caisse (:plafond GNF). Remise en banque nécessaire.",
+    "MSG-APP-112": "La date de retour réelle ne peut pas être postérieure à aujourd'hui : clôturez la mission à son retour.",
+    "MSG-APP-113": "Le retour réel (:retour) précède le départ de cette prolongation (:depart) : annulez d'abord la prolongation, puis clôturez le segment :precedent."
 }

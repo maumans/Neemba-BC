@@ -114,6 +114,12 @@ class ClotureOdmTest extends TestCase
 
     private function cloturer(OrdreMission $odm, string $date, array $autres = [])
     {
+        /* Retour réel au plus tard aujourd'hui (MSG-APP-112) : on clôture au plus tôt le lendemain du retour */
+        $lendemain = Carbon::parse($date)->addDay()->setTime(8, 0);
+        if ($lendemain->greaterThan(now())) {
+            Carbon::setTestNow($lendemain);
+        }
+
         return $this->actingAs($this->demandeur)->post(route('odm.cloturer', $odm), ['date_retour_reelle' => $date] + $autres);
     }
 
@@ -283,5 +289,67 @@ class ClotureOdmTest extends TestCase
         /* Spec v2.4, RG-M12-38 : aucune saisie hors barème, le montant du bon complémentaire est verrouillé */
         $this->expectException(\App\Exceptions\ErreurMetier::class);
         EnregistrementBon::appliquer($complement, ['montant' => 1500000], $this->demandeur);
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* Revue du 22/10 : contrôles de la clôture et de la prolongation      */
+
+    /** Retour réel au plus tard aujourd'hui (MSG-APP-112) */
+    public function test_pas_de_retour_reel_dans_le_futur(): void
+    {
+        $odm = $this->odmAvecBons();
+        Carbon::setTestNow('2026-09-24 08:00');
+
+        $this->actingAs($this->demandeur)->post(route('odm.cloturer', $odm), ['date_retour_reelle' => '2026-09-26'])
+            ->assertSessionHasErrors(['date_retour_reelle' => "La date de retour réelle ne peut pas être postérieure à aujourd'hui : clôturez la mission à son retour."]);
+        $this->assertSame('BONS_GENERES', $odm->fresh()->statut);
+        /* Retour anticipé à aujourd'hui : admis */
+        $this->actingAs($this->demandeur)->post(route('odm.cloturer', $odm), ['date_retour_reelle' => '2026-09-24'])->assertSessionHas('success');
+    }
+
+    /**
+     * Prolongation : le BP de la mission suit le nouveau retour (pas de retard pendant la prolongation) ; la clôture clôt
+     * toute la chaîne et cale l'échéance du BP sur le retour réel ; un retour antérieur à la prolongation est expliqué.
+     */
+    public function test_prolongation_bp_et_cloture_de_toute_la_mission(): void
+    {
+        $odm = $this->odmAvecBons(generer: false);
+        $this->actingAs($this->demandeur)->post(route('odm.generer-bons', $odm), [
+            'bp' => ['montant' => '1000000', 'motif' => 'Carburant et péages de la mission', 'beneficiaire_id' => $this->thierno->id],
+        ])->assertSessionHas('success');
+        $bp = BonCaisse::where('type_bon', 'BP')->sole();
+        $this->assertSame('2026-09-26', $bp->date_retour_mission->toDateString());
+        $this->payer($bp);
+        $bp->refresh();
+        $this->assertSame('EN_ATTENTE_REGULARISATION', $bp->statut);
+        $this->assertSame('2026-09-30', $bp->date_limite_regularisation->toDateString());   // 3 jours ouvrés après le samedi 26/09
+
+        /* Prolongation jusqu'au 03/10, validée : le BP attend le nouveau retour */
+        Carbon::setTestNow('2026-09-25 08:00');
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-10-03']);
+        $segment = OrdreMission::where('segment_precedent_id', $odm->id)->sole();
+        $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $segment))->assertOk();
+        foreach ([$this->chefAtelier, $this->daf, $this->dp] as $valideur) {
+            $this->actingAs($valideur)->post(route('odm.viser', $segment));
+        }
+        $this->assertSame('VALIDE', $segment->fresh()->statut);
+        $bp->refresh();
+        $this->assertSame('2026-10-03', $bp->date_retour_mission->toDateString());
+        $this->assertSame('2026-10-07', $bp->date_limite_regularisation->toDateString());   // 3 jours ouvrés après le samedi 03/10
+        $this->assertTrue($bp->historiqueActions()->where('commentaire', 'like', "Prolongation {$segment->fresh()->numero} validée%")->exists());
+
+        /* Retour réel avant le départ de la prolongation : message explicite */
+        Carbon::setTestNow('2026-10-04 08:00');
+        $this->actingAs($this->demandeur)->post(route('odm.cloturer', $segment), ['date_retour_reelle' => '2026-09-26'])
+            ->assertSessionHasErrors(['date_retour_reelle' => "Le retour réel (26/09/2026) précède le départ de cette prolongation (27/09/2026) : annulez d'abord la prolongation, puis clôturez le segment {$odm->numero}."]);
+
+        /* Retour anticipé le 01/10 : toute la mission est clôturée ; l'échéance du BP part du retour réel */
+        $this->actingAs($this->demandeur)->post(route('odm.cloturer', $segment), ['date_retour_reelle' => '2026-10-01'])->assertSessionHas('success');
+        $this->assertSame(['CLOTURE', 'CLOTURE'], [$odm->fresh()->statut, $segment->fresh()->statut]);
+        $this->assertNotNull($odm->fresh()->date_cloture);
+        $bp->refresh();
+        $this->assertSame('2026-10-01', $bp->date_retour_mission->toDateString());
+        $this->assertSame('2026-10-07', $bp->date_limite_regularisation->toDateString());   // 3 jours ouvrés après le 01/10 (02/10 férié : fête de l'indépendance)
+        $this->actingAs($this->demandeur)->get(route('odm.show', $odm))->assertInertia(fn (Assert $page) => $page->where('peutCloturer', false)->where('peutProlonger', false));
     }
 }
