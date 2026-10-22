@@ -5803,3 +5803,37 @@ Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Demande 
   - `ReapprovisionnementTest` et `ReconciliationOmTest` complétés (actions par ligne) ; 449 tests PHP ;
   - parcours Edge sur une copie de la base : sur DRA-CKY-2026-0001, Mamadou Alpha BAH voit Viser et Refuser ; un refus au motif trop court est bloqué dans la boîte ; il vise depuis la liste, puis Mamadou LO approuve ; « Exécuter » ouvre la fiche de Mariamagbè CAMARA sur le formulaire ;
   - pour la réconciliation OM, Mariamagbè en établit une, puis elle et Mamadou Alpha BAH la valident depuis la liste (2 / 3).
+
+---
+
+## 65. Version v65 — Contrôles de la clôture et de la prolongation des ODM (22 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés. Question de l'utilisateur du 22/10 : la prolongation et la clôture sont-elles gérées avec tous leurs contrôles ?
+
+### 65.1 Revue (spec v2.4, RG-M12-17 à 20, 22, 24, 26, 28, 35)
+
+En place : segment lié (départ = retour + 1, participants repris sans ajout, même circuit, libellé), nuitée de rattrapage, vue mission et alerte au DAF, retour anticipé (trop-perçu, bons non payés refaits au réel), retour tardif refusé, hébergement payé au retour, annulation, diffusion, rappel de fin de segment, répartition. Quatre écarts corrigés ci-dessous. Hors périmètre : régularisation carburant à la clôture (M13, lot H).
+
+### 65.2 Corrections
+
+- **BP de la mission** : sa date de retour restait celle du segment qui l'avait généré.
+  - `GenererBonsOdm::recalerBp()` cale la date de retour des BP de la mission (et l'échéance d'un BP déjà payé) sur le nouveau retour prévu à la validation d'une prolongation, puis sur le retour réel à la clôture ;
+  - chaque recalage est tracé dans l'historique du bon. Sans cela, un BP paraissait en retard pendant la prolongation et bloquait les nouveaux bons provisoires.
+- **Retour réel au plus tard aujourd'hui** (MSG-APP-112). L'écran propose aujourd'hui quand le retour prévu n'est pas encore atteint.
+- **Clôture de toute la mission** : les segments précédents passent aussi à « Clôturé » (après génération de leurs bons manquants), avec une trace dans leur historique.
+- **Retour réel antérieur au départ d'une prolongation** : message explicite (MSG-APP-113) : annuler la prolongation, puis clôturer le segment précédent. L'écran de clôture d'une prolongation le rappelle. Si la prolongation est déjà payée, la question est posée à Neemba (Q109).
+
+### 65.3 Vérifications
+
+- `ClotureOdmTest` (2 tests de plus) :
+  - date future refusée ;
+  - BP payé recalé à la validation de la prolongation (échéance du 30/09 au 07/10) puis au retour réel ;
+  - toute la chaîne clôturée ;
+  - message de retour antérieur à la prolongation.
+- Les tests existants clôturent au lendemain du retour.
+- Jours fériés : le 02/10 (fête de l'indépendance) est bien sauté dans le calcul de l'échéance.
+- **Total** : 451 tests PHP.
+- **Parcours Edge** sur une copie de la base, ODM N°6/DIR/26 de Thierno DIALLO (le brouillon de prolongation y a été annulé) :
+  - date proposée = aujourd'hui ;
+  - 25/10 refusé ;
+  - clôture au 22/10 en retour anticipé.
