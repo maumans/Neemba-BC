@@ -12,8 +12,8 @@ use App\Models\TauxChange;
 use App\Models\User;
 
 /**
- * Travail en attente d'un utilisateur côté caisses et trésorerie, pour le bloc « À traiter » du tableau de bord : chacun
- * voit ce que lui seul peut faire maintenant (trésorerie, Chef comptable, DAF, DP, membres du CODIR, gérants de caisse).
+ * Travail en attente d'un utilisateur pour le bloc « À traiter » du tableau de bord : caisses et trésorerie, justifications
+ * de BP à viser, modifications à valider (administrateurs). Chacun voit ce que lui seul peut faire maintenant.
  */
 final class TachesCaisse
 {
@@ -26,6 +26,13 @@ final class TachesCaisse
                 $taches[] = compact('cle', 'libelle', 'nombre', 'lien');
             }
         };
+
+        /* Demande du 22/10 : justifications de BP à viser ; modifications à valider (administrateurs, Q107) */
+        $ajouter('justifications', 'Justifications de BP à viser', \App\Services\BonCaisse\JustifierBp::aViserPar($u)->count(), route('validations.index'));
+        if ($u->aLeRole('administrateur')) {
+            $ajouter('modifications', 'Modifications à valider (double validation)',
+                \App\Models\ModificationEnAttente::enAttente()->where('demandeur_id', '!=', $u->id)->count(), route('admin.modifications-en-attente.index'));
+        }
 
         /* Réapprovisionnements : validation, visa, approbation, exécution, réception */
         $demandes = DemandeReapprovisionnement::with('caisse')->whereNotIn('statut', ['recue', 'refusee'])->get()

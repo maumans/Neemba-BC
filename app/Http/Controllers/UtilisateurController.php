@@ -71,8 +71,13 @@ class UtilisateurController extends Controller
         }
 
         /* Lot T : chaque compte affiche tous ses rôles (rôle principal d'abord, « demandeur » seulement s'il est seul) */
-        $utilisateurs = $query->paginate(15)->withQueryString()->through(function (User $u) {
+        $utilisateurs = $query->paginate(15)->withQueryString();
+        /* Q107 : changements de rôles qui attendent la double validation, montrés sur la ligne du compte */
+        $enAttente = \App\Models\ModificationEnAttente::enAttente()->whereIn('type_entite', ['utilisateur_role', 'utilisateur_roles'])
+            ->whereIn('entite_id', $utilisateurs->pluck('id'))->get()->groupBy('entite_id');
+        $utilisateurs->through(function (User $u) use ($enAttente) {
             $u->setAttribute('roles_affiches', User::libellesRoles($u));
+            $u->setAttribute('roles_en_attente', ($enAttente[$u->id] ?? collect())->map(fn ($m) => $m->description())->values());
             $u->setRelation('roles', collect());
 
             return $u;
@@ -150,6 +155,10 @@ class UtilisateurController extends Controller
         return Inertia::render('Utilisateurs/Edit', [
             'utilisateur' => $utilisateur,
             'rolesComplementaires' => self::rolesComplementaires($utilisateur),
+            /* Q107 : changements de rôles qui attendent la double validation */
+            'rolesEnAttente' => \App\Models\ModificationEnAttente::enAttente()->whereIn('type_entite', ['utilisateur_role', 'utilisateur_roles'])
+                ->where('entite_id', $utilisateur->id)->with('demandeur')->get()
+                ->map(fn ($m) => ['description' => $m->description(), 'demandeur' => $m->demandeur?->nom_complet, 'le' => $m->created_at?->format('d/m/Y H:i')])->values(),
             'roles' => User::ROLES,
             'rolesPrincipaux' => self::rolesPrincipaux(),
             'sites' => Site::actifs()->orderBy('nom')->pluck('nom'),
@@ -234,9 +243,13 @@ class UtilisateurController extends Controller
         $utilisateur->update($validated);
 
         if ($pendingCreated || $rolesDemandes !== null) {
+            /* Q107 : dire qui peut valider (les autres administrateurs sont prévenus) */
+            $valideurs = \App\Models\ModificationEnAttente::valideursPossibles(\Illuminate\Support\Facades\Auth::id())->map(fn (User $u) => $u->nom_complet)->implode(', ');
+
             return redirect()
                 ->route('utilisateurs.index')
-                ->with('success', 'Utilisateur mis à jour. La modification des rôles a été mise en attente de double validation.');
+                ->with('success', 'Utilisateur mis à jour. Le changement de rôles attend la validation d\'un autre administrateur'
+                    . ($valideurs !== '' ? " ({$valideurs}, prévenus)" : ' : aucun autre administrateur actif, créez-en un') . ' ; il ne s\'applique qu\'après.');
         }
 
         return redirect()

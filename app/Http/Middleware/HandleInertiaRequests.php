@@ -47,6 +47,10 @@ class HandleInertiaRequests extends Middleware
                     /* Lot T : tous les rôles de la personne, pour le bandeau et le menu (« Trésorerie », « Chef comptable »…) */
                     'roles_affiches' => \App\Models\User::libellesRoles($request->user()),
                 ]) : null,
+                /* Q107 : modifications qui attendent la validation de cet administrateur (compteur du menu) */
+                'compteurs' => $request->user() && $request->user()->aLeRole('administrateur') ? [
+                    'admin.modifications-en-attente.index' => \App\Models\ModificationEnAttente::enAttente()->where('demandeur_id', '!=', $request->user()->id)->count(),
+                ] : [],
                 /* Lot T : libellé de chaque rôle (écrans des utilisateurs, délégations, profil) */
                 'roles_libelles' => \App\Models\User::ROLES,
                 /* Spec v2.4, RG-M01-08 : entité courante, entités accessibles, vue consolidée */

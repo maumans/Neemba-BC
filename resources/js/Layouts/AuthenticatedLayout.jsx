@@ -101,6 +101,9 @@ const navigationItems = [
             "controle_gestion",
             "daf",
             "directeur_pays",
+            /* Visa « Comptabilité » des justifications de BP (RG-M07-03) */
+            "comptable",
+            "chef_comptable",
         ],
     },
     {
@@ -254,6 +257,11 @@ const rolesLabels = {
 export default function AuthenticatedLayout({ header, children }) {
     const { auth } = usePage().props;
     const user = auth.user;
+    /* Q107 : compteurs du menu (modifications à valider) */
+    const compteurs = auth.compteurs || {};
+    const Compteur = ({ href }) => (compteurs[href] > 0
+        ? <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white" data-testid={`compteur-${href}`}>{compteurs[href]}</span>
+        : null);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -328,6 +336,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                     >
                                         <Icon className="h-5 w-5 flex-shrink-0" />
                                         {item.label}
+                                        <Compteur href={item.href} />
                                     </Link>
                                 );
                             })}
@@ -459,6 +468,7 @@ export default function AuthenticatedLayout({ header, children }) {
                                             >
                                                 <Icon className="h-5 w-5" />
                                                 {item.label}
+                                                <Compteur href={item.href} />
                                             </Link>
                                         );
                                     })}

@@ -193,6 +193,18 @@ final class JustifierBp
         return $valideurs->values();
     }
 
+    /**
+     * Demande du 22/10 : justifications que l'utilisateur peut viser maintenant (écran « Validations », bloc « À traiter »).
+     * Avant, seule la notification envoyée à l'ouverture de l'étape y menait.
+     *
+     * @return Collection<int, JustificationBp>
+     */
+    public static function aViserPar(User $utilisateur): Collection
+    {
+        return JustificationBp::with(['bon', 'initiateur'])->where('statut', 'en_validation')->whereNotNull('etape')->get()
+            ->filter(fn (JustificationBp $j) => $j->bon && self::peutViser($j, $utilisateur) !== null)->values();
+    }
+
     /** L'utilisateur peut-il viser l'étape en cours ? (null sinon ; sinon le titulaire dont il est suppléant) */
     public static function peutViser(JustificationBp $j, User $utilisateur): ?array
     {

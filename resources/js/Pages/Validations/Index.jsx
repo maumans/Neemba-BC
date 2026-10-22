@@ -5,7 +5,7 @@
  * Chaque validateur ne voit que les bons correspondant à son niveau de validation.
  */
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { motion } from 'framer-motion';
 import { CheckSquare, Eye, FileText, Clock } from 'lucide-react';
 import { Button } from '@/Components/ui/button';
@@ -29,7 +29,9 @@ const rolesLabels = {
     'directeur_pays': 'Directeur Pays',
 };
 
-export default function Index({ bonsEnAttente, roleValidateur }) {
+export default function Index({ bonsEnAttente, roleValidateur, justificationsAViser = [] }) {
+    /* Libellés partagés de tous les rôles (Chef comptable, DAF adjoint…) */
+    const libelles = { ...(usePage().props.auth.roles_libelles || {}), ...rolesLabels };
     return (
         <AuthenticatedLayout header="Validations">
             <Head title="Validations" />
@@ -37,9 +39,50 @@ export default function Index({ bonsEnAttente, roleValidateur }) {
             <div className="mb-5">
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Validations en attente</h1>
                 <p className="text-gray-500 text-xs sm:text-sm mt-0.5">
-                    Bons en attente de votre validation en tant que {rolesLabels[roleValidateur] || roleValidateur}
+                    Bons en attente de votre validation{roleValidateur ? ` en tant que ${libelles[roleValidateur] || roleValidateur}` : ''}
                 </p>
             </div>
+
+            {/* Demande du 22/10 (RG-M07-03) : justifications de BP à viser (N+1, CDG, Comptabilité) */}
+            {justificationsAViser.length > 0 && (
+                <Card className="mb-5 border-l-4 border-l-neemba-500" data-testid="justifications-a-viser">
+                    <CardContent className="p-4">
+                        <p className="mb-2 text-sm font-semibold text-gray-900">Justifications de BP à viser ({justificationsAViser.length})</p>
+                        <div className="overflow-x-auto rounded-md border bg-white">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b bg-gray-50 text-left text-xs text-gray-500">
+                                        <th className="px-3 py-2">BP</th>
+                                        <th className="px-3 py-2">Bénéficiaire</th>
+                                        <th className="px-3 py-2 text-right">Avance</th>
+                                        <th className="px-3 py-2 text-right">Justifié</th>
+                                        <th className="px-3 py-2">Étape</th>
+                                        <th className="px-3 py-2">Soumise le</th>
+                                        <th className="px-3 py-2" />
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {justificationsAViser.map((j) => (
+                                        <tr key={j.id} className="border-b last:border-0">
+                                            <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{j.numero}</td>
+                                            <td className="px-3 py-2">{j.beneficiaire}</td>
+                                            <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatMontant(j.montant_avance)}</td>
+                                            <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatMontant(j.montant_justifie)}</td>
+                                            <td className="px-3 py-2"><Badge variant="outline" className="text-[10px]">{j.etape}</Badge></td>
+                                            <td className="whitespace-nowrap px-3 py-2 text-xs text-gray-500">{j.soumise_le}</td>
+                                            <td className="px-3 py-2 text-right">
+                                                <Link href={`${route('bons-caisse.show', j.bon_id)}#justification`}>
+                                                    <Button size="sm" variant="outline"><Eye className="mr-1 h-3.5 w-3.5" /> Examiner</Button>
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <motion.div
                 initial={{ opacity: 0, y: 10 }}

@@ -32,6 +32,9 @@ class ReferentielsMetierTest extends TestCase
     {
         parent::setUp();
         Carbon::setTestNow('2026-10-20 09:00');
+        /* La migration date les barèmes repris du jour où elle tourne : on les ramène au 08/10 (date des paramètres en dev),
+         * sinon, l'horloge du test étant figée au 20/10, ils paraissent « à venir » dès que la base est créée après le 20/10 */
+        BaremeOdm::whereNull('entite_id')->update(['date_effet' => '2026-10-08']);
         $this->admin = User::factory()->role('administrateur')->create();
         $this->gestionnaire = User::factory()->create(['prenom' => 'Maïmouna', 'name' => 'BARRY']);
         $this->gestionnaire->ajouterRoles(['gestionnaire_referentiels']);

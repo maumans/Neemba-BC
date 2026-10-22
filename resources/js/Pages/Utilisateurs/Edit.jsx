@@ -21,7 +21,7 @@ import {
 } from '@/Components/ui/select';
 import { Combobox } from '@/Components/ui/combobox';
 
-export default function Edit({ utilisateur, sites = [], services = [], caisses = [], entites = [], roles = {}, rolesComplementaires = [], rolesPrincipaux = {} }) {
+export default function Edit({ utilisateur, sites = [], services = [], caisses = [], entites = [], roles = {}, rolesComplementaires = [], rolesPrincipaux = {}, rolesEnAttente = [] }) {
     const { data, setData, put, processing, errors } = useForm({
         name: utilisateur.name || '',
         prenom: utilisateur.prenom || '',
@@ -302,6 +302,17 @@ export default function Edit({ utilisateur, sites = [], services = [], caisses =
                                         />
                                     </div>
                                 </div>
+
+                                {/* Q107 : un changement de rôles ne s'applique qu'après la validation d'un autre administrateur */}
+                                {rolesEnAttente.length > 0 && (
+                                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900" data-testid="roles-en-attente">
+                                        <p className="font-medium">Changement de rôles en attente de validation par un autre administrateur</p>
+                                        <ul className="mt-1 list-disc pl-5 text-xs">
+                                            {rolesEnAttente.map((m, i) => <li key={i}>{m.description} — demandé par {m.demandeur} le {m.le}</li>)}
+                                        </ul>
+                                        <p className="mt-1 text-xs">Tant qu'il n'est pas validé (Modifications Admin), les droits restent ceux affichés ci-dessous.</p>
+                                    </div>
+                                )}
 
                                 <fieldset>
                                     <legend className="text-sm font-medium">Rôles complémentaires</legend>

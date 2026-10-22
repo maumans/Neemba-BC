@@ -31,6 +31,51 @@ class ModificationEnAttente extends Model
         'date_validation',
     ];
 
+    /**
+     * Demande du 22/10 (Q107) : une modification qui attend la double validation prévient tout de suite les autres
+     * administrateurs (avant, rien ne la signalait, et un rôle demandé restait inactif sans que personne le sache).
+     */
+    protected static function booted(): void
+    {
+        static::created(function (self $m) {
+            if ($m->statut === 'en_attente') {
+                $m->prevenirValideurs();
+            }
+        });
+    }
+
+    /** Administrateurs actifs qui peuvent valider (tous sauf l'auteur de la demande) */
+    public static function valideursPossibles(?int $demandeurId): \Illuminate\Support\Collection
+    {
+        return User::actifs()->avecRoleDans(['administrateur'])->where('id', '!=', (int) $demandeurId)->orderBy('name')->get();
+    }
+
+    /** Description lisible : « Rôles de Thierno DIALLO : Demandeur, Gestionnaire des référentiels » */
+    public function description(): string
+    {
+        $libelle = self::TYPES_CRITIQUES[$this->type_entite] ?? $this->type_entite;
+        if (in_array($this->type_entite, ['utilisateur_role', 'utilisateur_roles'], true)) {
+            $compte = User::find($this->entite_id);
+            $roles = collect(explode(',', (string) $this->nouvelle_valeur))->map(fn ($r) => trim($r))->filter()
+                ->map(fn ($r) => User::ROLES[$r] ?? $r)->implode(', ');
+
+            return ($this->type_entite === 'utilisateur_role' ? 'Rôle principal de ' : 'Rôles de ')
+                . ($compte?->nom_complet ?? "compte n° {$this->entite_id}") . ' : ' . ($roles !== '' ? $roles : 'aucun rôle complémentaire');
+        }
+
+        return "{$libelle} : {$this->champ} → " . ($this->nouvelle_valeur === null || $this->nouvelle_valeur === '' ? 'vide' : $this->nouvelle_valeur);
+    }
+
+    public function prevenirValideurs(): void
+    {
+        $auteur = $this->demandeur_id ? User::find($this->demandeur_id) : null;
+        foreach (self::valideursPossibles($this->demandeur_id) as $admin) {
+            \App\Services\NotificationService::creerEtDiffuserSimple($admin, $auteur, 'modification_a_valider', 'Modification à valider',
+                ($auteur?->nom_complet ?? 'Un administrateur') . ' demande : ' . $this->description() . '. Elle attend votre validation.',
+                ['lien' => route('admin.modifications-en-attente.index'), 'modification_id' => $this->id]);
+        }
+    }
+
     protected function casts(): array
     {
         return [

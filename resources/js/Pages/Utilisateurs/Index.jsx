@@ -182,6 +182,12 @@ export default function Index({ utilisateurs, filtres = {}, roles = {} }) {
                                                             <Badge key={libelle} variant={i === 0 ? 'default' : 'outline'} className="text-[10px]">{libelle}</Badge>
                                                         ))}
                                                     </div>
+                                                    {/* Q107 : changement de rôles qui attend la double validation */}
+                                                    {utilisateur.roles_en_attente?.length > 0 && (
+                                                        <p className="mt-1 text-[10px] font-medium text-amber-700" title={utilisateur.roles_en_attente.join(' ; ')} data-testid={`roles-en-attente-${utilisateur.id}`}>
+                                                            En attente de validation : {utilisateur.roles_en_attente.join(' ; ')}
+                                                        </p>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-sm hidden lg:table-cell py-2">{utilisateur.service || '-'}</TableCell>
                                                 <TableCell className="text-sm hidden md:table-cell py-2">{utilisateur.site || '-'}</TableCell>

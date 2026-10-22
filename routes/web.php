@@ -169,7 +169,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('bons-caisse.export-pdf');
 
     /* --- Validations (réservées aux validateurs) --- */
-    Route::middleware('role:responsable_service,controle_gestion,daf,daf_adjoint,chef_comptable,directeur_pays,dp_adjoint')->group(function () {
+    Route::middleware('role:responsable_service,controle_gestion,daf,daf_adjoint,chef_comptable,comptable,directeur_pays,dp_adjoint')->group(function () {
         Route::get('/validations', [ValidationController::class, 'index'])->name('validations.index');
         Route::get('/validations/{bonCaisse}', [ValidationController::class, 'show'])->name('validations.show');
         Route::post('/validations/{bonCaisse}/approuver', [ValidationController::class, 'approuver'])

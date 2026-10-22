@@ -26,8 +26,10 @@ class ValidationController extends Controller
     public function index(Request $request)
     {
         $utilisateur = Auth::user();
+        /* Demande du 22/10 : les justifications de BP à viser (N+1, CDG, Comptabilité) apparaissent aussi ici */
+        $justifications = \App\Services\BonCaisse\JustifierBp::aViserPar($utilisateur);
 
-        if (!$utilisateur->peutValider()) {
+        if (!$utilisateur->peutValider() && $justifications->isEmpty() && !$utilisateur->aLeRole(['comptable', 'chef_comptable', 'controle_gestion'])) {
             abort(403, 'Vous n\'avez pas les droits de validation.');
         }
 
@@ -41,6 +43,17 @@ class ValidationController extends Controller
 
         return Inertia::render('Validations/Index', [
             'bonsEnAttente' => $bonsEnAttente,
+            'justificationsAViser' => $justifications->map(fn (\App\Models\JustificationBp $j) => [
+                'id' => $j->id,
+                'bon_id' => $j->bon_caisse_id,
+                'numero' => $j->bon->numero,
+                'beneficiaire' => $j->bon->beneficiaire,
+                'initiateur' => $j->initiateur?->nom_complet,
+                'montant_avance' => (float) $j->montant_avance,
+                'montant_justifie' => (float) $j->montant_justifie,
+                'etape' => \App\Models\JustificationBp::ETAPES[$j->etape] ?? $j->etape,
+                'soumise_le' => $j->soumise_le?->format('d/m/Y H:i'),
+            ])->values(),
             'roleValidateur' => count($rolesEffectifs) > 0 ? $rolesEffectifs[0] : null,
             'rolesEffectifs' => $rolesEffectifs,
         ]);

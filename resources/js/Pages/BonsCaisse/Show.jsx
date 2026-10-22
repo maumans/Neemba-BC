@@ -1455,7 +1455,7 @@ export default function Show({
 
                     {/* Lot E (M07) : justification du BP (Annexe 3), reliquat, complément, suivi RH */}
                     {(justification || bpRegularise) && (
-                        <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.28 }}>
+                        <motion.div id="justification" className="scroll-mt-20" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.28 }}>
                             <CarteJustificationBp bonId={bonCaisse.id} montant={bonCaisse.montant} justification={justification} bpRegularise={bpRegularise} />
                         </motion.div>
                     )}
