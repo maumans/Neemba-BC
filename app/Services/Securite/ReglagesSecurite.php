@@ -26,6 +26,8 @@ final class ReglagesSecurite
         'double_authentification_active' => ['type' => 'boolean', 'libelle' => 'Code de connexion par email'],
         'otp_connexion_duree' => ['type' => 'number', 'min' => 1, 'max' => 60, 'libelle' => 'Validité du code de connexion (minutes)'],
         'otp_connexion_tentatives' => ['type' => 'number', 'min' => 1, 'max' => 10, 'libelle' => 'Essais par code'],
+        /* Q108 : le titulaire d'un compte au mot de passe initial le change à sa première connexion */
+        'changement_mot_de_passe_initial' => ['type' => 'boolean', 'libelle' => 'Changement du mot de passe initial à la première connexion'],
     ];
 
     /** Valeurs par défaut (celles de la migration du lot E2) */
@@ -33,6 +35,7 @@ final class ReglagesSecurite
         'double_authentification_active' => true,
         'otp_connexion_duree' => 10,
         'otp_connexion_tentatives' => 5,
+        'changement_mot_de_passe_initial' => true,
     ];
 
     public static function cles(): array
@@ -160,13 +163,14 @@ final class ReglagesSecurite
     /** Un interrupteur a changé : les autres administrateurs sont prévenus */
     private static function prevenirAdministrateurs(array $modifies, User $auteur): void
     {
-        $interrupteurs = array_intersect_key($modifies, ['double_authentification_active' => 1]);
+        $interrupteurs = array_intersect_key($modifies, ['double_authentification_active' => 1, 'changement_mot_de_passe_initial' => 1]);
         if (!$interrupteurs) {
             return;
         }
         $valeurs = self::valeurs();
         $phrases = collect($interrupteurs)->map(fn (string $libelle, string $cle) => "{$libelle} : " . ($valeurs[$cle] ? 'activé' : 'désactivé'));
-        $message = "{$auteur->nom_complet} a modifié la double authentification. " . $phrases->implode(' ; ') . '.';
+        $objet = isset($interrupteurs['double_authentification_active']) ? 'la double authentification' : 'la sécurité de la connexion';
+        $message = "{$auteur->nom_complet} a modifié {$objet}. " . $phrases->implode(' ; ') . '.';
 
         foreach (User::actifs()->avecRoleDans(['administrateur'], null)->get() as $administrateur) {
             NotificationService::creerEtDiffuserSimple($administrateur, $auteur, 'securite', 'Double authentification', $message,

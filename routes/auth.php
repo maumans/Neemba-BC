@@ -57,6 +57,10 @@ Route::middleware('auth')->group(function () {
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
 
+    /* Q108 : mot de passe initial à changer à la première connexion */
+    Route::get('mot-de-passe-initial', [\App\Http\Controllers\Auth\MotDePasseInitialController::class, 'create'])->name('mot-de-passe.initial');
+    Route::put('mot-de-passe-initial', [\App\Http\Controllers\Auth\MotDePasseInitialController::class, 'store'])->name('mot-de-passe.initial.update');
+
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
 });

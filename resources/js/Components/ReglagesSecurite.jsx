@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { router, useForm } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle2, Mail, MessageSquareWarning, Save, ShieldCheck, ShieldOff } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, KeyRound, Mail, MessageSquareWarning, Save, ShieldCheck, ShieldOff } from 'lucide-react';
 import { Switch } from '@/Components/ui/switch';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 const AVERTISSEMENTS = {
     double_authentification_active: "Sans code de connexion, un mot de passe suffit pour entrer dans l'application. À réserver à une panne du serveur d'email.",
+    changement_mot_de_passe_initial: "Les comptes au mot de passe initial (importés, créés ou réinitialisés par un administrateur) pourront s'en servir sans le changer. À réserver à la recette.",
 };
 
 function Etat({ actif }) {
@@ -101,6 +102,25 @@ export default function ReglagesSecurite({ securite }) {
                     </div>
                     <Canal ok={email.operationnel} libelleOk={`Serveur d'email configuré (${email.mailer}).`}
                         libelleKo={`Aucun serveur d'email (mode « ${email.mailer} ») : les codes sont écrits dans le journal du serveur, pas envoyés.`} />
+                </section>
+
+                {/* Q108 : mot de passe initial à changer à la première connexion */}
+                <section className="space-y-3 rounded-lg border bg-white p-4" aria-labelledby="titre-mot-de-passe-initial">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <h4 id="titre-mot-de-passe-initial" className="flex items-center gap-1.5 text-sm font-semibold text-gray-900">
+                                <KeyRound className="h-4 w-4 text-neemba-600" /> Mot de passe initial à changer
+                            </h4>
+                            <p className="mt-0.5 text-xs text-gray-500">
+                                Compte importé, créé ou dont un administrateur a saisi le mot de passe : à sa première connexion, son titulaire choisit le sien.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Etat actif={valeurs.changement_mot_de_passe_initial} />
+                            <Switch aria-label="Mot de passe initial à changer" checked={valeurs.changement_mot_de_passe_initial} disabled={enCours !== null}
+                                onCheckedChange={(v) => basculer('changement_mot_de_passe_initial', v)} />
+                        </div>
+                    </div>
                 </section>
 
                 {/* Alertes SMS des demandes urgentes (plus de code de visa, Q104) */}

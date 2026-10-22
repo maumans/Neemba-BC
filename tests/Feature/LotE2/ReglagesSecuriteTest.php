@@ -35,6 +35,7 @@ class ReglagesSecuriteTest extends TestCase
     {
         return $modifs + [
             'double_authentification_active' => true, 'otp_connexion_duree' => 10, 'otp_connexion_tentatives' => 5,
+            'changement_mot_de_passe_initial' => true,
         ];
     }
 

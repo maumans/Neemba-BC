@@ -131,6 +131,8 @@ class UtilisateurController extends Controller
         ], self::MESSAGES);
 
         $validated['password'] = Hash::make($validated['password']);
+        /* Q108 : mot de passe choisi par l'administrateur, à changer par son titulaire à la première connexion */
+        $validated['mot_de_passe_a_changer'] = true;
         $validated['actif'] = true;
 
         User::create($validated);
@@ -222,6 +224,8 @@ class UtilisateurController extends Controller
         if ($request->filled('password')) {
             $request->validate(['password' => Rules\Password::defaults()]);
             $validated['password'] = Hash::make($request->password);
+            /* Q108 : réinitialisé par un administrateur, il est à changer (pas quand il modifie le sien) */
+            $validated['mot_de_passe_a_changer'] = $utilisateur->id !== \Illuminate\Support\Facades\Auth::id();
         }
 
         $pendingCreated = false;

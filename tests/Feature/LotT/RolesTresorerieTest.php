@@ -59,6 +59,11 @@ class RolesTresorerieTest extends TestCase
         $this->assertEqualsCanonicalizing(['tresorerie', 'demandeur'], $u->roles()->pluck('role')->all());
         $this->assertTrue($u->aLeRole('tresorerie') && $u->peutInitierBon());
 
+        /* Q108 : le compte créé passe d'abord par le choix de son mot de passe */
+        $this->assertTrue($u->mot_de_passe_a_changer);
+        $this->actingAs($u)->get(route('dashboard'))->assertRedirect(route('mot-de-passe.initial'));
+        $u->update(['mot_de_passe_a_changer' => false]);
+
         /* Bandeau et liste : « Trésorerie » */
         $this->actingAs($u)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('auth.user.roles_affiches', ['Trésorerie']));
         $this->actingAs($this->admin)->get(route('utilisateurs.index', ['role' => 'tresorerie']))->assertInertia(fn (Assert $page) => $page

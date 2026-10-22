@@ -282,8 +282,8 @@ class ImportReferentiels
         }
 
         if ($this->crees !== []) {
-            $this->rapport->action(count($this->crees) . ' compte(s) créé(s)', "Aucun mot de passe n'est communiqué : chaque personne définit le sien par « Mot de passe oublié » "
-                . "sur la page de connexion, ou l'administrateur le réinitialise (Utilisateurs).");
+            $this->rapport->action(count($this->crees) . ' compte(s) créé(s)', 'Mot de passe initial : ' . User::MOT_DE_PASSE_INITIAL
+                . ", à changer par chaque personne à sa première connexion (ou par « Mot de passe oublié » sur la page de connexion).");
         }
     }
 
@@ -303,7 +303,8 @@ class ImportReferentiels
         $utilisateur = User::create($attributs + [
             'name' => $nom,
             'prenom' => $prenom,
-            'password' => "Neemba@2026",
+            'password' => User::MOT_DE_PASSE_INITIAL,
+            'mot_de_passe_a_changer' => true,
             'role' => $principal,
             'actif' => true,
         ]);

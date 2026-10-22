@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            /* Q108 : mot de passe initial à changer avant tout autre écran */
+            \App\Http\Middleware\ExigerChangementMotDePasse::class,
         ]);
 
         /* Alias pour le middleware de vérification de rôle */

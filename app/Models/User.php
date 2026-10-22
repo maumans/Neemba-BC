@@ -44,7 +44,11 @@ class User extends Authenticatable
         'entite',
         'statut_cadre',
         'responsable_id',
+        'mot_de_passe_a_changer',
     ];
+
+    /** Mot de passe initial des comptes importés ou créés (Q108) : à changer à la première connexion */
+    public const MOT_DE_PASSE_INITIAL = 'Neemba@2026';
 
     /**
      * Rôles de la plateforme. Les rôles « déclarés » (décision Q5) s'attribuent dès maintenant, à partir du
@@ -162,6 +166,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'actif' => 'boolean',
+            'mot_de_passe_a_changer' => 'boolean',
         ];
     }
 
