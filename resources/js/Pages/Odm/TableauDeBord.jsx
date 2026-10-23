@@ -66,6 +66,9 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                     <Indicateur libelle="Missions incohérentes" valeur={indicateurs.incoherences} alerte={indicateurs.incoherences > 0} />
                     <Indicateur libelle={`OR à régulariser (${indicateurs.or_a_regulariser ?? 0})`} valeur={`${indicateurs.or_en_retard ?? 0} en retard`}
                         alerte={(indicateurs.or_en_retard ?? 0) > 0} />
+                    {/* Complément du 22/10, RG-M12-51 : missions longues */}
+                    <Indicateur libelle={`Missions longues (${indicateurs.missions_longues ?? 0})`} valeur={`${indicateurs.renouvellements_en_attente ?? 0} renouvellement(s) à valider`} />
+                    <Indicateur libelle="Missions échues" valeur={indicateurs.missions_echues ?? 0} alerte={(indicateurs.missions_echues ?? 0) > 0} />
                 </div>
 
                 {/* Spec v2.4, RG-M12-41 : ODM « OR à régulariser » */}
@@ -96,6 +99,12 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                                 <Link href={route('odm.show', m.id)} className="font-medium text-neemba-700 hover:underline">{m.numero}</Link>
                                 {m.segments > 1 && <p className="text-xs text-gray-500">{m.segments} segments (dernier : {m.dernier_segment})</p>}
                                 {m.incoherences > 0 && <p className="flex items-center gap-1 text-xs text-red-600"><AlertTriangle className="h-3 w-3" /> nuits incohérentes</p>}
+                                {m.longue && (
+                                    <p className="text-xs text-neemba-800" data-testid={`longue-${m.numero}`}>
+                                        Longue durée (tous les {m.frequence} jours, fin prévue le {m.fin_previsionnelle}) · prochaine échéance le {m.prochaine_echeance}
+                                    </p>
+                                )}
+                                {m.renouvellement_en_attente && <p className="text-xs text-amber-700">Renouvellement à valider : {m.renouvellement_en_attente}</p>}
                             </td>
                             <td className="py-2 pr-3">{m.service}</td>
                             <td className="py-2 pr-3">{m.destinations}</td>
@@ -103,7 +112,7 @@ export default function TableauDeBord({ indicateurs, missionsEnCours = [], derog
                             <td className="whitespace-nowrap py-2 pr-3">{m.debut} → {m.fin_prevue}</td>
                             <td className="py-2 pr-3 text-right tabular-nums">{m.jours}</td>
                             <td className="whitespace-nowrap py-2 pr-3 text-right tabular-nums">{m.cout_format}</td>
-                            <td className="py-2"><BadgeStatutOdm statut={m.statut} /></td>
+                            <td className="py-2"><BadgeStatutOdm statut={m.statut} echue={m.echue} /></td>
                         </tr>
                     ))}
                 />

@@ -41,8 +41,8 @@ import {
     erreursOdmParChamp,
     joursDeMission,
     natureTechniqueParDefaut,
+    finDePeriodeLongue,
     retourAvantDepart,
-    retourMaxSegment,
     STATUTS_CADRE,
 } from '@/utils/odm';
 
@@ -69,6 +69,12 @@ function etatInitial(odm, defauts) {
         date_depart: '',
         date_retour_prevue: '',
         motif_depart_passe: '',
+        /* Complément du 22/10, RG-M12-43 */
+        duree_mission: 'ponctuelle',
+        frequence_renouvellement: null,
+        date_fin_previsionnelle: '',
+        type_segment: null,
+        motif_prolongation: '',
         repartitions: {},
         hebergement_exterieur: null,
         reference_billet: '',
@@ -85,7 +91,7 @@ function aDuContenu(form) {
 export default function Formulaire({
     odm = null, defauts = null, services = [], codesAnalytiques = [], types = {},
     hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour, niveauxUrgence = {}, motifsUrgence = [], tauxEnVigueur = null,
-    dureeMaxSegment = 30,
+    durees = {}, frequencesRenouvellement = [],
 }) {
     const [form, setForm] = useState(() => etatInitial(odm, defauts));
     const [odmId, setOdmId] = useState(odm?.id ?? null);
@@ -115,9 +121,10 @@ export default function Formulaire({
     const erreurDe = (champ) => erreursSaisie[champ]?.[0] ?? erreursParChamp[champ]?.[0] ?? null;
     const codes = useMemo(() => codesDuServiceOdm(codesAnalytiques, services, form.service), [codesAnalytiques, services, form.service]);
     const jours = joursDeMission(form.date_depart, form.date_retour_prevue);
-    /* Q110 : au-delà de la durée maximale, la mission est reconduite par une prolongation */
-    const retourMax = retourMaxSegment(form.date_depart, dureeMaxSegment);
-    const tropLong = jours > dureeMaxSegment;
+    /* Complément du 22/10, RG-M12-43, 44 : mission longue, le retour prévu est la fin de la période (sauf prolongation courte) */
+    const longue = form.duree_mission === 'longue';
+    const periodeCalculee = longue && form.type_segment !== 'prolongation'
+        ? finDePeriodeLongue(form.date_depart, Number(form.frequence_renouvellement), form.date_fin_previsionnelle) : '';
 
     const changer = (champ, valeur) => {
         modifie.current = true;
@@ -127,6 +134,12 @@ export default function Formulaire({
         modifie.current = true;
         setForm(transformer);
     };
+    /* RG-M12-44 : la fin de la période suit le départ, la fréquence et la fin prévisionnelle (le serveur la recalcule) */
+    useEffect(() => {
+        if (periodeCalculee && periodeCalculee !== form.date_retour_prevue) {
+            majForm((f) => ({ ...f, date_retour_prevue: periodeCalculee }));
+        }
+    }, [periodeCalculee]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* Enregistrement du brouillon ; seule la réponse de la dernière requête est retenue */
     const enregistrer = useCallback(async (donnees) => {
@@ -390,16 +403,54 @@ export default function Formulaire({
                         <Card>
                             <CardHeader className="pb-3"><CardTitle className="text-base">Dates{jours > 0 && <span className="ml-2 text-sm font-normal text-gray-500">{jours} jour{jours > 1 ? 's' : ''}</span>}</CardTitle></CardHeader>
                             <CardContent className="grid gap-4 sm:grid-cols-2">
+                                {/* Complément du 22/10, RG-M12-43 : nature de la mission, choisie à la création */}
+                                <Champ champ="duree_mission" libelle="Nature de la mission" obligatoire erreur={erreurDe('duree_mission')} className="sm:col-span-2">
+                                    <div className="flex flex-wrap gap-4" role="radiogroup" aria-label="Nature de la mission">
+                                        {Object.entries(durees).map(([valeur, libelle]) => (
+                                            <label key={valeur} className="flex items-center gap-2 text-sm">
+                                                <input type="radio" name="duree_mission" value={valeur} checked={(form.duree_mission ?? 'ponctuelle') === valeur}
+                                                    disabled={Boolean(prolongation)} onChange={() => changer('duree_mission', valeur)} />
+                                                {libelle}
+                                            </label>
+                                        ))}
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        {longue
+                                            ? 'Renouvelée période après période ; chaque renouvellement est soumis par le demandeur et validé par tout le circuit.'
+                                            : 'Dates de départ et de retour ; une prolongation imprévue reste possible, avec un motif.'}
+                                    </p>
+                                </Champ>
+                                {longue && (
+                                    <>
+                                        <Champ champ="frequence_renouvellement" libelle="Fréquence de renouvellement" obligatoire erreur={erreurDe('frequence_renouvellement')}>
+                                            <select id="champ-frequence_renouvellement" className={SELECT} value={form.frequence_renouvellement ?? ''}
+                                                onChange={(e) => changer('frequence_renouvellement', e.target.value ? Number(e.target.value) : null)}>
+                                                <option value="">Choisir…</option>
+                                                {frequencesRenouvellement.map((j) => <option key={j} value={j}>Tous les {j} jours</option>)}
+                                            </select>
+                                        </Champ>
+                                        <Champ champ="date_fin_previsionnelle" libelle="Fin prévisionnelle de la mission" obligatoire erreur={erreurDe('date_fin_previsionnelle')}>
+                                            <Input id="champ-date_fin_previsionnelle" type="date" value={form.date_fin_previsionnelle ?? ''} min={form.date_depart || undefined}
+                                                onChange={(e) => changer('date_fin_previsionnelle', e.target.value)} />
+                                        </Champ>
+                                    </>
+                                )}
                                 <Champ champ="date_depart" libelle="Départ" obligatoire erreur={erreurDe('date_depart')}>
                                     <Input id="champ-date_depart" type="date" value={form.date_depart ?? ''} onChange={(e) => changer('date_depart', e.target.value)} disabled={Boolean(prolongation)} />
                                 </Champ>
-                                <Champ champ="date_retour_prevue" libelle="Retour prévu" obligatoire
-                                    erreur={erreurDe('date_retour_prevue') ?? (retourAvantDepart(form.date_depart, form.date_retour_prevue) ? msg('MSG-M12-02')
-                                        : (tropLong ? msg('MSG-APP-114', { max: dureeMaxSegment, date: retourMax }) : null))}>
+                                <Champ champ="date_retour_prevue" libelle={periodeCalculee ? 'Fin de la période' : 'Retour prévu'} obligatoire
+                                    erreur={erreurDe('date_retour_prevue') ?? (retourAvantDepart(form.date_depart, form.date_retour_prevue) ? msg('MSG-M12-02') : null)}>
                                     <Input id="champ-date_retour_prevue" type="date" value={form.date_retour_prevue ?? ''} min={form.date_depart || undefined}
-                                        max={retourMax || undefined} onChange={(e) => changer('date_retour_prevue', e.target.value)} />
-                                    <p className="mt-1 text-xs text-gray-500">{dureeMaxSegment} jours au plus par segment : au-delà, prolongez la mission.</p>
+                                        readOnly={Boolean(periodeCalculee)} onChange={(e) => changer('date_retour_prevue', e.target.value)} />
+                                    {periodeCalculee && <p className="mt-1 text-xs text-gray-500">Calculée d'après la fréquence et la fin prévisionnelle.</p>}
                                 </Champ>
+                                {/* RG-M12-50 : une prolongation porte son motif */}
+                                {form.type_segment === 'prolongation' && (
+                                    <Champ champ="motif_prolongation" libelle="Motif de la prolongation" obligatoire erreur={erreurDe('motif_prolongation')} className="sm:col-span-2">
+                                        <Textarea id="champ-motif_prolongation" rows={2} maxLength={500} value={form.motif_prolongation ?? ''}
+                                            onChange={(e) => changer('motif_prolongation', e.target.value)} placeholder="Travaux non terminés, panne plus grave que prévu…" />
+                                    </Champ>
+                                )}
                                 {passe && (
                                     <Champ champ="motif_depart_passe" libelle="Motif (départ dans le passé)" obligatoire erreur={erreurDe('motif_depart_passe')} className="sm:col-span-2">
                                         <Input id="champ-motif_depart_passe" value={form.motif_depart_passe ?? ''} onChange={(e) => changer('motif_depart_passe', e.target.value)} maxLength={500}

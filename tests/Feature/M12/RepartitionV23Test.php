@@ -291,7 +291,7 @@ class RepartitionV23Test extends TestCase
             'hebergement' => $this->parts($this->partSmd(100)),
         ]]]));
 
-        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-09-30']);
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-09-30', 'motif_prolongation' => 'Travaux non terminés sur le site']);
         $segment = OrdreMission::where('segment_precedent_id', $odm->id)->sole();
 
         $this->assertSame('neemba', $this->ligne($segment, $this->thierno, 'indemnite')->parts[0]->payeur);

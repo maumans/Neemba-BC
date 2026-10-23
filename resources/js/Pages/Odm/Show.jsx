@@ -5,7 +5,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import axios from 'axios';
-import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarPlus, CheckCircle2, FileText, Info as IconeInfo, Pencil, Plus, ShieldAlert, Stamp, Trash2, Wrench, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarCheck, CalendarPlus, CheckCircle2, RefreshCcw, FileText, Info as IconeInfo, Pencil, Plus, ShieldAlert, Stamp, Trash2, Wrench, XCircle } from 'lucide-react';
 import { Input } from '@/Components/ui/input';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
@@ -20,7 +20,7 @@ import RepartitionFrais, { RecapitulatifRepartition } from '@/Components/Odm/Rep
 import MontantInput from '@/Components/MontantInput';
 import BadgeStatut from '@/Components/BadgeStatut';
 import { formaterMontant } from '@/utils/format';
-import { STATUTS_CADRE } from '@/utils/odm';
+import { finDePeriodeLongue, STATUTS_CADRE } from '@/utils/odm';
 
 function Info({ libelle, children }) {
     return (
@@ -623,9 +623,17 @@ function Regularisations({ odm, regularisations }) {
 }
 
 /** RG-M12-17 : prolongation depuis le dernier segment validé */
-function Prolonger({ odm }) {
+/**
+ * RG-M12-17, RG-M12-50 : prolongation imprévue, motif obligatoire ; une mission ponctuelle peut aussi être requalifiée en
+ * longue durée (renouvellement avec fréquence et fin prévisionnelle, validé par tout le circuit).
+ */
+function Prolonger({ odm, frequences = [] }) {
     const [ouvert, setOuvert] = useState(false);
-    const form = useForm({ date_retour_prevue: '' });
+    const form = useForm({ type: 'prolongation', date_retour_prevue: '', motif_prolongation: '', frequence_renouvellement: '', date_fin_previsionnelle: '' });
+    const requalifier = form.data.type === 'renouvellement';
+    const periode = requalifier ? finDePeriodeLongue(odm.depart_suivant, Number(form.data.frequence_renouvellement), form.data.date_fin_previsionnelle) : '';
+    const erreur = form.errors.date_retour_prevue ?? form.errors.motif_prolongation ?? form.errors.frequence_renouvellement
+        ?? form.errors.date_fin_previsionnelle ?? form.errors.general;
 
     return (
         <>
@@ -639,25 +647,126 @@ function Prolonger({ odm }) {
                             mêmes participants (retrait possible), nuitée de rattrapage du segment précédent. Il suit le même circuit de validation.
                         </DialogDescription>
                     </DialogHeader>
-                    <div>
-                        <label htmlFor="retour-prolongation" className="text-sm font-medium">Nouvelle date de retour prévue</label>
-                        <Input id="retour-prolongation" type="date" className="mt-1" value={form.data.date_retour_prevue}
-                            max={odm.prolongation_retour_max ?? undefined} onChange={(e) => form.setData('date_retour_prevue', e.target.value)} />
-                        <p className="mt-1 text-xs text-gray-500">{odm.duree_max_segment} jours au plus par segment : au-delà, une nouvelle prolongation sera nécessaire.</p>
-                        {(form.errors.date_retour_prevue || form.errors.general) && (
-                            <p className="mt-1 text-sm text-red-600">{form.errors.date_retour_prevue ?? form.errors.general}</p>
+                    <div className="space-y-3">
+                        {odm.duree_mission !== 'longue' && (
+                            <div className="flex flex-wrap gap-4 text-sm" role="radiogroup" aria-label="Prolongation ou requalification">
+                                <label className="flex items-center gap-2">
+                                    <input type="radio" name="type-prolongation" checked={!requalifier} onChange={() => form.setData('type', 'prolongation')} /> Prolonger
+                                </label>
+                                <label className="flex items-center gap-2">
+                                    <input type="radio" name="type-prolongation" checked={requalifier} onChange={() => form.setData('type', 'renouvellement')} />
+                                    Requalifier en mission longue durée
+                                </label>
+                            </div>
                         )}
+                        {requalifier ? (
+                            <>
+                                <div>
+                                    <label htmlFor="requalif-frequence" className="text-sm font-medium">Fréquence de renouvellement</label>
+                                    <select id="requalif-frequence" className="mt-1 h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                                        value={form.data.frequence_renouvellement} onChange={(e) => form.setData('frequence_renouvellement', e.target.value)}>
+                                        <option value="">Choisir…</option>
+                                        {frequences.map((j) => <option key={j} value={j}>Tous les {j} jours</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="requalif-fin" className="text-sm font-medium">Fin prévisionnelle de la mission</label>
+                                    <Input id="requalif-fin" type="date" className="mt-1" min={odm.depart_suivant} value={form.data.date_fin_previsionnelle}
+                                        onChange={(e) => form.setData('date_fin_previsionnelle', e.target.value)} />
+                                </div>
+                                {periode && <p className="text-xs text-gray-600">Première période : du {formaterDateIso(odm.depart_suivant)} au {formaterDateIso(periode)}.</p>}
+                            </>
+                        ) : (
+                            <>
+                                <div>
+                                    <label htmlFor="retour-prolongation" className="text-sm font-medium">Nouvelle date de retour prévue</label>
+                                    <Input id="retour-prolongation" type="date" className="mt-1" min={odm.depart_suivant} value={form.data.date_retour_prevue}
+                                        onChange={(e) => form.setData('date_retour_prevue', e.target.value)} />
+                                </div>
+                                <div>
+                                    <label htmlFor="motif-prolongation" className="text-sm font-medium">Motif de la prolongation</label>
+                                    <Textarea id="motif-prolongation" className="mt-1" rows={2} maxLength={500} value={form.data.motif_prolongation}
+                                        onChange={(e) => form.setData('motif_prolongation', e.target.value)} placeholder="Travaux non terminés, panne plus grave que prévu…" />
+                                </div>
+                            </>
+                        )}
+                        {erreur && <p className="text-sm text-red-600" role="alert">{erreur}</p>}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setOuvert(false)}>Revenir</Button>
-                        <Button disabled={form.processing || !form.data.date_retour_prevue} onClick={() => form.post(route('odm.prolonger', odm.id))}>
-                            Créer la prolongation
+                        <Button disabled={form.processing || (requalifier ? !form.data.frequence_renouvellement || !form.data.date_fin_previsionnelle : !form.data.date_retour_prevue)}
+                            onClick={() => form.post(route('odm.prolonger', odm.id))}>
+                            {requalifier ? 'Requalifier et renouveler' : 'Créer la prolongation'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
         </>
     );
+}
+
+/**
+ * Complément du 22/10, RG-M12-45, 46 : renouvellement d'une mission longue, période suivante pré-remplie ; fréquence et fin
+ * prévisionnelle modifiables pour cette période et les suivantes ; dernière période : reporter la fin pour renouveler.
+ */
+function Renouveler({ odm, frequences = [] }) {
+    const [ouvert, setOuvert] = useState(false);
+    const form = useForm({
+        type: 'renouvellement',
+        frequence_renouvellement: String(odm.frequence_renouvellement ?? ''),
+        date_fin_previsionnelle: odm.date_fin_previsionnelle ?? '',
+    });
+    const periode = finDePeriodeLongue(odm.depart_suivant, Number(form.data.frequence_renouvellement), form.data.date_fin_previsionnelle);
+    const erreur = form.errors.frequence_renouvellement ?? form.errors.date_fin_previsionnelle ?? form.errors.general;
+
+    return (
+        <>
+            <Button size="sm" onClick={() => setOuvert(true)} data-testid="renouveler"><RefreshCcw className="mr-1 h-4 w-4" /> Renouveler la mission</Button>
+            <Dialog open={ouvert} onOpenChange={setOuvert}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Renouveler la mission {odm.libelle}</DialogTitle>
+                        <DialogDescription>
+                            La période suivante est créée en brouillon : participants, OR et répartition repris (modifiables), nuitée de rattrapage.
+                            Elle est soumise par vous et validée par tout le circuit ; ses bons sont générés à la validation.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        {odm.derniere_periode && (
+                            <p className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
+                                La date de fin prévisionnelle ({odm.date_fin_previsionnelle_format}) est atteinte : reportez-la pour renouveler, ou clôturez la mission.
+                            </p>
+                        )}
+                        <div>
+                            <label htmlFor="renouv-frequence" className="text-sm font-medium">Fréquence de renouvellement</label>
+                            <select id="renouv-frequence" className="mt-1 h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                                value={form.data.frequence_renouvellement} onChange={(e) => form.setData('frequence_renouvellement', e.target.value)}>
+                                {frequences.map((j) => <option key={j} value={j}>Tous les {j} jours</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label htmlFor="renouv-fin" className="text-sm font-medium">Fin prévisionnelle de la mission</label>
+                            <Input id="renouv-fin" type="date" className="mt-1" value={form.data.date_fin_previsionnelle}
+                                onChange={(e) => form.setData('date_fin_previsionnelle', e.target.value)} />
+                        </div>
+                        <p className="text-sm text-gray-700" data-testid="periode-renouvellement">
+                            {periode ? `Période suivante : du ${formaterDateIso(odm.depart_suivant)} au ${formaterDateIso(periode)}.` : 'Reportez la date de fin prévisionnelle pour ouvrir une nouvelle période.'}
+                        </p>
+                        {erreur && <p className="text-sm text-red-600" role="alert">{erreur}</p>}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setOuvert(false)}>Revenir</Button>
+                        <Button disabled={form.processing || !periode} onClick={() => form.post(route('odm.prolonger', odm.id))}>Créer le renouvellement</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
+    );
+}
+
+/** AAAA-MM-JJ → JJ/MM/AAAA */
+function formaterDateIso(iso) {
+    return iso ? iso.split('-').reverse().join('/') : '';
 }
 
 /** Spec v2.4, RG-M12-39 : OR rattaché après coup par le demandeur ou le chef d'atelier ; reporté sur les bons de l'ODM */
@@ -714,7 +823,7 @@ function AjoutOr({ odm, typesOr }) {
 export default function Show({
     odm, etapes = [], visa = null, bons = [], generation = null, sansBon = false, mission = null,
     peutModifier = false, peutAnnuler = false, peutDeciderDerogation = false, peutProlonger = false, prolongation = null,
-    peutCloturer = false, peutAnnulerDaf = false, regularisations = [], regularisationsPossibles = {},
+    peutCloturer = false, peutAnnulerDaf = false, regularisations = [], regularisationsPossibles = {}, frequencesRenouvellement = [],
     peutAjouterOr = false, typesOr = {},
 }) {
     const [annulation, setAnnulation] = useState(false);
@@ -746,7 +855,7 @@ export default function Show({
                         <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
                                 <h1 className="text-xl font-semibold text-gray-900">{odm.libelle}</h1>
-                                <BadgeStatutOdm statut={odm.statut} />
+                                <BadgeStatutOdm statut={odm.statut} echue={odm.echue} />
                                 {odm.non_effectue && (
                                     <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700" data-testid="badge-non-effectue">Non effectué</span>
                                 )}
@@ -761,6 +870,13 @@ export default function Show({
                                 {odm.type_label} · {odm.service} · du {odm.date_depart_format} au {odm.date_retour_reelle_format ?? odm.date_retour_prevue_format}
                                 {odm.version > 1 && ` · version ${odm.version}`}
                             </p>
+                            {/* Complément du 22/10 : nature de la mission (validée dans le circuit) */}
+                            <p className="text-sm text-gray-600" data-testid="nature-mission">
+                                {odm.duree_label}
+                                {odm.duree_mission === 'longue' && ` · renouvelée tous les ${odm.frequence_renouvellement} jours jusqu'au ${odm.date_fin_previsionnelle_format}`}
+                                {odm.echue && <span className="ml-1 font-medium text-red-700"> · échue depuis le {odm.echue_le_format}</span>}
+                            </p>
+                            {odm.motif_prolongation && <p className="text-xs text-gray-500">Motif de la prolongation : {odm.motif_prolongation}</p>}
                             <p className="text-xs text-gray-500">
                                 Demandeur : {odm.demandeur}{odm.initiateur && ` (saisi par ${odm.initiateur})`}
                                 {odm.date_soumission_format && ` · soumis le ${odm.date_soumission_format}`}
@@ -772,7 +888,8 @@ export default function Show({
                                     <Button size="sm" variant="outline"><FileText className="mr-1 h-4 w-4" /> Imprimer (PDF)</Button>
                                 </a>
                             )}
-                            {peutProlonger && <Prolonger odm={odm} />}
+                            {peutProlonger && odm.duree_mission === 'longue' && <Renouveler odm={odm} frequences={frequencesRenouvellement} />}
+                            {peutProlonger && <Prolonger odm={odm} frequences={frequencesRenouvellement} />}
                             {peutCloturer && <Cloturer odm={odm} regularisationsPossibles={regularisationsPossibles} />}
                             {peutAnnulerDaf && <AnnulerDaf odm={odm} />}
                             {prolongation && (

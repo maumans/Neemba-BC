@@ -221,7 +221,7 @@ class ClotureOdmTest extends TestCase
         $this->actingAs($this->thierno)->post(route('odm.cloturer', $odm), ['date_retour_reelle' => '2026-09-26'])
             ->assertSessionHas('error', 'Seul le dernier segment validé d\'une mission en cours peut être clôturé.');
 
-        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-09-30']);
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-09-30', 'motif_prolongation' => 'Travaux non terminés sur le site']);
         $this->cloturer($odm, '2026-09-26')->assertSessionHas('error');
         $this->assertSame('BONS_GENERES', $odm->fresh()->statut);
     }
@@ -326,7 +326,7 @@ class ClotureOdmTest extends TestCase
 
         /* Prolongation jusqu'au 03/10, validée : le BP attend le nouveau retour */
         Carbon::setTestNow('2026-09-25 08:00');
-        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-10-03']);
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-10-03', 'motif_prolongation' => 'Travaux non terminés sur le site']);
         $segment = OrdreMission::where('segment_precedent_id', $odm->id)->sole();
         $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $segment))->assertOk();
         foreach ([$this->chefAtelier, $this->daf, $this->dp] as $valideur) {
@@ -355,7 +355,7 @@ class ClotureOdmTest extends TestCase
     private function prolongationAvecBons(OrdreMission $odm): OrdreMission
     {
         Carbon::setTestNow('2026-09-24 08:00');
-        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-10-03'])->assertSessionHas('success');
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-10-03', 'motif_prolongation' => 'Travaux non terminés sur le site'])->assertSessionHas('success');
         $segment = OrdreMission::where('segment_precedent_id', $odm->id)->sole();
         $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $segment))->assertOk();
         foreach ([$this->chefAtelier, $this->daf, $this->dp] as $valideur) {

@@ -23,18 +23,6 @@ final class ReglesOdm
     /**
      * @return array<int, array{code: string, regle: ?string, message_cle: string, valeurs: array, message: string, champ: ?string}>
      */
-    /** Décision du 23/10 (Q110) : durée maximale d'un segment (ODM initial ou prolongation), en jours */
-    public static function dureeMaxSegment(): int
-    {
-        return max(1, (int) Parametre::valeur('odm_duree_max_segment', 30));
-    }
-
-    /** Dernier retour prévu admis pour un segment qui part le $depart */
-    public static function retourMax(\Carbon\CarbonInterface $depart): \Carbon\CarbonInterface
-    {
-        return $depart->copy()->startOfDay()->addDays(self::dureeMaxSegment() - 1);
-    }
-
     public static function erreursSoumission(OrdreMission $odm): array
     {
         $erreurs = [];
@@ -89,10 +77,20 @@ final class ReglesOdm
         if ($odm->date_depart && $odm->date_retour_prevue && $odm->date_retour_prevue->lessThan($odm->date_depart)) {
             $ajouter('RETOUR_AVANT_DEPART', 'MSG-M12-02', [], 'RG-M12-06', 'date_retour_prevue');
         }
-        /* Décision du 23/10 (Q110) : au-delà de la durée maximale, la mission est reconduite par une prolongation */
-        if ($odm->date_depart && $odm->date_retour_prevue && $odm->date_retour_prevue->greaterThan(self::retourMax($odm->date_depart))) {
-            $ajouter('DUREE_SEGMENT', 'MSG-APP-114', ['max' => self::dureeMaxSegment(), 'date' => self::retourMax($odm->date_depart)->toDateString()],
-                'RG-M12-17', 'date_retour_prevue');
+        /* Complément du 22/10, RG-M12-44, 45 : mission longue, fréquence de la liste et fin prévisionnelle à respecter */
+        if ($odm->duree_mission === 'longue') {
+            if (!in_array((int) $odm->frequence_renouvellement, MissionLongue::frequences(), true)) {
+                $ajouter('FREQUENCE_RENOUVELLEMENT', 'MSG-APP-115', [], 'RG-M12-44', 'frequence_renouvellement');
+            }
+            if (!$odm->date_fin_previsionnelle || ($odm->date_depart && $odm->date_fin_previsionnelle->lessThan($odm->date_depart))) {
+                $ajouter('FIN_PREVISIONNELLE', 'MSG-APP-116', [], 'RG-M12-44', 'date_fin_previsionnelle');
+            } elseif ($odm->date_retour_prevue && $odm->date_retour_prevue->greaterThan($odm->date_fin_previsionnelle)) {
+                $ajouter('AU_DELA_FIN_PREVISIONNELLE', 'MSG-APP-117', ['date' => $odm->date_fin_previsionnelle->toDateString()], 'RG-M12-45', 'date_retour_prevue');
+            }
+        }
+        /* RG-M12-50 : une prolongation porte son motif */
+        if ($odm->type_segment === 'prolongation' && mb_strlen(trim((string) $odm->motif_prolongation)) < 10) {
+            $ajouter('MOTIF_PROLONGATION', 'MSG-APP-118', [], 'RG-M12-50', 'motif_prolongation');
         }
         if ($odm->date_depart && $odm->date_depart->lessThan(today()) && mb_strlen(trim((string) $odm->motif_depart_passe)) < 1) {
             $ajouter('MOTIF_DEPART_PASSE', 'MSG-APP-015', [], 'RG-M12-06', 'motif_depart_passe');

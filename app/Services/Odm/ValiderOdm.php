@@ -58,6 +58,13 @@ final class ValiderOdm
             NotificationsOdm::aViser($odm, $suivante, $valideur);
         } else {
             NotificationsOdm::valide($odm, $valideur);
+            /* RG-M12-50 : mission ponctuelle prolongée au-delà du seuil, proposition de requalification (une fois) */
+            if ($odm->type_segment === 'prolongation' && !$odm->initial()->alerte_requalification_le && MissionLongue::aRequalifier($odm)) {
+                NotificationsOdm::requalification($odm);
+                $odm->initial()->update(['alerte_requalification_le' => now()]);
+                HistoriqueOdm::enregistrer($odm, 'rappel', $odm->statut, $odm->statut, null,
+                    'Mission ponctuelle prolongée au-delà du seuil : requalification en longue durée proposée au demandeur et au chef d\'atelier.');
+            }
             /* RG-M12-19 : une incohérence nuits / jours sur la mission est signalée au DAF */
             $incoherences = VueMission::pour($odm)['incoherences'];
             if ($incoherences) {
@@ -128,6 +135,19 @@ final class ValiderOdm
         /* RG-M12-17 : la mission se poursuit ; les BP déjà émis attendent le nouveau retour prévu */
         if ($odm->segment_precedent_id) {
             GenererBonsOdm::recalerBp($odm, $odm->date_retour_prevue, $valideur, "Prolongation {$odm->numero} validée");
+            /* RG-M12-49 : un segment validé lève l'indicateur « Échue » de la mission */
+            OrdreMission::whereIn('id', $odm->segmentsDeLaMission()->pluck('id'))->whereNotNull('echue_le')->update(['echue_le' => null]);
+        }
+        /* RG-M12-47 : les bons d'un renouvellement sont générés à sa validation (un par participant, circuit M04),
+         * au nom du demandeur ; un empêchement (taux du jour absent…) laisse la génération manuelle */
+        if ($odm->type_segment === 'renouvellement' && !GenererBonsOdm::sansBon($odm->fresh())) {
+            try {
+                GenererBonsOdm::executer($odm->fresh(), $odm->demandeur);
+            } catch (\App\Exceptions\ErreurMetier $e) {
+                HistoriqueOdm::enregistrer($odm, 'generation_bons', 'VALIDE', 'VALIDE', $valideur->id,
+                    'Bons du renouvellement non générés automatiquement : ' . \App\Exceptions\ErreurMetier::texte($e->messageCle, $e->valeurs)
+                    . ' Le demandeur les génère depuis la fiche.');
+            }
         }
     }
 }

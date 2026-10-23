@@ -36,6 +36,9 @@ final class PresentationOdm
             'total_format' => $odm->total_format,
             'statut' => $odm->statut,
             'statut_label' => $odm->statut_label,
+            /* Complément du 22/10 : mission longue, indicateur « Échue » (RG-M12-49) */
+            'longue' => $odm->estLongue(),
+            'echue' => $odm->estEchue(),
             'demandeur' => $odm->demandeur?->nom_complet,
             'derogation_statut' => $odm->derogation_statut,
         ];
@@ -65,6 +68,12 @@ final class PresentationOdm
             'date_depart' => $odm->date_depart?->toDateString() ?? '',
             'date_retour_prevue' => $odm->date_retour_prevue?->toDateString() ?? '',
             'motif_depart_passe' => $odm->motif_depart_passe ?? '',
+            /* Complément du 22/10, RG-M12-43 à 46, 50 */
+            'duree_mission' => $odm->duree_mission ?? 'ponctuelle',
+            'frequence_renouvellement' => $odm->frequence_renouvellement,
+            'date_fin_previsionnelle' => $odm->date_fin_previsionnelle?->toDateString() ?? '',
+            'type_segment' => $odm->type_segment,
+            'motif_prolongation' => $odm->motif_prolongation ?? '',
             'niveau_urgence' => $odm->niveau_urgence ?? 'normale',
             'motif_urgence' => $odm->motif_urgence ?? '',
             'hebergement_exterieur' => $odm->hebergement_exterieur,
@@ -213,8 +222,13 @@ final class PresentationOdm
             /* Q109, Q110 : clôture n'importe où dans la mission ; durée maximale d'une prolongation */
             'non_effectue' => (bool) $odm->non_effectue,
             'debut_mission' => $odm->initial()->date_depart?->toDateString(),
-            'duree_max_segment' => ReglesOdm::dureeMaxSegment(),
-            'prolongation_retour_max' => $odm->dateFin() ? ReglesOdm::retourMax($odm->dateFin()->copy()->addDay())->toDateString() : null,
+            /* Complément du 22/10 : mission longue, période en cours, renouvellement proposé, indicateur « Échue » */
+            'duree_label' => OrdreMission::DUREES[$odm->duree_mission ?? 'ponctuelle'] ?? null,
+            'date_fin_previsionnelle_format' => $odm->date_fin_previsionnelle ? Format::date($odm->date_fin_previsionnelle) : null,
+            'echue' => $odm->estEchue(),
+            'echue_le_format' => $odm->echue_le ? Format::date($odm->echue_le) : null,
+            'derniere_periode' => $odm->estLongue() && MissionLongue::dernierePeriode($odm),
+            'depart_suivant' => $odm->dateFin()?->copy()->addDay()->toDateString(),
             'participants_mission' => $odm->segmentsDeLaMission()->reject(fn (OrdreMission $s) => $s->statut === 'ANNULE')
                 ->flatMap(fn (OrdreMission $s) => $s->participantsActifs()->get(['user_id', 'nom']))
                 ->unique('user_id')->map(fn (ParticipantOdm $p) => ['user_id' => $p->user_id, 'nom' => $p->nom])->values()->all(),
@@ -504,8 +518,9 @@ final class PresentationOdm
             /* Spec v2.4, §6.5 : types d'OR du référentiel */
             'typesOr' => \App\Models\TypeOr::options(),
             'maxParticipants' => (int) Parametre::valeur('odm_participants_max', 10),
-            /* Q110 : durée maximale d'un segment */
-            'dureeMaxSegment' => ReglesOdm::dureeMaxSegment(),
+            /* Complément du 22/10, RG-M12-43, 44 : nature de la mission et fréquences de renouvellement */
+            'durees' => OrdreMission::DUREES,
+            'frequencesRenouvellement' => MissionLongue::frequences(),
             'niveauxUrgence' => \App\Models\BonCaisse::NIVEAUX_URGENCE,
             'motifsUrgence' => \App\Models\MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),
             'dateDuJour' => today()->toDateString(),

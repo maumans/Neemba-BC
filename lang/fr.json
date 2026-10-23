@@ -173,5 +173,9 @@
     "MSG-APP-110": "Le montant émis ne peut pas dépasser le montant approuvé (:max GNF).",
     "MSG-APP-111": "Réapprovisionnement :numero reçu : le solde de la :caisse atteint :x GNF, au-dessus du plafond de caisse (:plafond GNF). Remise en banque nécessaire.",
     "MSG-APP-112": "La date de retour réelle ne peut pas être postérieure à aujourd'hui : clôturez la mission à son retour.",
-    "MSG-APP-114": "Un segment de mission ne peut pas dépasser :max jours : fixez le retour au :date au plus tard, puis prolongez la mission."
+    "MSG-APP-115": "Mission longue durée : choisissez la fréquence de renouvellement.",
+    "MSG-APP-116": "Mission longue durée : saisissez la date de fin prévisionnelle, au plus tôt le jour du départ.",
+    "MSG-APP-117": "Le retour dépasse la date de fin prévisionnelle de la mission (:date) : modifiez-la pour aller au-delà.",
+    "MSG-APP-118": "Indiquez le motif de la prolongation (10 caractères minimum).",
+    "MSG-APP-119": "La date de fin prévisionnelle (:date) est atteinte : reportez-la pour renouveler la mission, ou clôturez-la."
 }

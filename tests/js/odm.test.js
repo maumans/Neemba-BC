@@ -12,7 +12,7 @@ import {
     joursDeMission,
     natureTechniqueParDefaut,
     retourAvantDepart,
-    retourMaxSegment,
+    finDePeriodeLongue,
     appliquerRepartition,
     avertissementPart,
     choisirOrDeLaPart,
@@ -56,11 +56,21 @@ describe('Ordres de mission — saisie (M12-2)', () => {
         expect(joursDeMission('2026-09-26', '2026-09-22')).toBe(0);
     });
 
-    it('donne le dernier retour admis d\'un segment (Q110, 30 jours au plus)', () => {
-        expect(retourMaxSegment('2026-10-22', 30)).toBe('2026-11-20');
-        expect(joursDeMission('2026-10-22', retourMaxSegment('2026-10-22', 30))).toBe(30);
-        expect(retourMaxSegment('2026-12-15', 30)).toBe('2027-01-13');
-        expect(retourMaxSegment('', 30)).toBe('');
+    it('calcule la fin d\'une période de mission longue (RG-M12-44)', () => {
+        expect(finDePeriodeLongue('2026-09-22', 15, '2026-11-30')).toBe('2026-10-06');
+        expect(joursDeMission('2026-09-22', finDePeriodeLongue('2026-09-22', 15, '2026-11-30'))).toBe(15);
+        expect(finDePeriodeLongue('2026-11-21', 15, '2026-11-30')).toBe('2026-11-30');   // dernière période, plus courte
+        expect(finDePeriodeLongue('2026-12-15', 30, '2027-03-31')).toBe('2027-01-13');
+        expect(finDePeriodeLongue('2026-12-01', 30, '2026-11-30')).toBe('');              // fin prévisionnelle atteinte
+        expect(finDePeriodeLongue('', 30, '2026-11-30')).toBe('');
+    });
+
+    it('envoie la nature de la mission ; pas de fréquence pour une mission ponctuelle (complément du 22/10)', () => {
+        const base = { type: 'interieur', participants: [], ordres_reparation: [] };
+        expect(donneesOdm({ ...base, duree_mission: 'longue', frequence_renouvellement: 15, date_fin_previsionnelle: '2026-11-30' }))
+            .toMatchObject({ duree_mission: 'longue', frequence_renouvellement: 15, date_fin_previsionnelle: '2026-11-30' });
+        expect(donneesOdm({ ...base, frequence_renouvellement: 15, date_fin_previsionnelle: '2026-11-30' }))
+            .toMatchObject({ duree_mission: 'ponctuelle', frequence_renouvellement: null, date_fin_previsionnelle: null });
     });
 
     it('pré-coche la nature technique pour Technique et Aftermarket (PO-06) et filtre les codes du service', () => {

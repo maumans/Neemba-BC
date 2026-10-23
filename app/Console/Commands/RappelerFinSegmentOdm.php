@@ -12,7 +12,7 @@ use App\Support\JoursOuvres;
 use Illuminate\Console\Command;
 
 /**
- * RG-M12-28 : missions longues, rappel automatique au demandeur avant l'échéance d'un segment
+ * RG-M12-28 : rappel automatique au demandeur d'une mission ponctuelle avant l'échéance d'un segment
  * (paramètre « odm_delai_rappel », 2 jours ouvrés par défaut), pour prolonger ou clôturer.
  *
  * Un seul rappel par segment ; seul le dernier segment d'une mission en cours est concerné.
@@ -31,6 +31,8 @@ class RappelerFinSegmentOdm extends Command
 
         $segments = OrdreMission::whereIn('statut', ProlongerOdm::STATUTS_PROLONGEABLES)
             ->whereNull('rappel_envoye_le')
+            /* Complément du 22/10 : les missions longues ont leurs propres relances (odm:suivre-missions-longues) */
+            ->where('duree_mission', '!=', 'longue')
             ->whereNull('date_retour_reelle')
             ->whereDate('date_retour_prevue', '>=', today())
             ->with(['demandeur', 'initiateur'])

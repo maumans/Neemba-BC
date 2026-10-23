@@ -181,7 +181,7 @@ export default function Index({ odms, filtres = {}, statuts = {}, types = {}, pe
                                                 <TableCell className="whitespace-nowrap py-2 text-sm">{odm.periode}</TableCell>
                                                 <TableCell className="hidden py-2 text-center text-sm sm:table-cell">{odm.participants}</TableCell>
                                                 <TableCell className="whitespace-nowrap py-2 text-right text-sm tabular-nums">{odm.total_format}</TableCell>
-                                                <TableCell className="py-2"><BadgeStatutOdm statut={odm.statut} /></TableCell>
+                                                <TableCell className="py-2"><BadgeStatutOdm statut={odm.statut} echue={odm.echue} /></TableCell>
                                                 <TableCell className="py-2 text-right">
                                                     <div className="flex justify-end gap-1">
                                                         <Link href={route('odm.show', odm.id)} title="Voir">

@@ -159,6 +159,11 @@ class OdmApiController extends Controller
             'date_depart' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'date_retour_prevue' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
             'motif_depart_passe' => ['sometimes', 'nullable', 'string', 'max:500'],
+            /* Complément du 22/10, RG-M12-43 à 45, RG-M12-50 : nature, fréquence, fin prévisionnelle, motif de prolongation */
+            'duree_mission' => ['sometimes', Rule::in(array_keys(OrdreMission::DUREES))],
+            'frequence_renouvellement' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:366'],
+            'date_fin_previsionnelle' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+            'motif_prolongation' => ['sometimes', 'nullable', 'string', 'max:500'],
             'hebergement_exterieur' => ['sometimes', 'nullable', Rule::in(array_keys(OrdreMission::HEBERGEMENTS_EXTERIEURS))],
             'reference_billet' => ['sometimes', 'nullable', 'string', 'max:100'],
             'participants' => ['sometimes', 'array', 'max:50'],

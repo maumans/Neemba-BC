@@ -105,6 +105,8 @@ class OrdreMissionController extends Controller
             'generation' => PresentationOdm::generation($odm, $utilisateur),
             /* RG-M12-17, RG-M12-19 : prolongation et vue de la mission */
             'peutProlonger' => \App\Services\Odm\ProlongerOdm::peutProlonger($odm, $utilisateur),
+            /* Complément du 22/10, RG-M12-44 : fréquences proposées au renouvellement et à la requalification */
+            'frequencesRenouvellement' => \App\Services\Odm\MissionLongue::frequences(),
             'prolongation' => ($suite = \App\Services\Odm\ProlongerOdm::prolongationEnCours($odm)) ? ['id' => $suite->id, 'libelle' => $suite->libelle, 'statut' => $suite->statut] : null,
             'mission' => \App\Services\Odm\VueMission::pour($odm),
             /* RG-M12-15, Q49 : tous les frais payés directement par le client, sans bon */
@@ -182,10 +184,22 @@ class OrdreMissionController extends Controller
     /** POST /ordres-mission/{odm}/prolonger — RG-M12-17 : nouveau segment en brouillon, à compléter puis soumettre */
     public function prolonger(Request $request, OrdreMission $odm)
     {
-        $request->validate(['date_retour_prevue' => ['required', 'date_format:Y-m-d']], [
-            'date_retour_prevue.required' => \App\Exceptions\ErreurMetier::texte('MSG-BC-001'),
+        /* Complément du 22/10 : prolongation (retour et motif) ou renouvellement (fréquence et fin prévisionnelle) */
+        $donnees = $request->validate([
+            'type' => ['nullable', 'in:prolongation,renouvellement'],
+            'date_retour_prevue' => ['required_unless:type,renouvellement', 'nullable', 'date_format:Y-m-d'],
+            'motif_prolongation' => ['nullable', 'string', 'max:500'],
+            'frequence_renouvellement' => ['nullable', 'integer'],
+            'date_fin_previsionnelle' => ['nullable', 'date_format:Y-m-d'],
+        ], [
+            'date_retour_prevue.required_unless' => \App\Exceptions\ErreurMetier::texte('MSG-BC-001'),
         ]);
-        [$segment, $message] = \App\Services\Odm\ProlongerOdm::executer($odm, Auth::user(), $request->input('date_retour_prevue'));
+        [$segment, $message] = \App\Services\Odm\ProlongerOdm::executer($odm, Auth::user(), $donnees['date_retour_prevue'] ?? null, [
+            'type' => $donnees['type'] ?? 'prolongation',
+            'motif' => $donnees['motif_prolongation'] ?? null,
+            'frequence' => $donnees['frequence_renouvellement'] ?? null,
+            'fin_previsionnelle' => $donnees['date_fin_previsionnelle'] ?? null,
+        ]);
 
         return redirect()->route('odm.edit', $segment)->with('success', $message);
     }

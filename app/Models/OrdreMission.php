@@ -74,6 +74,12 @@ class OrdreMission extends Model
         'directeur_pays' => ['libelle' => 'Directeur Pays', 'roles' => ['directeur_pays', 'dp_adjoint']],
     ];
 
+    /** Complément du 22/10, RG-M12-43 : nature de la mission, choisie à la création */
+    public const DUREES = ['ponctuelle' => 'Mission ponctuelle', 'longue' => 'Mission longue durée'];
+
+    /** RG-M12-46, RG-M12-50 : un segment lié est une prolongation (imprévue) ou un renouvellement (période suivante) */
+    public const TYPES_SEGMENT = ['prolongation' => 'Prolongation', 'renouvellement' => 'Renouvellement'];
+
     /** RG-M12-02 (PO-06) : nature technique pré-cochée pour ces services */
     public const SERVICES_TECHNIQUES = ['Technique', 'Aftermarket'];
 
@@ -88,6 +94,8 @@ class OrdreMission extends Model
         'entite_id',
         'numero', 'prefixe', 'sequence', 'annee',
         'type', 'technique',
+        /* Complément du 22/10, RG-M12-43 à 45 : mission ponctuelle ou longue durée (fréquence, fin prévisionnelle) */
+        'duree_mission', 'frequence_renouvellement', 'date_fin_previsionnelle',
         /* Spec v2.4, RG-M12-39, RG-M12-40 : OR à régulariser, échéance, relances */
         'or_a_regulariser', 'or_echeance', 'or_relance_le', 'or_relance_echeance_le', 'or_retard_signale_le',
         /* RG-M12-42 : besoin carburant (le véhicule garde le modèle) */
@@ -98,6 +106,9 @@ class OrdreMission extends Model
         'a_refacturer', 'montant_neemba', 'montant_a_refacturer',
         'hebergement_exterieur', 'reference_billet',
         'mission_id', 'segment_precedent_id', 'rang',
+        /* RG-M12-46, RG-M12-50 : prolongation (motif) ou renouvellement ; RG-M12-48, 49 : relances, mission échue */
+        'type_segment', 'motif_prolongation', 'echue_le',
+        'relance_longue_j5_le', 'relance_longue_j2_le', 'alerte_longue_j1_le', 'alerte_requalification_le',
         'statut', 'version', 'cle_soumission', 'total', 'parametres_figes',
         'derogation_statut', 'derogation_demande_motif', 'derogation_par_id', 'derogation_motif', 'derogation_le',
         'date_soumission', 'date_validation', 'date_cloture', 'date_annulation', 'annule_par_id', 'motif_annulation',
@@ -129,6 +140,13 @@ class OrdreMission extends Model
             'date_validation' => 'datetime',
             'date_cloture' => 'datetime',
             'non_effectue' => 'boolean',
+            'frequence_renouvellement' => 'integer',
+            'date_fin_previsionnelle' => 'date',
+            'echue_le' => 'date',
+            'relance_longue_j5_le' => 'datetime',
+            'relance_longue_j2_le' => 'datetime',
+            'alerte_longue_j1_le' => 'datetime',
+            'alerte_requalification_le' => 'datetime',
             'date_annulation' => 'datetime',
             'rappel_envoye_le' => 'datetime',
         ];
@@ -230,7 +248,19 @@ class OrdreMission extends Model
 
     public function getStatutLabelAttribute(): string
     {
-        return self::STATUTS[$this->statut] ?? $this->statut;
+        /* RG-M12-49 : « Échue » s'affiche comme un statut ; le statut technique (bons) est gardé */
+        return $this->estEchue() ? 'Échue' : (self::STATUTS[$this->statut] ?? $this->statut);
+    }
+
+    public function estLongue(): bool
+    {
+        return $this->duree_mission === 'longue';
+    }
+
+    /** RG-M12-49 : terme dépassé sans renouvellement validé, mission ni clôturée ni annulée */
+    public function estEchue(): bool
+    {
+        return $this->echue_le !== null && !in_array($this->statut, ['CLOTURE', 'ANNULE'], true);
     }
 
     /** Numéro, ou « Brouillon » tant que l'ODM n'est pas soumis */
@@ -251,8 +281,10 @@ class OrdreMission extends Model
             return null;
         }
         $initial = $this->mission ?? $this->segmentPrecedent;
+        /* RG-M12-46 : « Renouvellement n de N°xxx » pour la période suivante d'une mission longue */
+        $libelle = self::TYPES_SEGMENT[$this->type_segment ?? 'prolongation'] ?? 'Prolongation';
 
-        return 'Prolongation ' . ($this->rang - 1) . ' de ' . ($initial?->numero ?? 'l\'ODM initial');
+        return $libelle . ' ' . ($this->rang - 1) . ' de ' . ($initial?->numero ?? 'l\'ODM initial');
     }
 
     /** ODM initial de la mission (lui-même pour le segment 1) */

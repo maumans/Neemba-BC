@@ -30,6 +30,10 @@ final class TableauBordOdm
                 'incoherences' => count(array_filter($enCours, fn ($m) => $m['incoherences'] > 0)),
                 'or_a_regulariser' => count($orARegulariser),
                 'or_en_retard' => count(array_filter($orARegulariser, fn ($o) => $o['retard'] > 0)),
+                /* Complément du 22/10, RG-M12-51 */
+                'missions_longues' => count(array_filter($enCours, fn ($m) => $m['longue'])),
+                'renouvellements_en_attente' => count(array_filter($enCours, fn ($m) => $m['renouvellement_en_attente'] !== null)),
+                'missions_echues' => count(array_filter($enCours, fn ($m) => $m['echue'])),
             ],
             'missionsEnCours' => $enCours,
             'derogations' => self::derogations(),
@@ -95,6 +99,14 @@ final class TableauBordOdm
                 'statut' => $dernier->statut,
                 'statut_label' => $dernier->statut_label,
                 'incoherences' => count($mission['incoherences']),
+                /* Complément du 22/10, RG-M12-51 : missions longues, prochaine échéance, renouvellement en attente, échue */
+                'longue' => $dernier->estLongue(),
+                'frequence' => $dernier->frequence_renouvellement,
+                'fin_previsionnelle' => $dernier->date_fin_previsionnelle ? Format::date($dernier->date_fin_previsionnelle) : null,
+                'prochaine_echeance' => $dernier->estLongue() ? Format::date($dernier->date_retour_prevue) : null,
+                'renouvellement_en_attente' => ($suite = ProlongerOdm::prolongationEnCours($dernier)) && in_array($suite->statut, ['SOUMIS', 'EN_VALIDATION'], true)
+                    ? $suite->libelle : null,
+                'echue' => $dernier->estEchue(),
             ];
         })->sortBy('fin_iso')->values()->all();
     }

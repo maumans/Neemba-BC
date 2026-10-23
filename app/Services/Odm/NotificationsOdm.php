@@ -111,6 +111,59 @@ final class NotificationsOdm
             . ' : prolongez-la si elle continue, ou clôturez-la au retour.');
     }
 
+    /**
+     * Complément du 22/10, RG-M12-48 : J-5 ouvrés avant le terme d'une période de mission longue, au demandeur et au chef
+     * d'atelier, avec le lien « Renouveler » ; pour la dernière période, clôturer ou reporter la fin prévisionnelle.
+     */
+    public static function relanceRenouvellement(OrdreMission $odm, bool $dernierePeriode): void
+    {
+        $terme = \App\Support\Format::date($odm->date_retour_prevue);
+        $message = $dernierePeriode
+            ? "La mission {$odm->numero} atteint sa date de fin prévisionnelle le {$terme} : clôturez-la au retour, ou reportez sa date de fin pour la renouveler."
+            : "La période en cours de la mission {$odm->numero} se termine le {$terme}. Renouvelez-la depuis la fiche (« Renouveler la mission ») pour que la période suivante soit validée à temps.";
+        self::envoyer(collect([$odm->demandeur, $odm->initiateur])->merge(MissionLongue::chefsAtelier($odm)), null, $odm, 'odm_renouvellement',
+            "Mission {$odm->numero} : " . ($dernierePeriode ? 'fin prévisionnelle' : 'à renouveler') . " avant le {$terme}", $message);
+    }
+
+    /** RG-M12-48 : J-2, aucun renouvellement soumis, relance au chef d'atelier */
+    public static function relanceChefAtelier(OrdreMission $odm): void
+    {
+        $terme = \App\Support\Format::date($odm->date_retour_prevue);
+        self::envoyer(MissionLongue::chefsAtelier($odm), null, $odm, 'odm_renouvellement', "Mission {$odm->numero} : renouvellement non soumis",
+            "Aucun renouvellement n'est soumis pour la mission {$odm->numero} ({$odm->demandeur?->nom_complet}), dont la période se termine le {$terme}.");
+    }
+
+    /** RG-M12-48 : J-1, renouvellement non validé, alerte au DAF */
+    public static function alerteDafRenouvellement(OrdreMission $odm, ?OrdreMission $renouvellement): void
+    {
+        $terme = \App\Support\Format::date($odm->date_retour_prevue);
+        $etat = $renouvellement ? "Le renouvellement {$renouvellement->libelle} est « {$renouvellement->statut_label} »" : "Aucun renouvellement n'est soumis";
+        self::envoyer(self::daf($odm), null, $odm, 'odm_renouvellement', "Mission {$odm->numero} : renouvellement non validé",
+            "{$etat} pour la mission {$odm->numero}, dont la période se termine le {$terme}.");
+    }
+
+    /** RG-M12-49 : terme dépassé sans renouvellement validé, alerte au chef d'atelier et au DAF */
+    public static function missionEchue(OrdreMission $odm): void
+    {
+        $terme = \App\Support\Format::date($odm->date_retour_prevue);
+        self::envoyer(MissionLongue::chefsAtelier($odm)->merge(self::daf($odm)), null, $odm, 'odm_echue', "Mission {$odm->numero} échue",
+            "La mission {$odm->numero} est échue : sa période s'est terminée le {$terme} sans renouvellement validé. Un renouvellement reste possible : il part du lendemain du terme, avec un motif.");
+    }
+
+    /** RG-M12-50 : mission ponctuelle prolongée au-delà du seuil, proposition de requalification */
+    public static function requalification(OrdreMission $odm): void
+    {
+        self::envoyer(collect([$odm->demandeur, $odm->initiateur])->merge(MissionLongue::chefsAtelier($odm)), null, $odm, 'odm_requalification',
+            "Mission {$odm->initial()->numero} : à requalifier en longue durée ?",
+            "La mission {$odm->initial()->numero} a été prolongée plusieurs fois. Si elle se poursuit, requalifiez-la en mission longue durée au prochain renouvellement (fréquence et date de fin prévisionnelle).");
+    }
+
+    /** DAF et DAF adjoint de l'entité de l'ODM */
+    private static function daf(OrdreMission $odm): Collection
+    {
+        return User::actifs()->avecRoleDans(['daf', 'daf_adjoint'], $odm->entite_id)->get();
+    }
+
     /** Spec v2.4, RG-M12-40 : OR à régulariser avant l'échéance, au demandeur (MSG-M12-10) */
     public static function orARegulariser(OrdreMission $odm): void
     {

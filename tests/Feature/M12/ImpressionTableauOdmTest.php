@@ -151,7 +151,7 @@ class ImpressionTableauOdmTest extends TestCase
         $partClient = ['parts' => [['payeur' => 'client', 'client_id' => \App\Models\Client::firstOrCreate(['code' => 'SMD'], ['raison_sociale' => 'Société Minière de Dinguiraye'])->id, 'ordre_reparation' => '11022219', 'pourcentage' => 100]]];
         $client = $this->odmValide(['date_depart' => '2026-10-01', 'date_retour_prevue' => '2026-10-02',
             'participants' => [['user_id' => $this->thierno->id, 'lignes' => ['indemnite' => $partClient, 'hebergement' => $partClient]]]]);
-        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $neemba), ['date_retour_prevue' => '2026-09-30']);
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $neemba), ['date_retour_prevue' => '2026-09-30', 'motif_prolongation' => 'Travaux non terminés sur le site']);
 
         $this->actingAs($this->demandeur)->get(route('odm.tableau-de-bord'))->assertForbidden();
         $this->actingAs($this->daf)->get(route('odm.tableau-de-bord'))

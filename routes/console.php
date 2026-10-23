@@ -36,6 +36,8 @@ Schedule::command('odm:relancer-visas')->hourly();
 
 /* RG-M12-28 : rappel au demandeur 2 jours ouvrés avant la fin d'un segment de mission */
 Schedule::command('odm:rappeler-fin-segment')->dailyAt('07:00');
+/* Complément du 22/10, RG-M12-48, 49 : relances J-5, J-2, J-1 des missions longues, missions échues */
+Schedule::command('odm:suivre-missions-longues')->dailyAt('07:05');
 
 /* Spec v2.4, RG-M12-40 : OR à régulariser (relance J+3, échéance, retard) */
 Schedule::command('odm:relancer-or')->dailyAt('07:15');

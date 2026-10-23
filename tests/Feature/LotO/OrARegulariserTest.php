@@ -209,7 +209,7 @@ class OrARegulariserTest extends TestCase
     public function test_la_prolongation_reprend_l_or_a_regulariser(): void
     {
         $odm = $this->odmValide();
-        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-11-20'])->assertSessionHas('success');
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-11-20', 'motif_prolongation' => 'Travaux non terminés sur le site'])->assertSessionHas('success');
         $segment = OrdreMission::where('segment_precedent_id', $odm->id)->sole();
         $this->assertTrue($segment->or_a_regulariser);
         $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $segment))->assertOk();

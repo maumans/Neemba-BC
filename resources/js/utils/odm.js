@@ -53,12 +53,13 @@ export function retourAvantDepart(dateDepart, dateRetour) {
     return Boolean(dateDepart && dateRetour && dateRetour < dateDepart);
 }
 
-/** Q110 : dernier retour prévu admis pour un segment qui part le `dateDepart` (durée maximale `dureeMax` jours) */
-export function retourMaxSegment(dateDepart, dureeMax) {
-    if (!dateDepart || !dureeMax) return '';
+/** Complément du 22/10, RG-M12-44 : fin d'une période de mission longue (départ + fréquence − 1, au plus la fin prévisionnelle) */
+export function finDePeriodeLongue(dateDepart, frequence, finPrevisionnelle) {
+    if (!dateDepart || !frequence || !finPrevisionnelle || finPrevisionnelle < dateDepart) return '';
     const jour = 24 * 60 * 60 * 1000;
+    const fin = new Date(Date.parse(`${dateDepart}T00:00:00Z`) + (frequence - 1) * jour).toISOString().slice(0, 10);
 
-    return new Date(Date.parse(`${dateDepart}T00:00:00Z`) + (dureeMax - 1) * jour).toISOString().slice(0, 10);
+    return fin > finPrevisionnelle ? finPrevisionnelle : fin;
 }
 
 /** Jours de mission pour l'affichage immédiat (le serveur recalcule) : retour − départ + 1 */
@@ -269,6 +270,11 @@ export function donneesOdm(form) {
         date_depart: form.date_depart || null,
         date_retour_prevue: form.date_retour_prevue || null,
         motif_depart_passe: form.motif_depart_passe ?? '',
+        /* Complément du 22/10, RG-M12-43 à 45, RG-M12-50 : nature de la mission, motif d'une prolongation */
+        duree_mission: form.duree_mission || 'ponctuelle',
+        frequence_renouvellement: form.duree_mission === 'longue' ? (form.frequence_renouvellement || null) : null,
+        date_fin_previsionnelle: form.duree_mission === 'longue' ? (form.date_fin_previsionnelle || null) : null,
+        motif_prolongation: form.motif_prolongation ?? '',
         hebergement_exterieur: form.type === 'exterieur' ? (form.hebergement_exterieur || null) : null,
         reference_billet: form.reference_billet ?? '',
         participants: (form.participants ?? []).map((p) => ({

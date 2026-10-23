@@ -31,6 +31,8 @@ final class EnregistrementOdm
         'niveau_urgence', 'motif_urgence',
         /* Spec v2.4, RG-M12-39 : OR à régulariser ; RG-M12-42 : besoin carburant */
         'or_a_regulariser', 'immatriculation', 'itineraire',
+        /* Complément du 22/10, RG-M12-43 à 45, RG-M12-50 : nature, fréquence, fin prévisionnelle, motif de prolongation */
+        'duree_mission', 'frequence_renouvellement', 'date_fin_previsionnelle', 'motif_prolongation',
     ];
 
     public static function creer(User $demandeur, array $donnees = []): OrdreMission
@@ -71,7 +73,7 @@ final class EnregistrementOdm
             $signatureAvant = self::signature($odm);
 
             /* RG-M12-17 : une prolongation garde le type et le départ fixés à sa création */
-            $verrouilles = $odm->segment_precedent_id ? ['type', 'date_depart'] : [];
+            $verrouilles = $odm->segment_precedent_id ? ['type', 'date_depart', 'duree_mission'] : [];
             foreach (array_diff(self::CHAMPS, $verrouilles) as $champ) {
                 if (array_key_exists($champ, $donnees)) {
                     $odm->{$champ} = self::normaliser($champ, $donnees[$champ]);
@@ -79,6 +81,19 @@ final class EnregistrementOdm
             }
             if ($odm->type !== 'exterieur') {
                 $odm->hebergement_exterieur = null;
+            }
+            /* RG-M12-44 : mission longue, le retour prévu est la fin de la période (sauf prolongation courte, RG-M12-50) */
+            if ($odm->duree_mission !== 'longue') {
+                $odm->frequence_renouvellement = null;
+                $odm->date_fin_previsionnelle = null;
+            } elseif ($odm->type_segment !== 'prolongation' && $odm->date_depart
+                && in_array((int) $odm->frequence_renouvellement, MissionLongue::frequences(), true)
+                && $odm->date_fin_previsionnelle && !$odm->date_fin_previsionnelle->lessThan($odm->date_depart)) {
+                $odm->date_retour_prevue = MissionLongue::finDePeriode($odm->date_depart, (int) $odm->frequence_renouvellement,
+                    $odm->date_fin_previsionnelle)->toDateString();
+            }
+            if ($odm->type_segment !== 'prolongation') {
+                $odm->motif_prolongation = null;
             }
             if (($odm->niveau_urgence ?? 'normale') === 'normale') {
                 $odm->motif_urgence = null;
@@ -270,7 +285,9 @@ final class EnregistrementOdm
                 array_map(fn ($v) => mb_substr(trim((string) $v), 0, 120), is_array($valeur) ? $valeur : [$valeur]),
                 fn ($v) => $v !== '',
             ))),
-            'date_depart', 'date_retour_prevue' => blank($valeur) ? null : $valeur,
+            'date_depart', 'date_retour_prevue', 'date_fin_previsionnelle' => blank($valeur) ? null : $valeur,
+            'duree_mission' => $valeur === 'longue' ? 'longue' : 'ponctuelle',
+            'frequence_renouvellement' => blank($valeur) ? null : (int) $valeur,
             'niveau_urgence' => blank($valeur) ? 'normale' : $valeur,
             'or_a_regulariser' => filter_var($valeur, FILTER_VALIDATE_BOOLEAN),
             'immatriculation' => blank($valeur) ? null : mb_strtoupper(preg_replace('/\s+/', ' ', trim((string) $valeur))),
