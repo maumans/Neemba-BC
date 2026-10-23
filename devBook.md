@@ -5889,3 +5889,68 @@ Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
 - **Parcours Edge** sur une copie de la base, ODM N°6/DIR/26 de Thierno DIALLO :
   - brouillon de prolongation au 01/12 signalé (« fixez le retour au 24/11/2026 au plus tard ») ;
   - prolongation au 01/12 refusée par le serveur, au 20/11 créée.
+
+---
+
+## 67. Version v67 — Lot L : missions ponctuelles et missions longue durée (23 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
+
+**Source** : `docs/Complement_Missions_Longues_v2.4_Neemba_P2.docx` (Thierno Diallo, 22/10, interne Addvalis, non commité comme les autres spec .docx). Il ajoute RG-M12-43 à 51 et fait foi pour M12. Il remplace la limite de 30 jours par segment ajoutée le 23/10 (Q110, §66), retirée.
+
+### 67.1 Décisions du 23/10
+
+- « Échue » est un indicateur (`echue_le`) affiché comme statut ; le statut technique (bons) est gardé (Q112).
+- Relances J-2 et J-1 en jours ouvrés, comme J-5 (Q113).
+- Les bons d'un renouvellement sont générés automatiquement à sa validation finale, au nom du demandeur (Q114).
+
+### 67.2 Réalisation
+
+- **Migration** `2026_11_05_000001_lot_l_missions_longues` :
+  - colonnes `ordres_mission` : `duree_mission`, `frequence_renouvellement`, `date_fin_previsionnelle`, `type_segment`, `motif_prolongation`, `echue_le`, horodatages des relances et de l'alerte de requalification ;
+  - paramètres `odm_frequences_renouvellement` (15,30,45), `odm_delai_relance_longue` (5), `odm_requalification_prolongations` (2), `odm_requalification_jours` (30) ;
+  - `odm_duree_max_segment` supprimé ; segments existants marqués « prolongation ».
+- **`MissionLongue`** (nouveau service) : fréquences, fin de période, dernière période, segment en cours, chefs d'atelier, seuil de requalification.
+- **Création (RG-M12-43, 44)** :
+  - choix « Mission ponctuelle / longue durée » dans le formulaire ;
+  - mission longue : fréquence et fin prévisionnelle ; la fin de la période 1 est calculée et en lecture seule (`finDePeriodeLongue` dans `utils/odm.js`, recalculée par `EnregistrementOdm`) ;
+  - contrôles `ReglesOdm` : MSG-APP-115 à 117. La nature est visible des valideurs.
+- **Renouvellement et prolongation (RG-M12-45, 46, 47, 50)** — `ProlongerOdm::executer($precedent, $auteur, $retour, $options)` :
+  - renouvellement : départ = terme + 1, fin de période selon la fréquence et la fin prévisionnelle, toutes deux modifiables, le report étant tracé ; fin atteinte : MSG-APP-119 ;
+  - prolongation : motif obligatoire (MSG-APP-118) ; sur une mission longue, une prolongation courte qui passe la fin prévisionnelle la reporte (dans le circuit) ;
+  - libellé « Renouvellement n de N°xxx » ;
+  - à la validation finale d'un renouvellement, `ValiderOdm` génère les bons (un par participant). En cas d'empêchement (taux du jour absent), la génération reste manuelle et c'est tracé.
+- **Fiche** : nature de la mission, « Renouveler la mission » (période proposée), « Prolonger » avec motif et, pour une mission ponctuelle, « Requalifier en mission longue durée ».
+- **Relances et mission échue (RG-M12-48, 49)** — commande `odm:suivre-missions-longues`, chaque jour à 7 h 05 :
+  - J-5 ouvrés : demandeur et chef d'atelier ; dernière période : clôturer ou reporter la fin ;
+  - J-2 : chef d'atelier, si rien n'est soumis ;
+  - J-1 : DAF, si le renouvellement n'est pas validé ;
+  - terme dépassé : « Échue », chef d'atelier et DAF alertés ; indicateur levé à la validation du segment suivant ;
+  - chaque envoi est unique et tracé.
+  - Renouvellement après coup : départ au lendemain du terme, motif de départ passé obligatoire (existant).
+  - `odm:rappeler-fin-segment` (RG-M12-28) est limitée aux missions ponctuelles.
+- **Requalification (RG-M12-50)** :
+  - à la validation d'une prolongation, si la mission ponctuelle compte plus de 2 prolongations ou plus de 30 jours, une alerte unique va au demandeur et au chef d'atelier ;
+  - la requalification est un renouvellement depuis la mission ponctuelle.
+- **Suivi DAF (RG-M12-51)** :
+  - indicateurs missions longues, renouvellements à valider, missions échues ;
+  - sur chaque ligne : fréquence, fin prévue, prochaine échéance ;
+  - pastille « Échue » dans la liste des ODM.
+
+### 67.3 Vérifications
+
+- `tests/Feature/M12/MissionsLonguesTest.php` (4 scénarios du complément) :
+  - création d'une mission longue ;
+  - renouvellement (période bornée par la fin prévisionnelle, bons générés à la validation, fin reportée) ;
+  - mission échue puis régularisée (relances J-5, J-2, J-1, « Échue », renouvellement après coup avec motif, 15 jours payés) ;
+  - requalification d'une mission ponctuelle.
+- Tests existants : motif ajouté aux prolongations, test Q110 retiré, nombre de paramètres ODM mis à jour.
+- **Total** : 458 tests PHP et 77 tests JavaScript.
+- Migration vérifiée sur une copie (montée, retour, remontée), puis appliquée en dev.
+- **Parcours Edge** sur une copie de la base (13 vérifications) :
+  - création d'une mission longue (fin de période au 16/11 calculée) ;
+  - relances J-5 au demandeur et J-1 au DAF ;
+  - N°6/DIR/26 passée en longue durée dans la copie, renouvelée (période du 26/10 au 09/11), soumise, visée par le DAF et le DP, 2 bons générés ;
+  - tableau de bord DAF.
+  - Dans la copie, les ODM N°7 à N°10/DIR/26 ont été annulés : ils couvrent les mêmes participants à ces dates, et le contrôle de chevauchement (RG-M12-16) bloquait le renouvellement, comme il se doit.
+- Le serveur Vite (`npm run dev`) ne répondait plus pendant le parcours ; `public/hot` a été mis de côté puis remis.

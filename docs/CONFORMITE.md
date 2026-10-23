@@ -363,6 +363,15 @@ Le suivi détaillé reste dans `docs/ORDRE_DE_MISSIONS.md`. RG-M12-01, 03 à 13,
 | RG-M12-40 | **Délai de 5 jours ouvrés, relances J+3 et échéance, alerte au chef d'atelier et au DAF, blocage optionnel [v2.4]** | ✅ | Lot O : paramètres `odm_delai_or` et `odm_blocage_or_retard`, commande `odm:relancer-or` | | |
 | RG-M12-41 | **Suivi au tableau de bord DAF et rapport M14 [v2.4]** | ✅ | Lot O | | |
 | RG-M12-42 | **Besoin carburant sur l'ODM (véhicule, immatriculation, itinéraire) ; jamais une ligne de frais [v2.4]** | 🟡 | Immatriculation et itinéraire faits (lot O) ; obligatoires dès une avance carburant, bon carburant rattaché : lot H | | H |
+| RG-M12-43 | **Mission ponctuelle ou longue durée, à la création, validée dans le circuit [complément du 22/10]** | ✅ | Lot L | | |
+| RG-M12-44 | **Mission longue : fréquence (15, 30, 45 j, paramètre), fin prévisionnelle, période calculée** | ✅ | Lot L | | |
+| RG-M12-45 | **Fréquence et fin prévisionnelle modifiables pour la période suivante, dans le circuit** | ✅ | Lot L (au renouvellement) | | |
+| RG-M12-46 | **Renouvellement : segment lié pré-rempli, nuitée de rattrapage** | ✅ | Lot L | | |
+| RG-M12-47 | **Circuit complet ; bons générés à la validation, un par participant** | ✅ | Lot L (automatique, Q114) | | |
+| RG-M12-48 | **Relances J-5 (demandeur, chef d'atelier), J-2 (chef d'atelier), J-1 (DAF)** | ✅ | Lot L, `odm:suivre-missions-longues` (jours ouvrés, Q113) | D | |
+| RG-M12-49 | **Terme dépassé : « Échue », alerte ; renouvellement après coup avec motif** | ✅ | Lot L (indicateur, Q112) | | |
+| RG-M12-50 | **Prolongation avec motif ; alerte de requalification au-delà de 2 prolongations ou 30 jours** | ✅ | Lot L | D | |
+| RG-M12-51 | **Suivi DAF des missions longues** | ✅ | Lot L | | |
 
 **Messages M12**
 
@@ -696,3 +705,4 @@ Le cahier Excel des scénarios n'est pas dans le dépôt : **à demander à Thie
 | 22/10/2026 | — | (ce commit) | Demande de l'utilisateur : actions par ligne sur les listes des réapprovisionnements (visas et refus avec confirmation, exécution et réception sur la fiche) et des réconciliations OM (Valider, Voir, Relevé). 449 tests PHP ; parcours Edge. devBook §64 |
 | 22/10/2026 | — | (ce commit) | Revue de la prolongation et de la clôture des ODM : BP recalé sur la prolongation et le retour réel, retour réel au plus tard aujourd'hui, clôture de toute la chaîne, message pour un retour antérieur à la prolongation (Q109 ouverte). 451 tests PHP ; parcours Edge. devBook §65 |
 | 23/10/2026 | — | (ce commit) | Prolongation : analyse de la spec (« renouvellement » absent) ; reconduction à 30 jours par segment (Q110, ajout hors spec, à confirmer), OR à régulariser repris (Q111), retour réel dans un segment antérieur (Q109, défaut). 455 tests PHP, 76 JS ; parcours Edge. devBook §66 |
+| 23/10/2026 | L | (ce commit) | Complément « Missions longue durée » (RG-M12-43 à 51) : nature de la mission, renouvellement, relances J-5/J-2/J-1, « Échue », requalification, suivi DAF ; Q110 retirée ; Q112 à Q114. 458 tests PHP, 77 JS ; parcours Edge. devBook §67 |
