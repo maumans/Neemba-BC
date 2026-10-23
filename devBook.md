@@ -5837,3 +5837,55 @@ En place : segment lié (départ = retour + 1, participants repris sans ajout, m
   - date proposée = aujourd'hui ;
   - 25/10 refusé ;
   - clôture au 22/10 en retour anticipé.
+
+---
+
+## 66. Version v66 — Prolongation des missions : reconduction, OR à régulariser, retour dans un segment antérieur (23 Octobre 2026)
+
+Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
+
+### 66.1 Analyse de la spec v2.4 (demande de l'utilisateur)
+
+- Le mot « renouvellement » n'apparaît dans aucune version de la spec (v2.2 à v2.4), ni dans le classeur ODM, ni dans les référentiels. Pour la spec, une mission qui continue est une prolongation : une chaîne de segments (RG-M12-17 à 20, 28, 35 ; annexe B.3 ; PO-05 ; PO-21 pour la mission KOUROUMA).
+- Tout ce que la spec décrit était en place (§65 pour les corrections du 22/10).
+- La spec ne dit rien sur :
+  - une durée maximale de segment ;
+  - le carburant d'une prolongation (M13) ;
+  - une prolongation payée alors que la mission s'est terminée avant son départ.
+
+### 66.2 Décisions du 23/10
+
+- **Q110 — reconduction obligatoire.** Un segment (ODM initial ou prolongation, intérieur ou extérieur) ne dépasse pas 30 jours (paramètre `odm_duree_max_segment`). Au-delà, la soumission est bloquée (MSG-APP-114) : fixer le retour au 30e jour au plus tard, puis prolonger. Règle ajoutée à la spec, à faire confirmer par Neemba.
+- **Q111** : la prolongation reprend l'indicateur « OR à régulariser » du segment précédent.
+- **Q109 (défaut, à confirmer par Neemba)** : la clôture accepte un retour réel situé dans un segment antérieur.
+- Ajout d'un participant dans une prolongation : toujours interdit (RG-M12-17).
+
+### 66.3 Réalisation
+
+- **Migration** `2026_11_04_000001_odm_reconduction` : paramètre `odm_duree_max_segment` (30, groupe `odm`) ; colonne `ordres_mission.non_effectue`.
+- **Durée maximale** :
+  - `ReglesOdm::dureeMaxSegment()`, `retourMax()` ; contrôle `DUREE_SEGMENT` à la soumission, et dès la création d'une prolongation (`ProlongerOdm`) ;
+  - le formulaire signale le dépassement au fil de la saisie (`retourMaxSegment` dans `utils/odm.js`) ;
+  - la boîte de prolongation limite la date et rappelle la règle.
+- **OR à régulariser** : `ProlongerOdm` reprend l'indicateur ; échéance et relances à la validation du segment, comme avant.
+- **Q109** (`CloturerOdm`) :
+  - le retour réel peut tomber n'importe où dans la mission, pas avant son départ (MSG-M12-02) ;
+  - les segments partis après sont marqués « non effectués » : chaque bon payé devient un trop-perçu entier (reversement ou retenue, MSG-M12-09), les bons non payés sont annulés ;
+  - le segment où tombe le retour est traité en retour anticipé ;
+  - toute la chaîne passe à « Clôturé » et le BP est recalé sur le retour réel ;
+  - la boîte de clôture propose la régularisation pour tous les participants de la mission ;
+  - le message MSG-APP-113 du 22/10 est retiré.
+- **Vue mission** : un segment non effectué est affiché (« Non effectué ») mais exclu des cumuls et du contrôle nuits = jours − 1.
+
+### 66.4 Vérifications
+
+- **Tests** :
+  - `ProlongationOdmTest::test_reconduction_au_dela_de_trente_jours` ;
+  - `OrARegulariserTest::test_la_prolongation_reprend_l_or_a_regulariser` ;
+  - `ClotureOdmTest` : retour avant une prolongation payée (trop-perçu entier, 750 000 sur le segment 1, vue mission à 4 jours sans incohérence), et non payée (bons annulés) ;
+  - Vitest `retourMaxSegment`.
+- **Total** : 455 tests PHP et 76 tests JavaScript.
+- Migration vérifiée sur une copie (montée, retour, remontée), puis appliquée en dev.
+- **Parcours Edge** sur une copie de la base, ODM N°6/DIR/26 de Thierno DIALLO :
+  - brouillon de prolongation au 01/12 signalé (« fixez le retour au 24/11/2026 au plus tard ») ;
+  - prolongation au 01/12 refusée par le serveur, au 20/11 créée.
