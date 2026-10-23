@@ -13,7 +13,8 @@ use App\Support\Format;
  *
  * Contrôle : sur toute la chaîne, nuits payées (nuits + nuitées de rattrapage) = jours − 1, hors jours où le participant
  * n'est pas hébergé aux frais de Neemba (base vie, ou filiale d'accueil à l'étranger). Toute incohérence est signalée
- * au DAF (MSG-M12-07). Les segments brouillons, rejetés ou annulés ne comptent pas.
+ * au DAF (MSG-M12-07). Les segments brouillons, rejetés ou annulés ne comptent pas ; un segment non effectué (Q109) est
+ * affiché mais hors cumuls.
  */
 final class VueMission
 {
@@ -25,8 +26,10 @@ final class VueMission
         $initial = $odm->initial();
         $segments = $initial->segmentsDeLaMission()->filter(fn (OrdreMission $s) => in_array($s->statut, self::STATUTS_RETENUS, true))->values();
 
+        $effectues = $segments->reject(fn (OrdreMission $s) => $s->non_effectue)->values();
+
         $participants = [];
-        foreach ($segments as $segment) {
+        foreach ($effectues as $segment) {
             foreach ($segment->participantsActifs()->get() as $participant) {
                 $ligne = &$participants[$participant->user_id];
                 $ligne ??= ['user_id' => $participant->user_id, 'nom' => $participant->nom, 'jours' => 0, 'nuits' => 0, 'jours_heberges' => 0, 'montant' => 0.0, 'segments' => 0];
@@ -63,7 +66,8 @@ final class VueMission
                 'libelle' => $s->libelle,
                 'libelle_prolongation' => $s->libelle_prolongation,
                 'periode' => PresentationOdm::periode($s),
-                'jours' => CalculOdm::jours($s->date_depart, $s->dateFin()),
+                'jours' => $s->non_effectue ? 0 : CalculOdm::jours($s->date_depart, $s->dateFin()),
+                'non_effectue' => (bool) $s->non_effectue,
                 'participants' => $s->participantsActifs()->count(),
                 'total' => $s->total !== null ? (float) $s->total : null,
                 'statut' => $s->statut,
@@ -71,9 +75,9 @@ final class VueMission
             ])->values()->all(),
             'participants' => array_values($participants),
             'total' => (float) collect($participants)->sum('montant'),
-            'debut' => $segments->first()?->date_depart ? Format::date($segments->first()->date_depart) : null,
-            'fin' => $segments->last()?->dateFin() ? Format::date($segments->last()->dateFin()) : null,
-            'jours' => $segments->sum(fn (OrdreMission $s) => CalculOdm::jours($s->date_depart, $s->dateFin())),
+            'debut' => $effectues->first()?->date_depart ? Format::date($effectues->first()->date_depart) : null,
+            'fin' => $effectues->last()?->dateFin() ? Format::date($effectues->last()->dateFin()) : null,
+            'jours' => $effectues->sum(fn (OrdreMission $s) => CalculOdm::jours($s->date_depart, $s->dateFin())),
             'incoherences' => $incoherences,
         ];
     }

@@ -101,6 +101,8 @@ class OrdreMission extends Model
         'statut', 'version', 'cle_soumission', 'total', 'parametres_figes',
         'derogation_statut', 'derogation_demande_motif', 'derogation_par_id', 'derogation_motif', 'derogation_le',
         'date_soumission', 'date_validation', 'date_cloture', 'date_annulation', 'annule_par_id', 'motif_annulation',
+        /* Q109 : segment non effectué, la mission s'étant terminée avant son départ */
+        'non_effectue',
         'rappel_envoye_le',
     ];
 
@@ -126,6 +128,7 @@ class OrdreMission extends Model
             'date_soumission' => 'datetime',
             'date_validation' => 'datetime',
             'date_cloture' => 'datetime',
+            'non_effectue' => 'boolean',
             'date_annulation' => 'datetime',
             'rappel_envoye_le' => 'datetime',
         ];

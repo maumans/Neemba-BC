@@ -22,8 +22,9 @@ use Illuminate\Support\Facades\DB;
  *   (MSG-M12-09) et sera reversé en caisse ou retenu sur salaire ; un bon non encore payé est annulé et régénéré
  *   au montant réel (Q26) ;
  * - retour tardif : refusé, la mission doit d'abord être prolongée (MSG-APP-036) ;
- * - retour réel au plus tard aujourd'hui (MSG-APP-112) ; sur une prolongation, un retour antérieur à son départ
- *   demande d'annuler la prolongation, puis de clôturer le segment précédent (MSG-APP-113).
+ * - retour réel au plus tard aujourd'hui (MSG-APP-112) ; il peut tomber dans un segment antérieur (Q109) : les segments
+ *   partis après sont « non effectués » (bons payés en trop-perçu entier, bons non payés annulés) et le segment du retour
+ *   est traité en retour anticipé.
  * La clôture vaut pour toute la mission : les segments précédents passent aussi à « Clôturé » ; la date de retour des
  * BP de la mission devient le retour réel (échéance de régularisation, RG-M07-02).
  * ODM extérieur, hébergement payé au retour : un bon complémentaire est préparé en brouillon pour chaque facture,
@@ -57,11 +58,8 @@ final class CloturerOdm
             if ($retour->greaterThan(today())) {
                 throw new ErreurMetier('RETOUR_FUTUR', 'MSG-APP-112', [], 'RG-M12-20', 'date_retour_reelle');
             }
-            if ($retour->lessThan($odm->date_depart)) {
-                if ($odm->segment_precedent_id) {
-                    throw new ErreurMetier('RETOUR_AVANT_PROLONGATION', 'MSG-APP-113', ['retour' => Format::date($retour),
-                        'depart' => Format::date($odm->date_depart), 'precedent' => $odm->segmentPrecedent?->numero], 'RG-M12-20', 'date_retour_reelle');
-                }
+            /* Q109 : le retour réel peut tomber dans un segment antérieur, mais pas avant le départ de la mission */
+            if ($retour->lessThan($odm->initial()->date_depart)) {
                 throw new ErreurMetier('RETOUR_AVANT_DEPART', 'MSG-M12-02', [], 'RG-M12-06', 'date_retour_reelle');
             }
             if ($retour->greaterThan($odm->date_retour_prevue)) {
@@ -72,41 +70,48 @@ final class CloturerOdm
             $statutAvant = $odm->statut;
             $anticipe = $retour->lessThan($odm->date_retour_prevue);
 
-            if ($anticipe) {
-                $messages = self::retourAnticipe($odm, $auteur, $retour, $regularisations);
-            } else {
-                $odm->update(['date_retour_reelle' => $retour->toDateString()]);
+            /* Segments de la mission ; celui qui contient le retour réel ; ceux partis après n'ont pas été effectués (Q109) */
+            $segments = $odm->segmentsDeLaMission()
+                ->filter(fn (OrdreMission $s) => $s->id === $odm->id || in_array($s->statut, ProlongerOdm::STATUTS_PROLONGEABLES, true))->values();
+            $cible = $segments->last(fn (OrdreMission $s) => $s->date_depart->lessThanOrEqualTo($retour));
+            foreach ($segments as $segment) {
+                if ($segment->date_depart->greaterThan($retour)) {
+                    $messages = array_merge($messages, self::nonEffectue($segment, $auteur, $retour, $regularisations));
+                }
             }
 
-            /* Q26, Q47 : les participants sans bon actif (jamais généré, ou remplacé au réel) reçoivent leur bon au montant réel */
-            if (!GenererBonsOdm::sansBon($odm)) {
-                $nouveaux = GenererBonsOdm::bonsManquants($odm->fresh(), $auteur);
+            if ($retour->lessThan($cible->date_retour_prevue)) {
+                $messages = array_merge($messages, self::retourAnticipe($cible, $auteur, $retour, $regularisations));
+            } else {
+                $cible->update(['date_retour_reelle' => $retour->toDateString()]);
+            }
+
+            /* Q26, Q47 : les participants sans bon actif (jamais généré, ou remplacé au réel) reçoivent leur bon au montant réel,
+             * sur le segment du retour et les segments effectués avant lui */
+            foreach ($segments as $segment) {
+                if ($segment->date_depart->greaterThan($retour) || GenererBonsOdm::sansBon($segment)) {
+                    continue;
+                }
+                $nouveaux = GenererBonsOdm::bonsManquants($segment->fresh(), $auteur);
                 if ($nouveaux->isNotEmpty()) {
-                    $messages[] = 'Bon(s) généré(s) au montant réel : '
+                    $messages[] = ($segment->id === $odm->id ? 'Bon(s) généré(s) au montant réel : ' : "Segment {$segment->numero} : bon(s) généré(s) au montant réel : ")
                         . $nouveaux->map(fn (BonCaisse $b) => "{$b->numero} (" . Format::montant($b->montant) . ')')->implode(', ') . '.';
                 }
             }
 
-            if ($odm->type === 'exterieur' && $odm->hebergement_exterieur === 'au_retour') {
-                $messages = array_merge($messages, self::bonsComplementaires($odm, $auteur, $facturesRetour, $piecesRetour));
+            if ($cible->type === 'exterieur' && $cible->hebergement_exterieur === 'au_retour') {
+                $messages = array_merge($messages, self::bonsComplementaires($cible->fresh(), $auteur, $facturesRetour, $piecesRetour));
             }
 
-            /* La clôture vaut pour toute la mission : segments précédents clôturés, après génération de leurs bons manquants */
-            foreach ($odm->segmentsDeLaMission() as $segment) {
-                if ($segment->id === $odm->id || !in_array($segment->statut, ProlongerOdm::STATUTS_PROLONGEABLES, true)) {
+            /* La clôture vaut pour toute la mission : tous ses segments passent à « Clôturé » */
+            foreach ($segments as $segment) {
+                if ($segment->id === $odm->id) {
                     continue;
-                }
-                if (!GenererBonsOdm::sansBon($segment)) {
-                    $nouveaux = GenererBonsOdm::bonsManquants($segment, $auteur);
-                    if ($nouveaux->isNotEmpty()) {
-                        $messages[] = "Segment {$segment->numero} : bon(s) généré(s) "
-                            . $nouveaux->map(fn (BonCaisse $b) => "{$b->numero} (" . Format::montant($b->montant) . ')')->implode(', ') . '.';
-                    }
                 }
                 $avant = $segment->statut;
                 $segment->update(['statut' => 'CLOTURE', 'date_cloture' => now()]);
                 HistoriqueOdm::enregistrer($segment, 'cloture', $avant, 'CLOTURE', $auteur->id,
-                    "Mission clôturée avec le segment {$odm->numero} : retour réel le " . Format::date($retour) . '.');
+                    ($segment->non_effectue ? 'Segment non effectué, ' : 'Mission ') . "clôturé(e) avec le segment {$odm->numero} : retour réel le " . Format::date($retour) . '.');
             }
 
             /* RG-M07-02 : l'échéance des BP de la mission part du retour réel */
@@ -114,9 +119,10 @@ final class CloturerOdm
                 $messages[] = 'Échéance de régularisation des bons provisoires de la mission recalculée sur le retour réel.';
             }
 
+            $odm->refresh();
             $odm->update(['statut' => 'CLOTURE', 'date_cloture' => now()]);
             HistoriqueOdm::enregistrer($odm, 'cloture', $statutAvant, 'CLOTURE', $auteur->id,
-                'Mission clôturée : retour réel le ' . Format::date($retour) . ($anticipe ? ' (anticipé, prévu le ' . Format::date($odm->date_retour_prevue) . ').' : '.')
+                ($odm->non_effectue ? 'Segment non effectué. ' : '') . 'Mission clôturée : retour réel le ' . Format::date($retour) . ($anticipe ? ' (anticipé, prévu le ' . Format::date($odm->date_retour_prevue) . ').' : '.')
                 . ($messages ? ' ' . implode(' ', $messages) : ''));
 
             $odm = $odm->fresh();
@@ -124,6 +130,40 @@ final class CloturerOdm
 
             return [$odm, $messages];
         });
+    }
+
+    /**
+     * Q109 (défaut, à confirmer par Neemba) : segment parti après le retour réel, donc non effectué. Chaque bon payé devient
+     * un trop-perçu entier (reversement ou retenue, MSG-M12-09) ; les bons non payés sont annulés ; le segment est marqué
+     * « non effectué » et sort des cumuls de la mission.
+     *
+     * @return string[]
+     */
+    private static function nonEffectue(OrdreMission $segment, User $auteur, Carbon $retour, array $regularisations): array
+    {
+        $messages = [];
+        foreach ($segment->participantsActifs()->with('bonCaisse')->get() as $participant) {
+            $bon = $participant->bonCaisse;
+            if (!$bon || !in_array($bon->statut, PaiementOdm::STATUTS_PAYES, true) || (float) $bon->montant <= 0) {
+                continue;
+            }
+            $trop = round((float) $bon->montant);
+            $mode = ($regularisations[$participant->user_id] ?? 'reversement') === 'retenue' ? 'retenue' : 'reversement';
+            $participant->update(['trop_percu' => $trop, 'regularisation' => $mode, 'regularisation_statut' => 'a_regulariser']);
+            $messages[] = "Segment {$segment->numero} non effectué : "
+                . ErreurMetier::texte('MSG-M12-09', ['montant' => $trop, 'participant' => $participant->nom])
+                . ' (' . mb_strtolower(ParticipantOdm::REGULARISATIONS[$mode]) . ')';
+        }
+
+        $nonPayes = GenererBonsOdm::bonsActifs($segment)->reject(fn (BonCaisse $b) => in_array($b->statut, PaiementOdm::STATUTS_PAYES, true));
+        if ($nonPayes->isNotEmpty()) {
+            $annules = AnnulerOdm::annulerBonsNonPayes($nonPayes, $auteur,
+                "Segment {$segment->numero} non effectué : mission terminée le " . Format::date($retour) . '.');
+            $messages[] = "Segment {$segment->numero} non effectué : bon(s) " . $annules->pluck('numero')->implode(', ') . ' annulé(s).';
+        }
+        $segment->update(['non_effectue' => true]);
+
+        return $messages;
     }
 
     /**

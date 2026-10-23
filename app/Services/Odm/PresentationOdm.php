@@ -210,6 +210,14 @@ final class PresentationOdm
             'date_depart_format' => Format::date($odm->date_depart),
             'date_retour_prevue_format' => Format::date($odm->date_retour_prevue),
             'date_retour_reelle_format' => $odm->date_retour_reelle ? Format::date($odm->date_retour_reelle) : null,
+            /* Q109, Q110 : clôture n'importe où dans la mission ; durée maximale d'une prolongation */
+            'non_effectue' => (bool) $odm->non_effectue,
+            'debut_mission' => $odm->initial()->date_depart?->toDateString(),
+            'duree_max_segment' => ReglesOdm::dureeMaxSegment(),
+            'prolongation_retour_max' => $odm->dateFin() ? ReglesOdm::retourMax($odm->dateFin()->copy()->addDay())->toDateString() : null,
+            'participants_mission' => $odm->segmentsDeLaMission()->reject(fn (OrdreMission $s) => $s->statut === 'ANNULE')
+                ->flatMap(fn (OrdreMission $s) => $s->participantsActifs()->get(['user_id', 'nom']))
+                ->unique('user_id')->map(fn (ParticipantOdm $p) => ['user_id' => $p->user_id, 'nom' => $p->nom])->values()->all(),
             'date_soumission_format' => $odm->date_soumission ? Format::dateHeure($odm->date_soumission) : null,
             'total_format' => $odm->total_format,
             'a_refacturer' => (bool) $odm->a_refacturer,
@@ -496,6 +504,8 @@ final class PresentationOdm
             /* Spec v2.4, §6.5 : types d'OR du référentiel */
             'typesOr' => \App\Models\TypeOr::options(),
             'maxParticipants' => (int) Parametre::valeur('odm_participants_max', 10),
+            /* Q110 : durée maximale d'un segment */
+            'dureeMaxSegment' => ReglesOdm::dureeMaxSegment(),
             'niveauxUrgence' => \App\Models\BonCaisse::NIVEAUX_URGENCE,
             'motifsUrgence' => \App\Models\MotifUrgence::where('actif', true)->orderBy('libelle')->pluck('libelle'),
             'dateDuJour' => today()->toDateString(),

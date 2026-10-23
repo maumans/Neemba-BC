@@ -230,4 +230,33 @@ class ProlongationOdmTest extends TestCase
         Carbon::setTestNow('2026-09-24 07:00');
         $this->artisan('odm:rappeler-fin-segment')->expectsOutput('0 rappel(s) envoyé(s).');
     }
+
+    /** Q110 (décision du 23/10) : un segment ne dépasse pas 30 jours (paramètre) ; au-delà, la mission est reconduite par une prolongation */
+    public function test_reconduction_au_dela_de_trente_jours(): void
+    {
+        $long = OrdreMission::findOrFail($this->actingAs($this->demandeur)->postJson(route('api.odm.creer'), [
+            'service' => 'Technique', 'code_analytique' => 'TECZZZ', 'technique' => false, 'but' => 'Chantier de longue durée à Kouroussa',
+            'destinations' => ['Kouroussa'], 'date_depart' => '2026-09-22', 'date_retour_prevue' => '2026-10-22', 'prise_en_charge' => 'neemba',
+            'participants' => [['user_id' => $this->yacouba->id]],
+        ])->assertCreated()->json('odm.id'));
+        $reponse = $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $long))->assertStatus(422);
+        $this->assertSame('Un segment de mission ne peut pas dépasser 30 jours : fixez le retour au 21/10/2026 au plus tard, puis prolongez la mission.',
+            $reponse->json('message'));
+        $this->actingAs($this->demandeur)->putJson(route('api.odm.enregistrer', $long), ['date_retour_prevue' => '2026-10-21'])->assertOk();
+        $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $long))->assertOk();
+
+        /* Prolongation : même limite dès la création (départ le 27/09, retour au 26/10 au plus tard) */
+        $initial = $this->odmValide();
+        $this->prolonger($initial, '2026-10-27')->assertSessionHasErrors([
+            'date_retour_prevue' => 'Un segment de mission ne peut pas dépasser 30 jours : fixez le retour au 26/10/2026 au plus tard, puis prolongez la mission.',
+        ]);
+        $this->assertFalse(OrdreMission::where('segment_precedent_id', $initial->id)->exists());
+        $this->actingAs($this->demandeur)->get(route('odm.show', $initial))
+            ->assertInertia(fn (Assert $page) => $page->where('odm.duree_max_segment', 30)->where('odm.prolongation_retour_max', '2026-10-26'));
+        $this->prolonger($initial, '2026-10-26')->assertSessionHas('success');
+
+        /* Durée paramétrable */
+        \App\Models\Parametre::majValeur('odm_duree_max_segment', '45');
+        $this->actingAs($this->demandeur)->get(route('odm.create'))->assertInertia(fn (Assert $page) => $page->where('dureeMaxSegment', 45));
+    }
 }

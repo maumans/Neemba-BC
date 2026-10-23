@@ -421,7 +421,10 @@ function Mission({ mission }) {
                                     <td className="py-2 pr-3">{s.periode}</td>
                                     <td className="py-2 pr-3 text-right tabular-nums">{s.jours}</td>
                                     <td className="py-2 pr-3 text-right tabular-nums">{s.total !== null ? formaterMontant(s.total) : '—'}</td>
-                                    <td className="py-2"><BadgeStatutOdm statut={s.statut} /></td>
+                                    <td className="py-2">
+                                        <BadgeStatutOdm statut={s.statut} />
+                                        {s.non_effectue && <span className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700">Non effectué</span>}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
@@ -470,7 +473,7 @@ function Cloturer({ odm, regularisationsPossibles }) {
     const retourMax = odm.date_retour_prevue < aujourdhui ? odm.date_retour_prevue : aujourdhui;
     const form = useForm({
         date_retour_reelle: retourMax,
-        regularisations: Object.fromEntries(odm.participants.map((p) => [p.user_id, 'reversement'])),
+        regularisations: Object.fromEntries((odm.participants_mission ?? odm.participants).map((p) => [p.user_id, 'reversement'])),
         factures_retour: {},
         factures_retour_pieces: {},
     });
@@ -491,12 +494,13 @@ function Cloturer({ odm, regularisationsPossibles }) {
                     <div className="space-y-3">
                         <div>
                             <label htmlFor="retour-reel" className="text-sm font-medium">Date de retour réelle</label>
-                            <Input id="retour-reel" type="date" className="mt-1" max={retourMax} min={odm.prolongation ? undefined : odm.date_depart}
+                            <Input id="retour-reel" type="date" className="mt-1" max={retourMax} min={odm.debut_mission ?? odm.date_depart}
                                 value={form.data.date_retour_reelle} onChange={(e) => form.setData('date_retour_reelle', e.target.value)} />
                             <p className="mt-1 text-xs text-gray-500">Au plus tard aujourd'hui.</p>
                             {odm.prolongation && (
                                 <p className="mt-1 text-xs text-gray-500" data-testid="aide-retour-prolongation">
-                                    Mission terminée avant le {odm.prolongation.depart} ? Annulez cette prolongation, puis clôturez le segment {odm.prolongation.precedent}.
+                                    Mission terminée avant le {odm.prolongation.depart} ? Saisissez le retour réel : les segments non effectués seront
+                                    remboursés en trop-perçu et leurs bons non payés annulés.
                                 </p>
                             )}
                             {(form.errors.date_retour_reelle || form.errors.general || form.errors.factures_retour) && (
@@ -509,7 +513,7 @@ function Cloturer({ odm, regularisationsPossibles }) {
                                     Retour anticipé : le calcul est refait au réel. Un participant déjà payé a un trop-perçu à régulariser ; un bon
                                     non encore payé est remplacé par un bon au montant réel.
                                 </p>
-                                {odm.participants.map((p) => (
+                                {(odm.participants_mission ?? odm.participants).map((p) => (
                                     <div key={p.user_id} className="flex flex-wrap items-center justify-between gap-2">
                                         <span>{p.nom}</span>
                                         <select aria-label={`Régularisation de ${p.nom}`} className="h-8 rounded-md border border-input bg-white px-2 text-sm"
@@ -638,7 +642,8 @@ function Prolonger({ odm }) {
                     <div>
                         <label htmlFor="retour-prolongation" className="text-sm font-medium">Nouvelle date de retour prévue</label>
                         <Input id="retour-prolongation" type="date" className="mt-1" value={form.data.date_retour_prevue}
-                            onChange={(e) => form.setData('date_retour_prevue', e.target.value)} />
+                            max={odm.prolongation_retour_max ?? undefined} onChange={(e) => form.setData('date_retour_prevue', e.target.value)} />
+                        <p className="mt-1 text-xs text-gray-500">{odm.duree_max_segment} jours au plus par segment : au-delà, une nouvelle prolongation sera nécessaire.</p>
                         {(form.errors.date_retour_prevue || form.errors.general) && (
                             <p className="mt-1 text-sm text-red-600">{form.errors.date_retour_prevue ?? form.errors.general}</p>
                         )}
@@ -742,6 +747,9 @@ export default function Show({
                             <div className="flex flex-wrap items-center gap-2">
                                 <h1 className="text-xl font-semibold text-gray-900">{odm.libelle}</h1>
                                 <BadgeStatutOdm statut={odm.statut} />
+                                {odm.non_effectue && (
+                                    <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700" data-testid="badge-non-effectue">Non effectué</span>
+                                )}
                                 {odm.a_refacturer && (
                                     <span className="rounded bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800" data-testid="badge-a-refacturer">
                                         À refacturer · {odm.montant_a_refacturer_format}

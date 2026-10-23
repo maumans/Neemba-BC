@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
  * - départ = retour du segment précédent + 1 jour (non modifiable) ; même type d'ODM ;
  * - en-tête, OR et participants repris ; un participant peut être retiré, aucun ne peut être ajouté ;
  * - nuitée de rattrapage du segment précédent pour chaque participant qui n'y était pas logé sur base vie (MSG-M12-06) ;
+ * - durée maximale d'un segment (Q110, MSG-APP-114) ; indicateur « OR à régulariser » repris (Q111) ;
  * - même circuit ; numéro propre à la soumission et libellé « Prolongation n de N°xxx » (décision Q23).
  */
 final class ProlongerOdm
@@ -51,6 +52,11 @@ final class ProlongerOdm
             if (!$dateRetour || \Carbon\Carbon::parse($dateRetour)->lessThan($depart)) {
                 throw new ErreurMetier('RETOUR_AVANT_DEPART', 'MSG-M12-02', [], 'RG-M12-06', 'date_retour_prevue');
             }
+            /* Q110 : un segment ne dépasse pas la durée maximale ; au-delà, une nouvelle prolongation */
+            if (\Carbon\Carbon::parse($dateRetour)->greaterThan(ReglesOdm::retourMax($depart))) {
+                throw new ErreurMetier('DUREE_SEGMENT', 'MSG-APP-114', ['max' => ReglesOdm::dureeMaxSegment(),
+                    'date' => ReglesOdm::retourMax($depart)->toDateString()], 'RG-M12-17', 'date_retour_prevue');
+            }
 
             $initial = $precedent->initial();
             $segment = OrdreMission::create($precedent->only([
@@ -64,6 +70,8 @@ final class ProlongerOdm
                 'rang' => $precedent->rang + 1,
                 'date_depart' => $depart->toDateString(),
                 'date_retour_prevue' => $dateRetour,
+                /* Q111 : la mission attend encore son OR ; l'indicateur tombe dès qu'un OR est rattaché */
+                'or_a_regulariser' => (bool) $precedent->or_a_regulariser,
                 'statut' => 'BROUILLON',
             ]);
 

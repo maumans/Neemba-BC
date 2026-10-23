@@ -23,6 +23,18 @@ final class ReglesOdm
     /**
      * @return array<int, array{code: string, regle: ?string, message_cle: string, valeurs: array, message: string, champ: ?string}>
      */
+    /** Décision du 23/10 (Q110) : durée maximale d'un segment (ODM initial ou prolongation), en jours */
+    public static function dureeMaxSegment(): int
+    {
+        return max(1, (int) Parametre::valeur('odm_duree_max_segment', 30));
+    }
+
+    /** Dernier retour prévu admis pour un segment qui part le $depart */
+    public static function retourMax(\Carbon\CarbonInterface $depart): \Carbon\CarbonInterface
+    {
+        return $depart->copy()->startOfDay()->addDays(self::dureeMaxSegment() - 1);
+    }
+
     public static function erreursSoumission(OrdreMission $odm): array
     {
         $erreurs = [];
@@ -76,6 +88,11 @@ final class ReglesOdm
         }
         if ($odm->date_depart && $odm->date_retour_prevue && $odm->date_retour_prevue->lessThan($odm->date_depart)) {
             $ajouter('RETOUR_AVANT_DEPART', 'MSG-M12-02', [], 'RG-M12-06', 'date_retour_prevue');
+        }
+        /* Décision du 23/10 (Q110) : au-delà de la durée maximale, la mission est reconduite par une prolongation */
+        if ($odm->date_depart && $odm->date_retour_prevue && $odm->date_retour_prevue->greaterThan(self::retourMax($odm->date_depart))) {
+            $ajouter('DUREE_SEGMENT', 'MSG-APP-114', ['max' => self::dureeMaxSegment(), 'date' => self::retourMax($odm->date_depart)->toDateString()],
+                'RG-M12-17', 'date_retour_prevue');
         }
         if ($odm->date_depart && $odm->date_depart->lessThan(today()) && mb_strlen(trim((string) $odm->motif_depart_passe)) < 1) {
             $ajouter('MOTIF_DEPART_PASSE', 'MSG-APP-015', [], 'RG-M12-06', 'motif_depart_passe');

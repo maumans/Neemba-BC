@@ -338,10 +338,8 @@ class ClotureOdmTest extends TestCase
         $this->assertSame('2026-10-07', $bp->date_limite_regularisation->toDateString());   // 3 jours ouvrés après le samedi 03/10
         $this->assertTrue($bp->historiqueActions()->where('commentaire', 'like', "Prolongation {$segment->fresh()->numero} validée%")->exists());
 
-        /* Retour réel avant le départ de la prolongation : message explicite */
+        /* Un retour réel antérieur à la prolongation est traité au test « retour avant une prolongation » (Q109) */
         Carbon::setTestNow('2026-10-04 08:00');
-        $this->actingAs($this->demandeur)->post(route('odm.cloturer', $segment), ['date_retour_reelle' => '2026-09-26'])
-            ->assertSessionHasErrors(['date_retour_reelle' => "Le retour réel (26/09/2026) précède le départ de cette prolongation (27/09/2026) : annulez d'abord la prolongation, puis clôturez le segment {$odm->numero}."]);
 
         /* Retour anticipé le 01/10 : toute la mission est clôturée ; l'échéance du BP part du retour réel */
         $this->actingAs($this->demandeur)->post(route('odm.cloturer', $segment), ['date_retour_reelle' => '2026-10-01'])->assertSessionHas('success');
@@ -351,5 +349,70 @@ class ClotureOdmTest extends TestCase
         $this->assertSame('2026-10-01', $bp->date_retour_mission->toDateString());
         $this->assertSame('2026-10-07', $bp->date_limite_regularisation->toDateString());   // 3 jours ouvrés après le 01/10 (02/10 férié : fête de l'indépendance)
         $this->actingAs($this->demandeur)->get(route('odm.show', $odm))->assertInertia(fn (Assert $page) => $page->where('peutCloturer', false)->where('peutProlonger', false));
+    }
+
+    /** Prolongation du 27/09 au 03/10 de l'ODM B.1 (un participant), validée, ses bons générés */
+    private function prolongationAvecBons(OrdreMission $odm): OrdreMission
+    {
+        Carbon::setTestNow('2026-09-24 08:00');
+        $this->actingAs($this->demandeur)->post(route('odm.prolonger', $odm), ['date_retour_prevue' => '2026-10-03'])->assertSessionHas('success');
+        $segment = OrdreMission::where('segment_precedent_id', $odm->id)->sole();
+        $this->actingAs($this->demandeur)->postJson(route('api.odm.soumettre', $segment))->assertOk();
+        foreach ([$this->chefAtelier, $this->daf, $this->dp] as $valideur) {
+            $this->actingAs($valideur)->post(route('odm.viser', $segment));
+        }
+        $this->actingAs($this->demandeur)->post(route('odm.generer-bons', $segment))->assertSessionHas('success');
+
+        return $segment->fresh();
+    }
+
+    /** Q109 (défaut, à confirmer par Neemba) : mission terminée avant le départ d'une prolongation payée */
+    public function test_retour_avant_une_prolongation_payee(): void
+    {
+        $odm = $this->odmAvecBons(participants: [['user_id' => $this->thierno->id]]);   // 22/09 → 26/09
+        $this->payer($this->bonDe($this->thierno));
+        $segment = $this->prolongationAvecBons($odm);
+        $bonSegment = BonCaisse::where('odm_id', $segment->id)->sole();
+        $this->payer($bonSegment);
+
+        /* Retour réel le 25/09, dans le segment 1 */
+        $this->cloturer($segment, '2026-09-25')->assertSessionHas('success');
+        $odm->refresh();
+        $segment->refresh();
+        $this->assertSame(['CLOTURE', 'CLOTURE'], [$odm->statut, $segment->statut]);
+        $this->assertTrue($segment->non_effectue);
+        $this->assertFalse($odm->non_effectue);
+        $this->assertSame('2026-09-25', $odm->date_retour_reelle->toDateString());
+
+        /* Prolongation non effectuée : trop-perçu entier ; segment 1 : un jour et une nuit de trop (250 000 + 500 000) */
+        $this->assertEquals((float) $bonSegment->montant, (float) $segment->participantsActifs()->sole()->trop_percu);
+        $this->assertSame('a_regulariser', $segment->participantsActifs()->sole()->regularisation_statut);
+        $this->assertEquals(750000, (float) $odm->participantsActifs()->sole()->trop_percu);
+        $this->assertSame('PAYE', $bonSegment->fresh()->statut);
+
+        /* Vue mission : le segment non effectué est affiché, hors cumuls */
+        $mission = \App\Services\Odm\VueMission::pour($odm);
+        $this->assertSame(4, $mission['jours']);
+        $this->assertTrue($mission['segments'][1]['non_effectue']);
+        $this->assertSame([], $mission['incoherences']);
+        $this->assertTrue($segment->historique()->where('commentaire', 'like', 'Segment non effectué%')->exists());
+    }
+
+    /** Q109 : prolongation validée mais non payée : ses bons sont annulés */
+    public function test_retour_avant_une_prolongation_non_payee(): void
+    {
+        $odm = $this->odmAvecBons(participants: [['user_id' => $this->thierno->id]]);
+        $this->payer($this->bonDe($this->thierno));
+        $segment = $this->prolongationAvecBons($odm);
+
+        /* Avant le départ de la mission : refusé */
+        $this->cloturer($segment, '2026-09-20')->assertSessionHasErrors('date_retour_reelle');
+
+        $this->cloturer($segment, '2026-09-26')->assertSessionHas('success');   // retour à la date prévue du segment 1
+        $this->assertSame('ANNULE', BonCaisse::where('odm_id', $segment->id)->sole()->statut);
+        $this->assertNull($segment->participantsActifs()->sole()->trop_percu);
+        $this->assertNull($odm->participantsActifs()->sole()->trop_percu);
+        $this->assertTrue($segment->fresh()->non_effectue);
+        $this->assertSame('2026-09-26', $odm->fresh()->date_retour_reelle->toDateString());
     }
 }

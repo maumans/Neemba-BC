@@ -42,6 +42,7 @@ import {
     joursDeMission,
     natureTechniqueParDefaut,
     retourAvantDepart,
+    retourMaxSegment,
     STATUTS_CADRE,
 } from '@/utils/odm';
 
@@ -84,6 +85,7 @@ function aDuContenu(form) {
 export default function Formulaire({
     odm = null, defauts = null, services = [], codesAnalytiques = [], types = {},
     hebergementsExterieurs = {}, typesOr = {}, maxParticipants = 10, dateDuJour, niveauxUrgence = {}, motifsUrgence = [], tauxEnVigueur = null,
+    dureeMaxSegment = 30,
 }) {
     const [form, setForm] = useState(() => etatInitial(odm, defauts));
     const [odmId, setOdmId] = useState(odm?.id ?? null);
@@ -113,6 +115,9 @@ export default function Formulaire({
     const erreurDe = (champ) => erreursSaisie[champ]?.[0] ?? erreursParChamp[champ]?.[0] ?? null;
     const codes = useMemo(() => codesDuServiceOdm(codesAnalytiques, services, form.service), [codesAnalytiques, services, form.service]);
     const jours = joursDeMission(form.date_depart, form.date_retour_prevue);
+    /* Q110 : au-delà de la durée maximale, la mission est reconduite par une prolongation */
+    const retourMax = retourMaxSegment(form.date_depart, dureeMaxSegment);
+    const tropLong = jours > dureeMaxSegment;
 
     const changer = (champ, valeur) => {
         modifie.current = true;
@@ -389,9 +394,11 @@ export default function Formulaire({
                                     <Input id="champ-date_depart" type="date" value={form.date_depart ?? ''} onChange={(e) => changer('date_depart', e.target.value)} disabled={Boolean(prolongation)} />
                                 </Champ>
                                 <Champ champ="date_retour_prevue" libelle="Retour prévu" obligatoire
-                                    erreur={erreurDe('date_retour_prevue') ?? (retourAvantDepart(form.date_depart, form.date_retour_prevue) ? msg('MSG-M12-02') : null)}>
+                                    erreur={erreurDe('date_retour_prevue') ?? (retourAvantDepart(form.date_depart, form.date_retour_prevue) ? msg('MSG-M12-02')
+                                        : (tropLong ? msg('MSG-APP-114', { max: dureeMaxSegment, date: retourMax }) : null))}>
                                     <Input id="champ-date_retour_prevue" type="date" value={form.date_retour_prevue ?? ''} min={form.date_depart || undefined}
-                                        onChange={(e) => changer('date_retour_prevue', e.target.value)} />
+                                        max={retourMax || undefined} onChange={(e) => changer('date_retour_prevue', e.target.value)} />
+                                    <p className="mt-1 text-xs text-gray-500">{dureeMaxSegment} jours au plus par segment : au-delà, prolongez la mission.</p>
                                 </Champ>
                                 {passe && (
                                     <Champ champ="motif_depart_passe" libelle="Motif (départ dans le passé)" obligatoire erreur={erreurDe('motif_depart_passe')} className="sm:col-span-2">

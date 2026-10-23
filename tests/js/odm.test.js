@@ -12,6 +12,7 @@ import {
     joursDeMission,
     natureTechniqueParDefaut,
     retourAvantDepart,
+    retourMaxSegment,
     appliquerRepartition,
     avertissementPart,
     choisirOrDeLaPart,
@@ -53,6 +54,13 @@ describe('Ordres de mission — saisie (M12-2)', () => {
         expect(joursDeMission('2026-09-22', '2026-09-26')).toBe(5);      // annexe B.1
         expect(joursDeMission('2026-09-27', '2026-10-03')).toBe(7);      // annexe B.3
         expect(joursDeMission('2026-09-26', '2026-09-22')).toBe(0);
+    });
+
+    it('donne le dernier retour admis d\'un segment (Q110, 30 jours au plus)', () => {
+        expect(retourMaxSegment('2026-10-22', 30)).toBe('2026-11-20');
+        expect(joursDeMission('2026-10-22', retourMaxSegment('2026-10-22', 30))).toBe(30);
+        expect(retourMaxSegment('2026-12-15', 30)).toBe('2027-01-13');
+        expect(retourMaxSegment('', 30)).toBe('');
     });
 
     it('pré-coche la nature technique pour Technique et Aftermarket (PO-06) et filtre les codes du service', () => {

@@ -53,6 +53,14 @@ export function retourAvantDepart(dateDepart, dateRetour) {
     return Boolean(dateDepart && dateRetour && dateRetour < dateDepart);
 }
 
+/** Q110 : dernier retour prévu admis pour un segment qui part le `dateDepart` (durée maximale `dureeMax` jours) */
+export function retourMaxSegment(dateDepart, dureeMax) {
+    if (!dateDepart || !dureeMax) return '';
+    const jour = 24 * 60 * 60 * 1000;
+
+    return new Date(Date.parse(`${dateDepart}T00:00:00Z`) + (dureeMax - 1) * jour).toISOString().slice(0, 10);
+}
+
 /** Jours de mission pour l'affichage immédiat (le serveur recalcule) : retour − départ + 1 */
 export function joursDeMission(dateDepart, dateRetour) {
     if (!dateDepart || !dateRetour || dateRetour < dateDepart) return 0;
