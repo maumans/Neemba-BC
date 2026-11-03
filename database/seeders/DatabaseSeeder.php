@@ -20,6 +20,9 @@ class DatabaseSeeder extends Seeder
             NeembaSeeder::class,
         ]); */
 
+        /* Sites, caisses et types de documents, sans données de démonstration ; le reste vient de l'import des référentiels */
+        $this->call(StructureNeembaSeeder::class);
+
         User::create([
             'name'       => 'Neemba',
             'prenom'     => 'Admin',

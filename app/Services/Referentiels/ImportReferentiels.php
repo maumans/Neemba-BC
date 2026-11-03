@@ -818,6 +818,12 @@ class ImportReferentiels
     /** Caisse du classeur : la seule du site pour ce type, sinon par libellé, sinon par mode (avance fixe ou standard) */
     private function caisse(Site $site, string $type, string $libelle, string $modeReapprovisionnement): ?Caisse
     {
+        /* Spec v2.4, RG-M02-11 : la caisse Orange Money n'a pas de site ; elle est unique */
+        if ($type === 'orange_money') {
+            $om = Caisse::where('type', 'orange_money')->get();
+
+            return $om->count() === 1 ? $om->first() : null;
+        }
         $caisses = Caisse::whereHas('sites', fn ($q) => $q->whereKey($site->id))->where('type', $type)->get();
         if ($caisses->count() === 1) {
             return $caisses->first();
