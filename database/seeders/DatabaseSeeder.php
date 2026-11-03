@@ -3,13 +3,13 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
+    /* Pas de WithoutModelEvents : à la création d'un compte, User remplit son entité (Neemba Guinée par défaut,
+     * RG-M01-02) et enregistre ses rôles (rôle principal et « demandeur ») */
 
     /**
      * Seed the application's database.
