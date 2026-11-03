@@ -28,18 +28,21 @@ class OdmApiController extends Controller
     /** GET /api/v1/odm/employes?q= — participants : salariés actifs, avec ce que l'ODM reprend du référentiel (RG-M12-04) */
     public function employes(Request $request): JsonResponse
     {
+        /* Sans saisie : les salariés actifs par ordre alphabétique (liste ouverte au clic) ; « plus » invite à affiner */
         $recherche = trim((string) $request->query('q'));
-        if (mb_strlen($recherche) < 2) {
-            return response()->json(['resultats' => []]);
-        }
+        $limite = 50;
 
-        $resultats = User::actifs()
-            ->where(fn ($q) => $q->where('name', 'like', "%{$recherche}%")
+        $salaries = User::actifs()
+            ->when($recherche !== '', fn ($requete) => $requete->where(fn ($q) => $q->where('name', 'like', "%{$recherche}%")
                 ->orWhere('prenom', 'like', "%{$recherche}%")
-                ->orWhere('matricule', 'like', "%{$recherche}%"))
+                ->orWhere('matricule', 'like', "%{$recherche}%")))
             ->orderBy('name')
-            ->limit(20)
-            ->get()
+            ->orderBy('prenom')
+            ->limit($limite + 1)
+            ->get();
+        $plus = $salaries->count() > $limite;
+
+        $resultats = $salaries->take($limite)
             ->map(fn (User $u) => [
                 'user_id' => $u->id,
                 'nom' => trim(mb_strtoupper($u->name) . ' ' . $u->prenom),
@@ -48,9 +51,10 @@ class OdmApiController extends Controller
                 'service' => $u->service,
                 'statut_cadre' => $u->statut_cadre,
                 'numero_om' => $u->numero_om,
-            ]);
+            ])
+            ->values();
 
-        return response()->json(['resultats' => $resultats]);
+        return response()->json(['resultats' => $resultats, 'plus' => $plus]);
     }
 
     /** POST /api/v1/odm — création du brouillon */
