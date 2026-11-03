@@ -5954,3 +5954,32 @@ Branche `v23-conformite`. Commits locaux, non poussés, non déployés.
   - tableau de bord DAF.
   - Dans la copie, les ODM N°7 à N°10/DIR/26 ont été annulés : ils couvrent les mêmes participants à ces dates, et le contrôle de chevauchement (RG-M12-16) bloquait le renouvellement, comme il se doit.
 - Le serveur Vite (`npm run dev`) ne répondait plus pendant le parcours ; `public/hot` a été mis de côté puis remis.
+
+---
+
+## 68. Version v68 — Participants d'un ODM : liste ouverte au clic (3 Novembre 2026)
+
+### 68.1 Demande
+
+Le champ « Ajouter un participant » du formulaire d'ODM n'affichait rien tant qu'on n'avait pas tapé 2 caractères. L'utilisateur s'attend à voir les salariés dès le clic, puis à voir la liste se filtrer pendant la frappe.
+
+### 68.2 Changements
+
+- **API** (`OdmApiController::employes`) :
+  - sans saisie, renvoie les salariés actifs par ordre alphabétique ;
+  - avec saisie, filtre sur le nom, le prénom ou le matricule dès le premier caractère ;
+  - 50 résultats au plus, et `plus: true` quand il en reste.
+- **Champ** (`RechercheParticipant.jsx`) :
+  - la liste s'ouvre au focus ou au clic, et se recharge 300 ms après la dernière touche ;
+  - elle se ferme sur Échap, sur un clic en dehors ou après un choix ;
+  - les salariés déjà ajoutés restent grisés ;
+  - « Tapez un nom pour affiner… » s'affiche au-delà de 50 salariés.
+
+### 68.3 Vérifications
+
+- `tests/Feature/M12/RechercheParticipantsTest.php` (3 tests) : liste sans saisie limitée aux salariés actifs, filtre, limite à 50. Suite M12 : 116 tests.
+- **Parcours Edge** sur une copie de la base :
+  - 21 salariés au clic ;
+  - 9 après « ba » ;
+  - choix d'un salarié, qui apparaît ensuite grisé ;
+  - fermeture par Échap et par un clic en dehors.
