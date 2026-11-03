@@ -53,20 +53,19 @@ export default function ModificationsEnAttente({
     modifications,
     stats = {},
     types  = {},
+    filtreStatut = 'en_attente',
 }) {
     const { auth, flash } = usePage().props;
     const userId = auth.user?.id;
 
-    /* Filtre statut côté client */
-    const [filtreStatut, setFiltreStatut] = useState('en_attente');
+    /* Filtre statut côté serveur : il porte sur toutes les pages */
+    const setFiltreStatut = (statut) => router.get(route('admin.modifications-en-attente.index'), { statut }, { preserveState: true, preserveScroll: true });
 
     /* Formulaire commentaire inline pour Approuver/Refuser */
     const [actionEnCours, setActionEnCours] = useState(null); // { id, type: 'approuver'|'refuser' }
     const commentaireForm = useForm({ commentaire: '' });
 
-    const donneesAffichees = filtreStatut === 'tous'
-        ? modifications.data
-        : modifications.data.filter(m => m.statut === filtreStatut);
+    const donneesAffichees = modifications.data;
 
     const formatDate = (d) => d ? new Date(d).toLocaleDateString('fr-FR', {
         day: '2-digit', month: '2-digit', year: 'numeric',

@@ -644,11 +644,16 @@ class ParametrageController extends Controller
      * Liste des modifications en attente de validation
      * Accessible : administrateur uniquement
      */
-    public function modificationsEnAttente()
+    public function modificationsEnAttente(\Illuminate\Http\Request $request)
     {
+        /* Filtre par statut côté serveur (en attente par défaut) : filtrer la seule page affichée cachait les demandes
+         * en attente des pages suivantes */
+        $statut = in_array($request->input('statut'), ['en_attente', 'approuvee', 'refusee', 'tous'], true) ? $request->input('statut') : 'en_attente';
         $modifications = \App\Models\ModificationEnAttente::with('demandeur', 'valideur')
+            ->when($statut !== 'tous', fn ($q) => $q->where('statut', $statut))
             ->latest()
-            ->paginate(20);
+            ->paginate(20)
+            ->withQueryString();
 
         $stats = [
             'en_attente' => \App\Models\ModificationEnAttente::where('statut', 'en_attente')->count(),
@@ -658,6 +663,7 @@ class ParametrageController extends Controller
 
         return \Inertia\Inertia::render('Admin/ModificationsEnAttente', [
             'modifications' => $modifications,
+            'filtreStatut'  => $statut,
             'stats'         => $stats,
             'types'         => \App\Models\ModificationEnAttente::TYPES_CRITIQUES,
         ]);

@@ -87,4 +87,24 @@ class DemandesEtJustificationsTest extends TestCase
         $this->actingAs($daf)->get(route('validations.index'))->assertInertia(fn (Assert $page) => $page->has('justificationsAViser', 0));
         $this->actingAs(User::factory()->create())->get(route('validations.index'))->assertForbidden();
     }
+
+    /** Les demandes en attente se voient même quand les modifications déjà traitées remplissent la première page */
+    public function test_les_demandes_en_attente_ne_sont_pas_cachees_par_la_pagination(): void
+    {
+        $baba = User::factory()->role('administrateur')->create();
+        $autre = User::factory()->role('administrateur')->create();
+        $attente = ModificationEnAttente::create(['type_entite' => 'parametre', 'entite_id' => 1, 'champ' => 'valeur', 'ancienne_valeur' => '1',
+            'nouvelle_valeur' => '2', 'demandeur_id' => $autre->id, 'statut' => 'en_attente']);
+        foreach (range(1, 25) as $i) {
+            ModificationEnAttente::create(['type_entite' => 'parametre', 'entite_id' => 1, 'champ' => 'valeur', 'ancienne_valeur' => '1',
+                'nouvelle_valeur' => (string) $i, 'demandeur_id' => $autre->id, 'valideur_id' => $baba->id, 'statut' => 'approuvee']);
+        }
+
+        $this->actingAs($baba)->get(route('admin.modifications-en-attente.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('filtreStatut', 'en_attente')->has('modifications.data', 1)->where('modifications.data.0.id', $attente->id));
+        $this->actingAs($baba)->get(route('admin.modifications-en-attente.index', ['statut' => 'approuvee']))->assertInertia(fn (Assert $page) => $page
+            ->has('modifications.data', 20)->where('modifications.total', 25));
+        $this->actingAs($baba)->get(route('admin.modifications-en-attente.index', ['statut' => 'tous']))->assertInertia(fn (Assert $page) => $page
+            ->where('modifications.total', 26));
+    }
 }
